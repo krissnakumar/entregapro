@@ -1,0 +1,12 @@
+{
+  "name": "rn-apps",
+  "private": true,
+  "scripts": {
+    "driver": "cd apps/driver && npx expo start",
+    "dispatcher": "cd apps/dispatcher && npx expo start",
+    "admin": "cd apps/admin && npx expo start",
+    "build:driver": "cd apps/driver && npx expo build",
+    "build:dispatcher": "cd apps/dispatcher && npx expo build",
+    "build:admin": "cd apps/admin && npx expo build"
+  }
+}

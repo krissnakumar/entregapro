@@ -1,0 +1,78 @@
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useAuthStore } from './store/useAuthStore';
+import { ThemeProvider } from './store/ThemeProvider';
+import { Toaster } from 'sonner';
+import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import PublicTracking from './pages/PublicTracking';
+import AdminDashboard from './pages/AdminDashboard';
+import DispatcherDashboard from './pages/DispatcherDashboard';
+import DriverDashboard from './pages/DriverDashboard';
+import { Role } from './types';
+
+const queryClient = new QueryClient();
+
+const ProtectedRoute = ({ children, roles }: { children: React.ReactNode, roles?: Role[] }) => {
+  const { user, token } = useAuthStore();
+
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+const AppRoutes = () => {
+  const { user } = useAuthStore();
+
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/tracking/:id" element={<PublicTracking />} />
+      
+      <Route
+        path="/dashboard/*"
+        element={
+          <ProtectedRoute>
+            {user?.role === Role.DISPATCHER ? (
+              <DispatcherDashboard />
+            ) : user?.role === Role.ADMIN || 
+             user?.role === Role.SUPER_ADMIN || 
+             user?.role === Role.ACCOUNTANT || 
+             window.location.pathname.includes('/users') || 
+             window.location.pathname.includes('/roles') || 
+             window.location.pathname.includes('/invoices') || 
+             window.location.pathname.includes('/reports') || 
+             window.location.pathname.includes('/deliveries') || 
+             window.location.pathname.includes('/fuel') || 
+             window.location.pathname.includes('/loading') ? (
+              <AdminDashboard />
+            ) : (
+              <DriverDashboard />
+            )}
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
+  );
+};
+
+function App() {
+  return (
+    <ThemeProvider defaultTheme="light" storageKey="entregapro-ui-theme">
+      <QueryClientProvider client={queryClient}>
+        <Router>
+          <AppRoutes />
+        </Router>
+        <Toaster richColors position="top-right" />
+      </QueryClientProvider>
+    </ThemeProvider>
+  );
+}
+
+export default App;

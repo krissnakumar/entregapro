@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "EntregaPRO - Motorista",
+    "slug": "entregapro-driver",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#4F46E5",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.entregapro.driver"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#4F46E5"
+      },
+      "package": "com.entregapro.driver"
+    },
+    "plugins": [
+      "expo-location",
+      "expo-camera",
+      "expo-secure-store"
+    ]
+  }
+}
