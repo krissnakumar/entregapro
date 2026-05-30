@@ -1,7 +1,15 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // Android emulator uses 10.0.2.2 to reach host machine localhost
+// Physical devices need the debugger host IP address
 const getBaseUrl = (): string => {
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const ip = hostUri.split(':')[0];
+    return `http://${ip}:3001`;
+  }
+
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:3001';
   }

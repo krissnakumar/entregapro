@@ -1,8 +1,15 @@
 import { io, Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { getAuthToken } from '../store/authStore';
 
 const getSocketUrl = (): string => {
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const ip = hostUri.split(':')[0];
+    return `http://${ip}:3001`;
+  }
+
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:3001';
   }

@@ -1,0 +1,23 @@
+services:
+  # EntregaPRO NestJS Backend API
+  - type: web
+    name: entregapro-api
+    env: node
+    plan: free
+    buildCommand: "npm i -g pnpm && pnpm install && pnpm --filter api run prisma:generate && pnpm --filter api run prisma:migrate:deploy && pnpm --filter api run build"
+    startCommand: "pnpm --filter api run start:prod"
+    envVars:
+      - key: NODE_VERSION
+        value: 24.15.0
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        sync: false # Set this in Render Dashboard to your Supabase pooling URL
+      - key: DIRECT_URL
+        sync: false # Set this in Render Dashboard to your Supabase direct connection URL
+      - key: JWT_SECRET
+        value: "super-secret-key-for-production"
+      - key: JWT_REFRESH_SECRET
+        value: "another-super-secret-key-for-refresh"
+      - key: ALLOWED_ORIGINS
+        sync: false # Set this in Render Dashboard to your Vercel frontend URL
