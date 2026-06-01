@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
-import { Search, Plus, Truck, Calendar, Gauge, Settings, Layers, Activity, AlertCircle, Wrench, FileText, CheckCircle2, FileCheck } from 'lucide-react';
+import { Search, Plus, Truck, Calendar, Gauge, Settings, Layers, Activity, AlertCircle, Wrench, FileText, CheckCircle2, FileCheck, Edit, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import VehicleFormModal from './VehicleFormModal';
 import VehicleLogsModal from './VehicleLogsModal';
@@ -22,11 +22,13 @@ interface Vehicle {
 const INITIAL_VEHICLES: Vehicle[] = [];
 
 const VehiclesList = () => {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('Todos');
   const [statusFilter, setStatusFilter] = useState<string>('Todos');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [vehicleToEdit, setVehicleToEdit] = useState<Vehicle | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
 
@@ -47,6 +49,17 @@ const VehiclesList = () => {
       return res;
     },
     retry: false,
+  });
+
+  const deleteVehicleMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/vehicles/${id}`),
+    onSuccess: () => {
+      toast.success('Ativo frotista excluído com sucesso.');
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Falha ao excluir o veículo da frota.');
+    }
   });
 
   // Interpolação inteligente que preza pela estabilidade
@@ -81,11 +94,27 @@ const VehiclesList = () => {
   };
 
   const handleStatusToggle = (vehicleId: string, nextStatus: Vehicle['status']) => {
-    setLocalVehicles(prev => prev.map(v => v.id === vehicleId ? { ...v, status: nextStatus } : v));
-    toast.success(`Situação operacional atualizada para: ${
-      nextStatus === 'active' ? 'Em Operação' : 
-      nextStatus === 'maintenance' ? 'Em Manutenção' : 'Inoperante'
-    }`);
+    // If backend update available:
+    api.patch(`/vehicles/${vehicleId}`, { activeStatus: nextStatus === 'active' })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+        toast.success(`Situação operacional atualizada.`);
+      })
+      .catch(() => {
+        setLocalVehicles(prev => prev.map(v => v.id === vehicleId ? { ...v, status: nextStatus } : v));
+        toast.success(`Situação operacional atualizada localmente.`);
+      });
+  };
+
+  const handleDeleteVehicle = (id: string) => {
+    if (confirm('Tem certeza de que deseja remover este veículo de sua frota operacional?')) {
+      deleteVehicleMutation.mutate(id);
+    }
+  };
+
+  const handleEditVehicle = (vehicle: Vehicle) => {
+    setVehicleToEdit(vehicle);
+    setIsModalOpen(true);
   };
 
   const handleVehicleCreated = (newVehicle: Vehicle) => {
@@ -126,7 +155,10 @@ const VehiclesList = () => {
             />
           </div>
           <button 
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => {
+              setVehicleToEdit(null);
+              setIsModalOpen(true);
+            }}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer outline-none shrink-0"
           >
             <Plus size={16} className="shrink-0" />
@@ -307,6 +339,20 @@ const VehiclesList = () => {
                             <FileText size={12} />
                             <span>O.S.</span>
                           </button>
+                          <button 
+                            onClick={() => handleEditVehicle(vehicle)}
+                            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-indigo-600 rounded-lg hover:scale-105 transition-all outline-none"
+                            title="Editar Ativo"
+                          >
+                            <Edit size={13} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteVehicle(vehicle.id)}
+                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg hover:scale-105 transition-all outline-none"
+                            title="Excluir Ativo"
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -330,8 +376,12 @@ const VehiclesList = () => {
 
       <VehicleFormModal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+        onClose={() => {
+          setIsModalOpen(false);
+          setVehicleToEdit(null);
+        }} 
         onVehicleCreated={handleVehicleCreated}
+        vehicleToEdit={vehicleToEdit}
       />
 
       <VehicleLogsModal 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
-import { Search, Plus, MapPin, Truck, Star, Phone, ShieldCheck, AlertTriangle, UserCheck, X, Award, CheckCircle2, Filter, FileCheck } from 'lucide-react';
+import { Search, Plus, MapPin, Truck, Star, Phone, ShieldCheck, AlertTriangle, UserCheck, X, Award, CheckCircle2, Filter, FileCheck, Edit, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { DocumentVaultModal } from './DocumentVaultModal';
 import { toast } from 'sonner';
@@ -34,6 +34,7 @@ const DriversList = () => {
   
   // Controle do modal interno de cadastro rápido
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [newDriver, setNewDriver] = useState({
     name: '',
     phone: '',
@@ -86,6 +87,37 @@ const DriversList = () => {
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
     },
   });
+
+  const deleteDriverMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/drivers/${id}`),
+    onSuccess: () => {
+      toast.success('Prontuário de condutor removido com sucesso.');
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Falha ao remover prontuário do condutor.');
+    }
+  });
+
+  const handleDeleteDriver = (id: string) => {
+    if (confirm('Deseja realmente revogar o credenciamento e excluir este motorista do prontuário operacional?')) {
+      deleteDriverMutation.mutate(id);
+    }
+  };
+
+  const handleEditDriver = (driver: Driver) => {
+    setEditingDriver(driver);
+    setNewDriver({
+      name: driver.name || '',
+      phone: driver.phone || '',
+      cnhNumber: driver.cnhNumber || '',
+      cnhCategory: driver.cnhCategory || 'E',
+      cnhExpiration: driver.cnhExpiration ? new Date(driver.cnhExpiration).toISOString().split('T')[0] : '',
+      vehicleId: driver.currentVehicle?.id || '',
+    });
+    setIsModalOpen(true);
+  };
 
   const getAvailableVehicles = (currentVehicleId?: string) => {
     if (!vehicles) return [];
@@ -148,33 +180,52 @@ const DriversList = () => {
     });
   };
 
-  const handleCreateDriver = (e: React.FormEvent) => {
+  const handleSubmitDriver = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDriver.name || !newDriver.cnhNumber || !newDriver.cnhExpiration) {
       toast.error('Preencha os campos obrigatórios de qualificação do condutor.');
       return;
     }
 
-    createDriverMutation.mutate(
-      {
-        name: newDriver.name,
-        phone: newDriver.phone || '(11) 99999-0000',
-        cnhNumber: newDriver.cnhNumber,
-        cnhCategory: newDriver.cnhCategory,
-        cnhExpiration: newDriver.cnhExpiration,
-        vehicleId: newDriver.vehicleId || null,
-      },
-      {
-        onSuccess: () => {
-          toast.success(`Condutor ${newDriver.name} averbado com sucesso no prontuário de frota.`);
-          setIsModalOpen(false);
-          setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '' });
+    const payload = {
+      name: newDriver.name,
+      phone: newDriver.phone || '(11) 99999-0000',
+      cnhNumber: newDriver.cnhNumber,
+      cnhCategory: newDriver.cnhCategory,
+      cnhExpiration: newDriver.cnhExpiration ? new Date(newDriver.cnhExpiration).toISOString() : null,
+      vehicleId: newDriver.vehicleId || null,
+    };
+
+    if (editingDriver) {
+      updateDriverMutation.mutate(
+        { id: editingDriver.id, payload },
+        {
+          onSuccess: () => {
+            toast.success(`Motorista ${newDriver.name} atualizado com sucesso no prontuário.`);
+            setIsModalOpen(false);
+            setEditingDriver(null);
+            setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '' });
+          },
+          onError: (err: any) => {
+            toast.error(err.message || 'Falha ao atualizar o condutor.');
+          }
+        }
+      );
+    } else {
+      createDriverMutation.mutate(
+        payload,
+        {
+          onSuccess: () => {
+            toast.success(`Condutor ${newDriver.name} averbado com sucesso no prontuário de frota.`);
+            setIsModalOpen(false);
+            setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '' });
+          },
+          onError: () => {
+            toast.error('Falha ao averbar condutor no backend.');
+          },
         },
-        onError: () => {
-          toast.error('Falha ao averbar condutor no backend.');
-        },
-      },
-    );
+      );
+    }
   };
 
   const handleUpdateStatus = (driverId: string, nextStatus: any) => {
@@ -218,7 +269,11 @@ const DriversList = () => {
           </div>
 
           <button 
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => {
+              setEditingDriver(null);
+              setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '' });
+              setIsModalOpen(true);
+            }}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer outline-none shrink-0"
           >
             <Plus size={16} className="shrink-0" />
@@ -420,14 +475,30 @@ const DriversList = () => {
                         </span>
                       </td>
                       <td className="p-5 text-right whitespace-nowrap">
-                        <button
-                          onClick={() => handleOpenVault(driver)}
-                          className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer outline-none shrink-0 ml-auto"
-                          title="Dossiê de CNH, ASO e Gerenciamento de Risco"
-                        >
-                          <FileCheck size={12} className="text-indigo-600" />
-                          <span>Certidões</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleOpenVault(driver)}
+                            className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer outline-none shrink-0"
+                            title="Dossiê de CNH, ASO e Gerenciamento de Risco"
+                          >
+                            <FileCheck size={12} className="text-indigo-600" />
+                            <span>Certidões</span>
+                          </button>
+                          <button
+                            onClick={() => handleEditDriver(driver)}
+                            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-indigo-600 rounded-lg hover:scale-105 transition-all outline-none"
+                            title="Editar Motorista"
+                          >
+                            <Edit size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteDriver(driver.id)}
+                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg hover:scale-105 transition-all outline-none"
+                            title="Excluir Motorista"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -460,8 +531,12 @@ const DriversList = () => {
                   <ShieldCheck size={18} />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 leading-none">Averbar Motorista</h3>
-                  <p className="text-[11px] font-medium text-slate-400 mt-0.5">Credenciamento e CNH corporativa</p>
+                  <h3 className="text-base font-bold text-slate-900 leading-none">
+                    {editingDriver ? 'Editar Motorista' : 'Averbar Motorista'}
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-400 mt-0.5">
+                    {editingDriver ? 'Modificação do prontuário operacional do condutor' : 'Credenciamento e CNH corporativa'}
+                  </p>
                 </div>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-xl transition-colors cursor-pointer outline-none">
@@ -469,7 +544,7 @@ const DriversList = () => {
               </button>
             </div>
 
-            <form onSubmit={handleCreateDriver} className="p-6 space-y-4 bg-white flex-1 overflow-y-auto">
+            <form onSubmit={handleSubmitDriver} className="p-6 space-y-4 bg-white flex-1 overflow-y-auto">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Nome Completo do Condutor *</label>
                 <input
@@ -540,7 +615,7 @@ const DriversList = () => {
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 transition-all cursor-pointer"
                 >
                   <option value="">Nenhum Veículo Alocado</option>
-                  {getAvailableVehicles().map((v) => (
+                  {getAvailableVehicles(editingDriver?.currentVehicle?.id).map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.type} ({v.vehicleNumber})
                     </option>
@@ -561,7 +636,7 @@ const DriversList = () => {
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1 cursor-pointer outline-none"
                 >
                   <CheckCircle2 size={14} />
-                  <span>Concluir Cadastro</span>
+                  <span>{editingDriver ? 'Salvar Alterações' : 'Concluir Cadastro'}</span>
                 </button>
               </div>
             </form>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Truck, Gauge, Fuel, Loader2, Calendar, ShieldCheck, Sparkles, CheckCircle2 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
@@ -9,9 +9,10 @@ interface VehicleFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   onVehicleCreated?: (newVehicle: any) => void;
+  vehicleToEdit?: any | null;
 }
 
-const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated }: VehicleFormModalProps) => {
+const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated, vehicleToEdit }: VehicleFormModalProps) => {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     vehicleNumber: '',
@@ -22,8 +23,30 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated }: VehicleFormModa
     maintenanceDue: '',
   });
 
+  useEffect(() => {
+    if (vehicleToEdit) {
+      setFormData({
+        vehicleNumber: vehicleToEdit.vehicleNumber || '',
+        type: vehicleToEdit.type || 'Caminhão Betoneira',
+        capacity: String(vehicleToEdit.capacity || ''),
+        fuelType: vehicleToEdit.fuelType || 'Diesel S10',
+        activeStatus: vehicleToEdit.status === 'active' || vehicleToEdit.activeStatus || false,
+        maintenanceDue: vehicleToEdit.lastMaintenance ? new Date(vehicleToEdit.lastMaintenance).toISOString().split('T')[0] : '',
+      });
+    } else {
+      setFormData({
+        vehicleNumber: '',
+        type: 'Caminhão Betoneira',
+        capacity: '',
+        fuelType: 'Diesel S10',
+        activeStatus: true,
+        maintenanceDue: '',
+      });
+    }
+  }, [vehicleToEdit, isOpen]);
+
   const createVehicleMutation = useMutation({
-    mutationFn: (data: typeof formData) => api.post('/vehicles', data),
+    mutationFn: (data: any) => api.post('/vehicles', data),
     onSuccess: (data: any) => {
       toast.success('Ativo incorporado à matriz operacional de frotas.', {
         icon: <Sparkles className="text-indigo-600 shrink-0" size={16} />
@@ -33,18 +56,24 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated }: VehicleFormModa
         onVehicleCreated(data);
       }
       onClose();
-      setFormData({
-        vehicleNumber: '',
-        type: 'Caminhão Betoneira',
-        capacity: '',
-        fuelType: 'Diesel S10',
-        activeStatus: true,
-        maintenanceDue: '',
-      });
     },
     onError: () => {
       toast.error('Falha ao processar averbação do ativo no prontuário.');
     },
+  });
+
+  const updateVehicleMutation = useMutation({
+    mutationFn: (data: any) => api.patch(`/vehicles/${vehicleToEdit.id}`, data),
+    onSuccess: () => {
+      toast.success('Ativo frotista atualizado com sucesso!', {
+        icon: <CheckCircle2 className="text-indigo-600 shrink-0" size={16} />
+      });
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      onClose();
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Falha ao atualizar o ativo frotista.');
+    }
   });
 
   if (!isOpen) return null;
@@ -55,7 +84,21 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated }: VehicleFormModa
       toast.error('Informe a Placa de Identificação e a Capacidade do Ativo.');
       return;
     }
-    createVehicleMutation.mutate(formData);
+
+    const payload = {
+      vehicleNumber: formData.vehicleNumber,
+      type: formData.type,
+      capacity: parseFloat(formData.capacity) || 0,
+      fuelType: formData.fuelType,
+      activeStatus: formData.activeStatus,
+      lastMaintenance: formData.maintenanceDue ? new Date(formData.maintenanceDue).toISOString() : undefined,
+    };
+
+    if (vehicleToEdit) {
+      updateVehicleMutation.mutate(payload);
+    } else {
+      createVehicleMutation.mutate(payload);
+    }
   };
 
   const handleApplyPreset = (type: string, capacity: string, fuel: string) => {
@@ -81,8 +124,12 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated }: VehicleFormModa
               <Truck size={18} />
             </div>
             <div>
-              <h3 className="text-base font-black text-slate-900 leading-none">Averbar Unidade Frotista</h3>
-              <p className="text-[11px] font-medium text-slate-400 mt-0.5">Cadastramento de veículos e máquinas pesadas</p>
+              <h3 className="text-base font-black text-slate-900 leading-none">
+                {vehicleToEdit ? 'Editar Ativo Frotista' : 'Averbar Unidade Frotista'}
+              </h3>
+              <p className="text-[11px] font-medium text-slate-400 mt-0.5">
+                {vehicleToEdit ? 'Modificação de especificações técnicas do veículo' : 'Cadastramento de veículos e máquinas pesadas'}
+              </p>
             </div>
           </div>
           <button 
@@ -96,36 +143,38 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated }: VehicleFormModa
         {/* Corpo do Formulário */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 bg-white">
           
-          {/* Tira de Configurações Rápidas */}
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Perfis Frotistas Sugeridos</label>
-            <div className="grid grid-cols-3 gap-2">
-              <button 
-                type="button" 
-                onClick={() => handleApplyPreset('Caminhão Betoneira', '24.0', 'Diesel S10')}
-                className="p-2.5 bg-slate-50 hover:bg-indigo-50/50 border border-slate-100 rounded-xl text-left transition-all group cursor-pointer outline-none"
-              >
-                <span className="text-[11px] font-black text-slate-800 block group-hover:text-indigo-600 truncate">Betoneira 8m³</span>
-                <span className="text-[9px] font-mono font-medium text-slate-400">24.0T Diesel</span>
-              </button>
-              <button 
-                type="button" 
-                onClick={() => handleApplyPreset('Caçamba Basculante', '18.0', 'Diesel S500')}
-                className="p-2.5 bg-slate-50 hover:bg-indigo-50/50 border border-slate-100 rounded-xl text-left transition-all group cursor-pointer outline-none"
-              >
-                <span className="text-[11px] font-black text-slate-800 block group-hover:text-indigo-600 truncate">Basculante</span>
-                <span className="text-[9px] font-mono font-medium text-slate-400">18.0T S500</span>
-              </button>
-              <button 
-                type="button" 
-                onClick={() => handleApplyPreset('Pá Carregadeira', '14.0', 'Diesel S10')}
-                className="p-2.5 bg-slate-50 hover:bg-indigo-50/50 border border-slate-100 rounded-xl text-left transition-all group cursor-pointer outline-none"
-              >
-                <span className="text-[11px] font-black text-slate-800 block group-hover:text-indigo-600 truncate">Maquinário</span>
-                <span className="text-[9px] font-mono font-medium text-slate-400">14.0T Pátio</span>
-              </button>
+          {/* Tira de Configurações Rápidas - Hidden in Edit Mode */}
+          {!vehicleToEdit && (
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Perfis Frotistas Sugeridos</label>
+              <div className="grid grid-cols-3 gap-2">
+                <button 
+                  type="button" 
+                  onClick={() => handleApplyPreset('Caminhão Betoneira', '24.0', 'Diesel S10')}
+                  className="p-2.5 bg-slate-50 hover:bg-indigo-50/50 border border-slate-100 rounded-xl text-left transition-all group cursor-pointer outline-none"
+                >
+                  <span className="text-[11px] font-black text-slate-800 block group-hover:text-indigo-600 truncate">Betoneira 8m³</span>
+                  <span className="text-[9px] font-mono font-medium text-slate-400">24.0T Diesel</span>
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => handleApplyPreset('Caçamba Basculante', '18.0', 'Diesel S500')}
+                  className="p-2.5 bg-slate-50 hover:bg-indigo-50/50 border border-slate-100 rounded-xl text-left transition-all group cursor-pointer outline-none"
+                >
+                  <span className="text-[11px] font-black text-slate-800 block group-hover:text-indigo-600 truncate">Basculante</span>
+                  <span className="text-[9px] font-mono font-medium text-slate-400">18.0T S500</span>
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => handleApplyPreset('Pá Carregadeira', '14.0', 'Diesel S10')}
+                  className="p-2.5 bg-slate-50 hover:bg-indigo-50/50 border border-slate-100 rounded-xl text-left transition-all group cursor-pointer outline-none"
+                >
+                  <span className="text-[11px] font-black text-slate-800 block group-hover:text-indigo-600 truncate">Maquinário</span>
+                  <span className="text-[9px] font-mono font-medium text-slate-400">14.0T Pátio</span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="space-y-1">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Identificação / Placa *</label>
@@ -213,7 +262,7 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated }: VehicleFormModa
           </div>
 
           {/* Rodapé Interno */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
             <button
               type="button"
               onClick={onClose}
@@ -223,11 +272,15 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated }: VehicleFormModa
             </button>
             <button
               type="submit"
-              disabled={createVehicleMutation.isPending}
-              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer outline-none"
+              disabled={createVehicleMutation.isPending || updateVehicleMutation.isPending}
+              className="px-5 py-2 bg-primary hover:bg-indigo-700 text-white rounded-xl font-black text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer outline-none"
             >
-              {createVehicleMutation.isPending ? <Loader2 className="animate-spin shrink-0" size={14} /> : <CheckCircle2 size={14} />}
-              <span>Salvar Ativo</span>
+              {createVehicleMutation.isPending || updateVehicleMutation.isPending ? (
+                <Loader2 className="animate-spin shrink-0" size={14} />
+              ) : (
+                <CheckCircle2 size={14} />
+              )}
+              <span>{vehicleToEdit ? 'Atualizar Ativo' : 'Salvar Ativo'}</span>
             </button>
           </div>
         </form>
