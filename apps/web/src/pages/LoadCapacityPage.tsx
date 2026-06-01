@@ -118,44 +118,45 @@ export function LoadCapacityPage() {
             Cálculo de distribuição por eixos, cubagem e prevenção de multas ANTT / DER-SP.
           </p>
         </div>
-
-        {/* View Mode Toggle inside header */}
-        <div className="flex items-center bg-slate-100 border p-1 rounded-xl w-fit self-start sm:self-center">
-          <button
-            onClick={() => setViewMode('columns')}
-            className={cn(
-              "p-1.5 rounded-lg transition-all cursor-pointer outline-none",
-              viewMode === 'columns' ? "bg-white text-emerald-600 shadow-3xs border border-slate-200/50" : "text-slate-500 hover:text-slate-900"
-            )}
-            title="Exibir como Colunas / Cards"
-          >
-            <LayoutGrid size={13} />
-          </button>
-          <button
-            onClick={() => setViewMode('list')}
-            className={cn(
-              "p-1.5 rounded-lg transition-all cursor-pointer outline-none",
-              viewMode === 'list' ? "bg-white text-emerald-600 shadow-3xs border border-slate-200/50" : "text-slate-500 hover:text-slate-900"
-            )}
-            title="Exibir como Lista / Tabela"
-          >
-            <List size={13} />
-          </button>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Left Column: Fleet List */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input 
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Pesquisar placa ou motorista..."
-              className="w-full pl-9 pr-3 py-2 bg-white border rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none" 
-            />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input 
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Pesquisar placa ou motorista..."
+                className="w-full pl-9 pr-3 py-2 bg-white border rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              />
+            </div>
+            
+            <div className="flex items-center bg-slate-100 border p-1 rounded-xl w-fit">
+              <button
+                onClick={() => setViewMode('columns')}
+                className={cn(
+                  "p-2 rounded-lg transition-all cursor-pointer outline-none",
+                  viewMode === 'columns' ? "bg-white text-emerald-600 shadow-2xs border border-slate-200/50" : "text-slate-500 hover:text-slate-900"
+                )}
+                title="Exibir como Colunas / Cards"
+              >
+                <LayoutGrid size={14} />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={cn(
+                  "p-2 rounded-lg transition-all cursor-pointer outline-none",
+                  viewMode === 'list' ? "bg-white text-emerald-600 shadow-2xs border border-slate-200/50" : "text-slate-500 hover:text-slate-900"
+                )}
+                title="Exibir como Lista / Tabela"
+              >
+                <List size={14} />
+              </button>
+            </div>
           </div>
 
           {viewMode === 'columns' ? (
