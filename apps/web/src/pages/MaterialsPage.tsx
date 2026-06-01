@@ -135,61 +135,62 @@ export function MaterialsPage() {
           </p>
         </div>
 
-        <button 
-          onClick={() => toast.success('Gerando laudo tecnológico consolidado em PDF...')}
-          className="px-3.5 py-2 bg-white border border-slate-200 hover:border-indigo-400 text-slate-700 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all shadow-3xs flex items-center gap-1.5 self-start sm:self-center"
-        >
-          <FileSpreadsheet size={14} className="text-emerald-600" /> Laudo Tecnológico
-        </button>
+        <div className="flex items-center gap-3 self-start sm:self-center">
+          {/* View Mode Toggle inside header */}
+          <div className="flex items-center bg-slate-100 border p-1 rounded-xl w-fit">
+            <button
+              onClick={() => setViewMode('columns')}
+              className={cn(
+                "p-1.5 rounded-lg transition-all cursor-pointer outline-none",
+                viewMode === 'columns' ? "bg-white text-indigo-600 shadow-3xs border border-slate-200/50" : "text-slate-500 hover:text-slate-900"
+              )}
+              title="Exibir como Colunas / Cards"
+            >
+              <LayoutGrid size={13} />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn(
+                "p-1.5 rounded-lg transition-all cursor-pointer outline-none",
+                viewMode === 'list' ? "bg-white text-indigo-600 shadow-3xs border border-slate-200/50" : "text-slate-500 hover:text-slate-900"
+              )}
+              title="Exibir como Lista / Tabela"
+            >
+              <List size={13} />
+            </button>
+          </div>
+
+          <button 
+            onClick={() => toast.success('Gerando laudo tecnológico consolidado em PDF...')}
+            className="px-3.5 py-2 bg-white border border-slate-200 hover:border-indigo-400 text-slate-700 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all shadow-3xs flex items-center gap-1.5"
+          >
+            <FileSpreadsheet size={14} className="text-emerald-600" /> Laudo Tecnológico
+          </button>
+        </div>
       </div>
 
-      {/* Tabs and Layout View Mode Row */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center bg-slate-100 border p-1 rounded-xl w-fit">
-          <button
-            onClick={() => setActiveTab('verification')}
-            className={cn(
-              "px-4 py-2 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer outline-none",
-              activeTab === 'verification' ? "bg-white text-indigo-600 shadow-2xs border" : "text-slate-500 hover:text-slate-900"
-            )}
-          >
-            <Beaker size={14} />
-            <span>Verificação de Lajes / Cargas</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('stocks')}
-            className={cn(
-              "px-4 py-2 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer outline-none",
-              activeTab === 'stocks' ? "bg-white text-indigo-600 shadow-2xs border" : "text-slate-500 hover:text-slate-900"
-            )}
-          >
-            <Database size={14} />
-            <span>Silos & Pátio de Agregados</span>
-          </button>
-        </div>
-
-        <div className="flex items-center bg-slate-100 border p-1 rounded-xl w-fit">
-          <button
-            onClick={() => setViewMode('columns')}
-            className={cn(
-              "p-2 rounded-lg transition-all cursor-pointer outline-none",
-              viewMode === 'columns' ? "bg-white text-indigo-600 shadow-2xs border border-slate-200/50" : "text-slate-500 hover:text-slate-900"
-            )}
-            title="Exibir como Colunas / Cards"
-          >
-            <LayoutGrid size={14} />
-          </button>
-          <button
-            onClick={() => setViewMode('list')}
-            className={cn(
-              "p-2 rounded-lg transition-all cursor-pointer outline-none",
-              viewMode === 'list' ? "bg-white text-indigo-600 shadow-2xs border border-slate-200/50" : "text-slate-500 hover:text-slate-900"
-            )}
-            title="Exibir como Lista / Tabela"
-          >
-            <List size={14} />
-          </button>
-        </div>
+      {/* Tabs Row */}
+      <div className="flex items-center bg-slate-100 border p-1 rounded-xl w-fit">
+        <button
+          onClick={() => setActiveTab('verification')}
+          className={cn(
+            "px-4 py-2 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer outline-none",
+            activeTab === 'verification' ? "bg-white text-indigo-600 shadow-2xs border" : "text-slate-500 hover:text-slate-900"
+          )}
+        >
+          <Beaker size={14} />
+          <span>Verificação de Lajes / Cargas</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('stocks')}
+          className={cn(
+            "px-4 py-2 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer outline-none",
+            activeTab === 'stocks' ? "bg-white text-indigo-600 shadow-2xs border" : "text-slate-500 hover:text-slate-900"
+          )}
+        >
+          <Database size={14} />
+          <span>Silos & Pátio de Agregados</span>
+        </button>
       </div>
 
       {/* Verification Tab Contents */}
