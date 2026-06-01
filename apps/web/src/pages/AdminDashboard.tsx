@@ -22,6 +22,7 @@ import OrdersList from '../components/OrdersList';
 import MapView from '../components/MapView';
 import { DispatchCommandCenter } from '../components/dispatch/DispatchCommandCenter';
 import RoutePlanner from './RoutePlanner';
+import { MaintenancePage } from './MaintenancePage';
 
 const AdminDashboard = () => {
   return (
@@ -46,7 +47,7 @@ const AdminDashboard = () => {
         <Route path="settings" element={<SettingsPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="fuel" element={<FuelMaintenanceModule />} />
-        <Route path="maintenance" element={<FuelMaintenanceModule />} />
+        <Route path="maintenance" element={<MaintenancePage />} />
         <Route path="loading" element={<LoadingVerificationScreen />} />
         <Route path="billing" element={<ExcelBillingImportScreen />} />
         <Route path="pod" element={<InvoicesPage />} />
