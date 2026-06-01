@@ -20,12 +20,25 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
-// Add custom resolver to force Zustand to compile using CommonJS modules to avoid import.meta errors
+// Add custom resolver to handle monorepo duplicate React/React-Native versions and mock react-native-maps on web
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === 'react-native-maps' && platform === 'web') {
+    return {
+      type: 'sourceFile',
+      filePath: path.resolve(projectRoot, 'react-native-maps-mock.js'),
+    };
+  }
   if (moduleName === 'zustand' || moduleName.startsWith('zustand/')) {
     return {
       type: 'sourceFile',
       filePath: require.resolve(moduleName),
+    };
+  }
+  if (moduleName === 'react' || moduleName === 'react-native') {
+    const fs = require('fs');
+    return {
+      type: 'sourceFile',
+      filePath: fs.realpathSync(path.resolve(projectRoot, 'node_modules', moduleName)),
     };
   }
   return context.resolveRequest(context, moduleName, platform);
