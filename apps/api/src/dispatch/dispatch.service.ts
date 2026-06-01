@@ -156,9 +156,9 @@ export class DispatchService {
     });
   }
 
-  async findOne(id: string): Promise<any | null> {
-    const delivery = await this.prisma.delivery.findUnique({
-      where: { id },
+  async findOne(id: string, organizationId: string): Promise<any | null> {
+    const delivery = await this.prisma.delivery.findFirst({
+      where: { id, organizationId, deletedAt: null },
       include: {
         customer: true,
         driver: {
@@ -169,8 +169,8 @@ export class DispatchService {
 
     if (delivery) return delivery;
 
-    return this.prisma.order.findUnique({
-      where: { id },
+    return this.prisma.order.findFirst({
+      where: { id, organizationId, deletedAt: null },
       include: {
         deliveries: {
           include: {
@@ -184,15 +184,25 @@ export class DispatchService {
     });
   }
 
-  async updateStatus(id: string, status: OrderStatus) {
-    return this.prisma.delivery.update({
-      where: { id },
+  async updateStatus(id: string, organizationId: string, status: OrderStatus) {
+    const res = await this.prisma.delivery.updateMany({
+      where: { id, organizationId, deletedAt: null },
       data: { status },
+    });
+    if (res.count === 0) throw new NotFoundException(`Delivery ${id} not found`);
+    return this.prisma.delivery.findFirstOrThrow({
+      where: { id, organizationId, deletedAt: null },
+      include: {
+        customer: true,
+        driver: { include: { user: true } },
+        vehicle: true,
+      },
     });
   }
 
   async assignDriver(
     deliveryId: string,
+    organizationId: string,
     driverId: string | null,
     dispatcherId?: string,
   ) {
@@ -201,8 +211,9 @@ export class DispatchService {
       const rows = await tx.$queryRawUnsafe<
         Array<{ id: string; driverId: string | null; status: string }>
       >(
-        `SELECT id, "driverId", status FROM "Delivery" WHERE id = $1 FOR UPDATE`,
+        `SELECT id, "driverId", status FROM "Delivery" WHERE id = $1 AND "organizationId" = $2 AND "deletedAt" IS NULL FOR UPDATE`,
         deliveryId,
+        organizationId,
       );
 
       if (rows.length === 0) {
@@ -221,9 +232,11 @@ export class DispatchService {
         }
 
         // 3. Lock the driver row to prevent concurrent assignment to another delivery
-        const driverRows = await tx.$queryRawUnsafe<
-          Array<{ id: string }>
-        >(`SELECT id FROM "Driver" WHERE id = $1 FOR UPDATE`, driverId);
+        const driverRows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT id FROM "Driver" WHERE id = $1 AND "organizationId" = $2 AND "deletedAt" IS NULL FOR UPDATE`,
+          driverId,
+          organizationId,
+        );
 
         if (driverRows.length === 0) {
           throw new NotFoundException(`Driver ${driverId} not found`);
@@ -235,6 +248,8 @@ export class DispatchService {
             driverId,
             id: { not: deliveryId },
             status: { in: ACTIVE_DELIVERY_STATUSES },
+            organizationId,
+            deletedAt: null,
           },
           select: { id: true },
         });
@@ -255,6 +270,7 @@ export class DispatchService {
           status: driverId ? OrderStatus.ASSIGNED : OrderStatus.PENDING,
         },
         include: {
+          customer: true,
           driver: {
             include: { user: true },
           },
@@ -526,14 +542,17 @@ export class DispatchService {
 
       // 7. Update database assignments & send notifications to driver
       for (const stop of optimizedRoute) {
-        await this.prisma.delivery.update({
-          where: { id: stop.deliveryId },
+        const res = await this.prisma.delivery.updateMany({
+          where: { id: stop.deliveryId, organizationId, deletedAt: null },
           data: {
             driverId: stop.driverId,
             vehicleId: stop.vehicleId,
             status: OrderStatus.ASSIGNED,
           },
         });
+        if (res.count === 0) {
+          throw new NotFoundException(`Delivery ${stop.deliveryId} not found`);
+        }
 
         finalAssignments.push({
           deliveryId: stop.deliveryId,

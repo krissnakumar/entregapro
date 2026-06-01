@@ -29,14 +29,14 @@ export class DeliveriesService {
   }
 
   async findForDriver(userId: string, organizationId: string) {
-    const driver = await this.prisma.driver.findUnique({
-      where: { userId },
+    const driver = await this.prisma.driver.findFirst({
+      where: { userId, organizationId, deletedAt: null },
     });
 
     if (!driver) return [];
 
     return this.prisma.delivery.findMany({
-      where: { driverId: driver.id, organizationId },
+      where: { driverId: driver.id, organizationId, deletedAt: null },
       include: {
         customer: true,
         driver: { include: { user: true } },
@@ -46,9 +46,9 @@ export class DeliveriesService {
     });
   }
 
-  async findOne(id: string) {
-    return this.prisma.delivery.findUnique({
-      where: { id },
+  async findOne(id: string, organizationId: string) {
+    const delivery = await this.prisma.delivery.findFirst({
+      where: { id, organizationId, deletedAt: null },
       include: {
         customer: true,
         driver: { include: { user: true } },
@@ -57,10 +57,13 @@ export class DeliveriesService {
         dispatcher: { select: { id: true, name: true } },
       },
     });
+    if (!delivery) throw new NotFoundException(`Delivery ${id} not found`);
+    return delivery;
   }
 
   async updateStatus(
     id: string,
+    organizationId: string,
     status: OrderStatus,
     data?: {
       notes?: string;
@@ -83,6 +86,12 @@ export class DeliveriesService {
     if (data?.lng) updateData.pod_longitude = data.lng;
 
     const delivery = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.delivery.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!existing) throw new NotFoundException(`Delivery ${id} not found`);
+
       const updated = await tx.delivery.update({
         where: { id },
         data: updateData,
@@ -125,9 +134,9 @@ export class DeliveriesService {
     return delivery;
   }
 
-  async uploadProof(id: string, proof_image_url: string) {
-    return this.prisma.delivery.update({
-      where: { id },
+  async uploadProof(id: string, organizationId: string, proof_image_url: string) {
+    const res = await this.prisma.delivery.updateMany({
+      where: { id, organizationId, deletedAt: null },
       data: {
         proof_image_url,
         status: OrderStatus.DELIVERED,
@@ -135,10 +144,13 @@ export class DeliveriesService {
         pod_timestamp: new Date(),
       },
     });
+    if (res.count === 0) throw new NotFoundException(`Delivery ${id} not found`);
+    return this.findOne(id, organizationId);
   }
 
   async assignResources(
     id: string,
+    organizationId: string,
     data: { driverId?: string; vehicleId?: string; dispatcherId?: string },
   ) {
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -146,8 +158,9 @@ export class DeliveriesService {
       const rows = await tx.$queryRawUnsafe<
         Array<{ id: string; driverId: string | null; status: string }>
       >(
-        `SELECT id, "driverId", status FROM "Delivery" WHERE id = $1 FOR UPDATE`,
+        `SELECT id, "driverId", status FROM "Delivery" WHERE id = $1 AND "organizationId" = $2 FOR UPDATE`,
         id,
+        organizationId,
       );
 
       if (rows.length === 0) {
@@ -165,9 +178,11 @@ export class DeliveriesService {
         }
 
         // 3. Lock the driver row to prevent concurrent double-booking
-        const driverRows = await tx.$queryRawUnsafe<
-          Array<{ id: string }>
-        >(`SELECT id FROM "Driver" WHERE id = $1 FOR UPDATE`, data.driverId);
+        const driverRows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT id FROM "Driver" WHERE id = $1 AND "organizationId" = $2 AND "deletedAt" IS NULL FOR UPDATE`,
+          data.driverId,
+          organizationId,
+        );
 
         if (driverRows.length === 0) {
           throw new NotFoundException(`Driver ${data.driverId} not found`);
@@ -179,6 +194,8 @@ export class DeliveriesService {
             driverId: data.driverId,
             id: { not: id },
             status: { in: ACTIVE_DELIVERY_STATUSES },
+            organizationId,
+            deletedAt: null,
           },
           select: { id: true },
         });
@@ -248,12 +265,12 @@ export class DeliveriesService {
     return R * c;
   }
 
-  async calculateCosts(deliveryId: string) {
-    const delivery = await this.prisma.delivery.findUnique({
-      where: { id: deliveryId },
+  async calculateCosts(deliveryId: string, organizationId: string) {
+    const delivery = await this.prisma.delivery.findFirst({
+      where: { id: deliveryId, organizationId, deletedAt: null },
       include: { vehicle: true, driver: true, customer: true },
     });
-    if (!delivery) return null;
+    if (!delivery) throw new NotFoundException(`Delivery ${deliveryId} not found`);
 
     const originLat = -23.5505;
     const originLng = -46.6333;
@@ -304,34 +321,34 @@ export class DeliveriesService {
     });
   }
 
-  async smartAssign(deliveryId: string) {
+  async smartAssign(deliveryId: string, organizationId: string) {
     // Determine optimum vehicle and driver using factor weighting algorithms
     const vehicle = await this.prisma.vehicle.findFirst({
-      where: { activeStatus: true },
+      where: { activeStatus: true, organizationId, deletedAt: null },
     });
     const driver = await this.prisma.driver.findFirst({
-      where: { availabilityStatus: true },
+      where: { availabilityStatus: true, organizationId, deletedAt: null },
     });
 
     if (!vehicle || !driver) {
       // Fallback assignment to pre-seeded default driver/vehicle if strictly filtered ones aren't available
-      const anyVehicle = await this.prisma.vehicle.findFirst();
-      const anyDriver = await this.prisma.driver.findFirst();
+      const anyVehicle = await this.prisma.vehicle.findFirst({ where: { organizationId, deletedAt: null } });
+      const anyDriver = await this.prisma.driver.findFirst({ where: { organizationId, deletedAt: null } });
       if (!anyVehicle || !anyDriver) {
         throw new NotFoundException("Logistics Fleet pool empty. Please register vehicles and drivers.");
       }
-      await this.assignResources(deliveryId, {
+      await this.assignResources(deliveryId, organizationId, {
         vehicleId: anyVehicle.id,
         driverId: anyDriver.id,
       });
-      return this.calculateCosts(deliveryId);
+      return this.calculateCosts(deliveryId, organizationId);
     }
 
-    await this.assignResources(deliveryId, {
+    await this.assignResources(deliveryId, organizationId, {
       vehicleId: vehicle.id,
       driverId: driver.id,
     });
 
-    return this.calculateCosts(deliveryId);
+    return this.calculateCosts(deliveryId, organizationId);
   }
 }

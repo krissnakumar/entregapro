@@ -34,8 +34,8 @@ export class DeliveriesController {
 
   @Get(":id")
   @Roles(Role.ADMIN, Role.DISPATCHER, Role.DRIVER)
-  findOne(@Param("id") id: string) {
-    return this.deliveriesService.findOne(id);
+  findOne(@Param("id") id: string, @Request() req: any) {
+    return this.deliveriesService.findOne(id, req.user.organizationId);
   }
 
   @Patch(":id/status")
@@ -47,7 +47,7 @@ export class DeliveriesController {
     @Request() req: any,
     @Body("notes") notes?: string,
   ) {
-    return this.deliveriesService.updateStatus(id, status, {
+    return this.deliveriesService.updateStatus(id, req.user.organizationId, status, {
       notes,
       userId: req.user.userId,
     });
@@ -56,20 +56,20 @@ export class DeliveriesController {
   @Patch(":id/proof")
   @Roles(Role.DRIVER)
   @RequirePermissions("UPLOAD_POD")
-  uploadProof(@Param("id") id: string, @Body("image") image: string) {
-    return this.deliveriesService.uploadProof(id, image);
+  uploadProof(@Param("id") id: string, @Body("image") image: string, @Request() req: any) {
+    return this.deliveriesService.uploadProof(id, req.user.organizationId, image);
   }
 
   @Post(":id/smart-assign")
   @Roles(Role.ADMIN, Role.DISPATCHER)
   @RequirePermissions("ASSIGN_DRIVER")
-  smartAssign(@Param("id") id: string) {
-    return this.deliveriesService.smartAssign(id);
+  smartAssign(@Param("id") id: string, @Request() req: any) {
+    return this.deliveriesService.smartAssign(id, req.user.organizationId);
   }
 
   @Post(":id/calculate-costs")
   @Roles(Role.ADMIN, Role.DISPATCHER)
-  calculateCosts(@Param("id") id: string) {
-    return this.deliveriesService.calculateCosts(id);
+  calculateCosts(@Param("id") id: string, @Request() req: any) {
+    return this.deliveriesService.calculateCosts(id, req.user.organizationId);
   }
 }
