@@ -44,6 +44,7 @@ const DriversList = () => {
     cnhExpiration: '',
     vehicleId: '',
     avatarUrl: '',
+    status: 'disponível' as 'disponível' | 'em_rota' | 'em_descanso',
   });
 
   // Cofre de documentos ativo
@@ -117,6 +118,7 @@ const DriversList = () => {
       cnhExpiration: driver.cnhExpiration ? new Date(driver.cnhExpiration).toISOString().split('T')[0] : '',
       vehicleId: driver.currentVehicle?.id || '',
       avatarUrl: driver.avatarUrl || '',
+      status: driver.status || 'disponível',
     });
     setIsModalOpen(true);
     setActiveMenuId(null);
@@ -211,6 +213,7 @@ const DriversList = () => {
       cnhExpiration: newDriver.cnhExpiration ? new Date(newDriver.cnhExpiration).toISOString() : null,
       vehicleId: newDriver.vehicleId || null,
       avatarUrl: newDriver.avatarUrl || null,
+      status: newDriver.status,
     };
 
     if (editingDriver) {
@@ -221,7 +224,7 @@ const DriversList = () => {
             toast.success('Cadastro atualizado com sucesso.');
             setIsModalOpen(false);
             setEditingDriver(null);
-            setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '', avatarUrl: '' });
+            setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '', avatarUrl: '', status: 'disponível' });
           },
           onError: (err: any) => {
             toast.error(err.message || 'Falha ao atualizar o condutor.');
@@ -235,7 +238,7 @@ const DriversList = () => {
           onSuccess: () => {
             toast.success('Motorista averbado com sucesso.');
             setIsModalOpen(false);
-            setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '', avatarUrl: '' });
+            setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '', avatarUrl: '', status: 'disponível' });
           },
           onError: () => {
             toast.error('Falha ao averbar motorista.');
@@ -374,9 +377,25 @@ const DriversList = () => {
                       )} />
                     </div>
                     <div className="min-w-0">
-                      <h4 className="font-bold text-slate-900 text-xs truncate max-w-[130px] group-hover:text-indigo-600 transition-colors leading-tight">
-                        {safeName}
-                      </h4>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="font-bold text-slate-900 text-xs truncate max-w-[90px] group-hover:text-indigo-600 transition-colors leading-tight">
+                          {safeName}
+                        </h4>
+                        <span className={cn(
+                          "px-1 py-0.5 rounded text-[8px] font-black uppercase flex items-center gap-0.5 shrink-0",
+                          currentStatus === 'disponível' ? "bg-emerald-50 text-emerald-600 border border-emerald-100/60" :
+                          currentStatus === 'em_rota' ? "bg-indigo-50 text-indigo-600 border border-indigo-100/60" :
+                          "bg-amber-50 text-amber-600 border border-amber-100/60"
+                        )}>
+                          {currentStatus === 'disponível' ? (
+                            <span>Livre</span>
+                          ) : currentStatus === 'em_rota' ? (
+                            <span>Rota</span>
+                          ) : (
+                            <span>Pausa</span>
+                          )}
+                        </span>
+                      </div>
                       <p className="text-[9px] text-slate-400 font-mono mt-0.5 flex items-center gap-1">
                         <span className="inline-flex items-center text-amber-500 font-bold mr-1">
                           <Star size={8} className="fill-current mr-0.5" />
@@ -453,41 +472,6 @@ const DriversList = () => {
                     <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase", cnhMeta.color)}>
                       {cnhMeta.label.replace('Validade: ', '')}
                     </span>
-                  </div>
-                </div>
-
-                {/* STATUS OPERATION SELECTOR */}
-                <div className="flex items-center justify-between gap-2 shrink-0">
-                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200/60 w-full justify-between">
-                    {(['disponível', 'em_rota', 'em_descanso'] as const).map((st) => (
-                      <button
-                        key={st}
-                        onClick={() => handleUpdateStatus(driver.id, st)}
-                        className={cn(
-                          "px-2 py-1.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border border-transparent flex-1 flex items-center justify-center gap-1",
-                          currentStatus === st 
-                            ? "bg-white text-slate-900 border-slate-200 shadow-2xs font-extrabold" 
-                            : "text-slate-500 hover:text-slate-700"
-                        )}
-                      >
-                        {st === 'disponível' ? (
-                          <>
-                            <CheckCircle2 size={10} className={currentStatus === st ? "text-emerald-500" : "text-slate-400"} />
-                            <span>Livre</span>
-                          </>
-                        ) : st === 'em_rota' ? (
-                          <>
-                            <Navigation size={10} className={cn("rotate-45", currentStatus === st ? "text-indigo-500" : "text-slate-400")} />
-                            <span>Rota</span>
-                          </>
-                        ) : (
-                          <>
-                            <Coffee size={10} className={currentStatus === st ? "text-amber-500" : "text-slate-400"} />
-                            <span>Pausa</span>
-                          </>
-                        )}
-                      </button>
-                    ))}
                   </div>
                 </div>
 
@@ -636,6 +620,19 @@ const DriversList = () => {
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 transition-all"
                   placeholder="(11) 97777-6666"
                 />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Status Operacional *</label>
+                <select
+                  value={newDriver.status}
+                  onChange={(e) => setNewDriver({ ...newDriver, status: e.target.value as any })}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                >
+                  <option value="disponível">Livre / Disponível</option>
+                  <option value="em_rota">Em Rota de Entrega</option>
+                  <option value="em_descanso">Em Descanso / Pausa</option>
+                </select>
               </div>
 
               <div className="space-y-1">

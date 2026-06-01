@@ -238,9 +238,19 @@ const VehiclesList = () => {
                       </div>
                     )}
                     <div className="min-w-0">
-                      <h4 className="font-bold text-slate-900 text-xs tracking-wide uppercase leading-tight">
-                        {vehicle.vehicleNumber || 'Sem Placa'}
-                      </h4>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="font-bold text-slate-900 text-xs tracking-wide uppercase leading-tight truncate max-w-[80px]">
+                          {vehicle.vehicleNumber || 'Sem Placa'}
+                        </h4>
+                        <span className={cn(
+                          "px-1 py-0.5 rounded text-[8px] font-black uppercase shrink-0",
+                          currentStatus === 'active' ? "bg-emerald-50 text-emerald-600 border border-emerald-100/60" :
+                          currentStatus === 'maintenance' ? "bg-amber-50 text-amber-600 border border-amber-100/60" :
+                          "bg-rose-50 text-rose-600 border border-rose-100/60"
+                        )}>
+                          {currentStatus === 'active' ? 'Operante' : currentStatus === 'maintenance' ? 'Manut.' : 'Inativo'}
+                        </span>
+                      </div>
                       <p className="text-[9px] text-slate-400 font-semibold truncate max-w-[130px] mt-0.5">
                         {vehicle.type || 'Basculante Frotista'}
                       </p>
@@ -303,41 +313,6 @@ const VehiclesList = () => {
                   <div className="flex flex-col items-end">
                     <span className="text-slate-400 text-[9px] uppercase tracking-wider font-bold mb-0.5">Revisão</span>
                     <span className="text-slate-600 font-bold text-[10px]">{safeDate}</span>
-                  </div>
-                </div>
-
-                {/* STATUS TOGGLE FOOTER */}
-                <div className="flex items-center justify-between gap-2 shrink-0">
-                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200/60 w-full justify-between">
-                    {(['active', 'maintenance', 'inactive'] as const).map((st) => (
-                      <button
-                        key={st}
-                        onClick={() => handleStatusToggle(vehicle.id, st)}
-                        className={cn(
-                          "px-2 py-1.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border border-transparent flex-1 flex items-center justify-center gap-1",
-                          currentStatus === st 
-                            ? "bg-white text-slate-900 border-slate-200 shadow-2xs font-extrabold" 
-                            : "text-slate-500 hover:text-slate-700"
-                        )}
-                      >
-                        {st === 'active' ? (
-                          <>
-                            <CheckCircle2 size={10} className={currentStatus === st ? "text-emerald-500" : "text-slate-400"} />
-                            <span>Operante</span>
-                          </>
-                        ) : st === 'maintenance' ? (
-                          <>
-                            <Wrench size={10} className={currentStatus === st ? "text-amber-500" : "text-slate-400"} />
-                            <span>Manut.</span>
-                          </>
-                        ) : (
-                          <>
-                            <AlertCircle size={10} className={currentStatus === st ? "text-rose-500" : "text-slate-400"} />
-                            <span>Inativo</span>
-                          </>
-                        )}
-                      </button>
-                    ))}
                   </div>
                 </div>
 

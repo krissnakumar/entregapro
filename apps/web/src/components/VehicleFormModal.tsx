@@ -19,7 +19,7 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated, vehicleToEdit }: 
     type: 'Caminhão Betoneira',
     capacity: '',
     fuelType: 'Diesel S10',
-    activeStatus: true,
+    status: 'active' as 'active' | 'maintenance' | 'inactive',
     maintenanceDue: '',
     imageUrl: '',
   });
@@ -31,7 +31,7 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated, vehicleToEdit }: 
         type: vehicleToEdit.type || 'Caminhão Betoneira',
         capacity: String(vehicleToEdit.capacity || ''),
         fuelType: vehicleToEdit.fuelType || 'Diesel S10',
-        activeStatus: vehicleToEdit.status === 'active' || vehicleToEdit.activeStatus || false,
+        status: vehicleToEdit.status || 'active',
         maintenanceDue: vehicleToEdit.lastMaintenance ? new Date(vehicleToEdit.lastMaintenance).toISOString().split('T')[0] : '',
         imageUrl: vehicleToEdit.imageUrl || '',
       });
@@ -41,7 +41,7 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated, vehicleToEdit }: 
         type: 'Caminhão Betoneira',
         capacity: '',
         fuelType: 'Diesel S10',
-        activeStatus: true,
+        status: 'active',
         maintenanceDue: '',
         imageUrl: '',
       });
@@ -93,7 +93,7 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated, vehicleToEdit }: 
       type: formData.type,
       capacity: parseFloat(formData.capacity) || 0,
       fuelType: formData.fuelType,
-      activeStatus: formData.activeStatus,
+      status: formData.status,
       lastMaintenance: formData.maintenanceDue ? new Date(formData.maintenanceDue).toISOString() : undefined,
       imageUrl: formData.imageUrl || null,
     };
@@ -302,6 +302,19 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated, vehicleToEdit }: 
                 />
               </div>
             </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Status Operacional *</label>
+            <select
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 transition-all cursor-pointer"
+            >
+              <option value="active">Operante / Ativo</option>
+              <option value="maintenance">Em Manutenção</option>
+              <option value="inactive">Inativo / Fora de Serviço</option>
+            </select>
           </div>
 
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-2.5">
