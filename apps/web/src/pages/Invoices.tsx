@@ -622,6 +622,7 @@ export const InvoicesPage: React.FC = () => {
               <div className="flex gap-1.5 min-w-max">
                 {[
                   { id: 'overview', label: 'Resumo da Entrega', icon: BarChart3 },
+                  { id: 'logistics_calc', label: 'Cálculos Logísticos', icon: Scale },
                   { id: 'delivery_details', label: 'Rotas e Docas', icon: Navigation },
                   { id: 'fleet_details', label: 'Frota & Capacidade', icon: Truck },
                   { id: 'financials', label: 'Custos Logísticos', icon: Activity },
@@ -694,6 +695,101 @@ export const InvoicesPage: React.FC = () => {
                       <p className="text-xs font-black text-slate-900">{selectedInvoice.dispatcherName}</p>
                       <p className="text-[10px] text-slate-500">Despachado às: {selectedInvoice.dispatchTime}</p>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ABA: CÁLCULOS LOGÍSTICOS */}
+              {activeDetailTab === 'logistics_calc' && (
+                <div className="space-y-6 animate-in fade-in duration-200 max-w-5xl mx-auto">
+                  <div className="bg-gradient-to-br from-indigo-50 to-slate-50 p-6 rounded-3xl border border-indigo-100/60 shadow-2xs">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-indigo-800 mb-4 flex items-center gap-1.5">
+                      <Scale size={14} className="text-indigo-600" /> Painel de Cubagem, Carga e Eficiência Rodoviária
+                    </h4>
+
+                    {(() => {
+                      const weightNum = parseFloat(selectedInvoice.totalWeight) || 12;
+                      const distanceNum = selectedInvoice.deliveryDistance || 150;
+                      const fuelLiters = selectedInvoice.litersFuelUsed || 48;
+                      const capacityMax = selectedInvoice.assignedTruck.toLowerCase().includes('betoneira') ? 16 : 12;
+                      const payloadUtilization = (weightNum / capacityMax) * 100;
+                      const tku = weightNum * distanceNum;
+                      const fuelEfficiency = distanceNum / Math.max(1, fuelLiters);
+                      const co2Emissions = fuelLiters * 2.68;
+                      const fuelPerTku = fuelLiters / Math.max(1, tku);
+                      const carbonIntensity = co2Emissions / Math.max(1, tku);
+
+                      return (
+                        <div className="space-y-6">
+                          {/* Top Row KPIs */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="bg-white border p-4 rounded-2xl shadow-2xs">
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Aproveitamento de Tara (%)</span>
+                              <p className="text-xl font-black text-slate-900 mt-1 font-mono">{payloadUtilization.toFixed(1)}%</p>
+                              <span className="text-[9px] text-slate-500 font-bold">Capacidade: {capacityMax}t / Carga: {weightNum}t</span>
+                            </div>
+
+                            <div className="bg-white border p-4 rounded-2xl shadow-2xs">
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Tonelada-Quilômetro Útil (TKU)</span>
+                              <p className="text-xl font-black text-indigo-700 mt-1 font-mono">{tku.toFixed(0)} TKU</p>
+                              <span className="text-[9px] text-slate-500 font-bold">({weightNum}t * {distanceNum}km)</span>
+                            </div>
+
+                            <div className="bg-white border p-4 rounded-2xl shadow-2xs">
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Eficiência Combustível</span>
+                              <p className="text-xl font-black text-teal-700 mt-1 font-mono">{fuelEfficiency.toFixed(2)} km/L</p>
+                              <span className="text-[9px] text-slate-500 font-bold">({distanceNum}km / {fuelLiters}L)</span>
+                            </div>
+                          </div>
+
+                          {/* Carbon Footprint & Environmental Index */}
+                          <div className="bg-emerald-50/50 border border-emerald-100 p-5 rounded-2xl space-y-3">
+                            <h5 className="text-[10px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                              🌱 ESG & Emissões de Carbono (Escopo 3)
+                            </h5>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                              <div>
+                                <span className="text-[9px] text-emerald-700 font-bold block">Emissão de CO₂</span>
+                                <span className="text-sm font-black text-emerald-900 font-mono">{co2Emissions.toFixed(1)} kg</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-emerald-700 font-bold block">Intensidade de Carbono</span>
+                                <span className="text-sm font-black text-emerald-900 font-mono">{carbonIntensity.toFixed(3)} kg/TKU</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-emerald-700 font-bold block">Fator de Diesel / TKU</span>
+                                <span className="text-sm font-black text-emerald-900 font-mono">{fuelPerTku.toFixed(3)} L/TKU</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-emerald-700 font-bold block">Pegada de Carbono P/ Km</span>
+                                <span className="text-sm font-black text-emerald-900 font-mono">{(co2Emissions / distanceNum).toFixed(2)} kg/km</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Cubage and Volume Indicators */}
+                          <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-3">
+                            <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                              Ocupação de Cubagem & Distribuição de Eixos
+                            </h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-mono">
+                              <div>
+                                <span className="text-[9px] text-slate-500 block">Cubagem de Carga Est.</span>
+                                <span className="text-white font-bold font-mono">{(selectedInvoice.palletCount * 1.5).toFixed(1)} m³</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-slate-500 block">Distribuição de Carga p/ Eixo</span>
+                                <span className="text-white font-bold">{(weightNum / 3).toFixed(1)} toneladas por Eixo Traseiro</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-slate-500 block">Fator de Retorno Vazio</span>
+                                <span className="text-white font-bold">{((selectedInvoice.emptyReturnKm / distanceNum) * 100).toFixed(0)}% Km ocioso</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}

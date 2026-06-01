@@ -936,6 +936,41 @@ function NfeDetail({ nfe, onBack, onCancel }: { nfe: NfeInvoice; onBack: () => v
               </div>
             </div>
           )}
+
+          {/* Cálculos Logísticos Integrados à NF-e */}
+          <div className="pt-2">
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Dimensionamento Logístico</h4>
+            <div className="bg-slate-900 text-white rounded-2xl p-5 space-y-4">
+              {(() => {
+                const totalQty = nfe.items.reduce((sum, item) => sum + item.quantity, 0);
+                const estWeightKg = nfe.items.reduce((sum, item) => sum + (item.quantity * 32), 0); // e.g. average weight factor
+                const estVolumeM3 = nfe.items.reduce((sum, item) => sum + (item.quantity * 0.08), 0); // average volume factor
+
+                return (
+                  <div className="space-y-3 text-xs font-mono">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Total Itens Embalados</span>
+                      <span className="font-bold text-white">{totalQty} u</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Peso Total Estimado</span>
+                      <span className="font-bold text-white">{(estWeightKg / 1000).toFixed(2)} t</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Cubagem Volumétrica</span>
+                      <span className="font-bold text-emerald-400">{estVolumeM3.toFixed(1)} m³</span>
+                    </div>
+                    <div className="flex justify-between border-t border-slate-800 pt-2 text-[10px]">
+                      <span className="text-slate-500 font-sans">Ideal p/ Veículo Tipo</span>
+                      <span className="text-white font-sans font-bold">
+                        {estWeightKg > 10000 ? 'Pesado / Truck' : estWeightKg > 4000 ? 'Médio / Toco' : 'Leve / VUC'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
         </div>
       </div>
 
