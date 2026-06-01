@@ -22,7 +22,9 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:db:push": "prisma db push",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "prisma db seed",
+    "admin:reset": "node reset_admin.js"
   },
   "dependencies": {
     "@entregapro/shared-types": "workspace:*",
