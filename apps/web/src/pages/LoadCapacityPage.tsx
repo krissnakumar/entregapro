@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import {
-  Truck, Scale, AlertTriangle, CheckCircle2, RefreshCw, BarChart3, ShieldCheck, Info
+  Truck, Scale, AlertTriangle, CheckCircle2, RefreshCw, BarChart3, ShieldCheck, Info,
+  LayoutGrid, List, Search
 } from 'lucide-react';
 
 interface FleetCapacityItem {
@@ -21,6 +22,7 @@ interface FleetCapacityItem {
 
 export function LoadCapacityPage() {
   const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState<'columns' | 'list'>('columns');
   
   // Local Fleet Capacity Database with high-fidelity telemetry metrics
   const [fleet, setFleet] = useState<FleetCapacityItem[]>([
@@ -100,23 +102,20 @@ export function LoadCapacityPage() {
   return (
     <div className="space-y-8 pb-16 animate-in fade-in duration-500">
       
-      {/* Header Panel */}
-      <div className="bg-white border border-slate-200/80 rounded-[2.5rem] p-8 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-2 h-full bg-emerald-500" />
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="px-3 py-1 bg-emerald-50 text-emerald-700 font-black text-[10px] uppercase tracking-widest rounded-lg border border-emerald-100">
-              Controle de Balança & Capacidade
-            </span>
-            <span className="px-3 py-1 bg-slate-100 text-slate-600 font-bold text-[10px] uppercase tracking-widest rounded-lg border">
-              Regulado pela ANTT e DER-SP
+      {/* Header Panel (Compact) */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500" />
+        <div className="pl-2">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold text-[9px] uppercase tracking-wider rounded border border-emerald-100/60">
+              Lei da Balança
             </span>
           </div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-            Gestão de Capacidade & Lei da Balança
+          <h1 className="text-lg font-black text-slate-900 tracking-tight">
+            Capacidade de Carga & Eixos
           </h1>
-          <p className="text-xs text-slate-500 font-medium mt-1 max-w-2xl leading-relaxed">
-            Monitore a cubagem dos balões betoneira, calcule distribuição de eixos e previna multas por excesso de PBT (Peso Bruto Total) nas rodovias paulistas.
+          <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+            Cálculo de distribuição por eixos, cubagem e prevenção de multas ANTT / DER-SP.
           </p>
         </div>
       </div>
@@ -125,62 +124,151 @@ export function LoadCapacityPage() {
         
         {/* Left Column: Fleet List */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="relative">
-            <input 
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Pesquisar placa ou motorista..."
-              className="w-full px-4 py-3 bg-white border rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none" 
-            />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input 
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Pesquisar placa ou motorista..."
+                className="w-full pl-9 pr-3 py-2 bg-white border rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              />
+            </div>
+            
+            <div className="flex items-center bg-slate-100 border p-1 rounded-xl w-fit">
+              <button
+                onClick={() => setViewMode('columns')}
+                className={cn(
+                  "p-2 rounded-lg transition-all cursor-pointer outline-none",
+                  viewMode === 'columns' ? "bg-white text-emerald-600 shadow-2xs border border-slate-200/50" : "text-slate-500 hover:text-slate-900"
+                )}
+                title="Exibir como Colunas / Cards"
+              >
+                <LayoutGrid size={14} />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={cn(
+                  "p-2 rounded-lg transition-all cursor-pointer outline-none",
+                  viewMode === 'list' ? "bg-white text-emerald-600 shadow-2xs border border-slate-200/50" : "text-slate-500 hover:text-slate-900"
+                )}
+                title="Exibir como Lista / Tabela"
+              >
+                <List size={14} />
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-3">
-            {filteredFleet.map((truck) => {
-              const currentTotalWeight = truck.tareWeightKg + truck.cargoWeightKg;
-              const isOverloaded = currentTotalWeight > truck.maxGvwKg || truck.frontAxleWeightKg > 6000;
-              const isSelected = selectedTruckId === truck.id;
+          {viewMode === 'columns' ? (
+            <div className="space-y-3">
+              {filteredFleet.map((truck) => {
+                const currentTotalWeight = truck.tareWeightKg + truck.cargoWeightKg;
+                const isOverloaded = currentTotalWeight > truck.maxGvwKg || truck.frontAxleWeightKg > 6000;
+                const isSelected = selectedTruckId === truck.id;
 
-              return (
-                <div 
-                  key={truck.id}
-                  onClick={() => setSelectedTruckId(truck.id)}
-                  className={cn(
-                    "bg-white rounded-3xl border p-5 shadow-2xs hover:shadow-md cursor-pointer transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-l-4",
-                    isSelected ? "border-emerald-500 ring-2 ring-emerald-500/10" : "border-slate-100",
-                    isOverloaded && !isSelected && "border-l-rose-500"
-                  )}
-                >
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 bg-slate-900 text-white font-mono text-[9px] font-black rounded">
-                        {truck.plateNumber}
-                      </span>
-                      <span className="text-xs text-slate-500 font-bold">{truck.driverName}</span>
-                    </div>
-                    <h4 className="font-black text-slate-900 text-sm">
-                      {truck.vehicleType === 'BETONEIRA_3EIXOS' ? 'Betoneira Scania 3 Eixos' : 'Betoneira Mercedes 4 Eixos'}
-                    </h4>
-                    <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono">
-                      <span>Volume: <strong>{truck.allocatedVolumeM3}m³ / {truck.volumetricCapacityM3}m³</strong></span>
-                      <span>PBT Real: <strong>{(currentTotalWeight / 1000).toFixed(1)}t</strong></span>
-                    </div>
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    {isOverloaded ? (
-                      <span className="px-2.5 py-1 bg-rose-50 border border-rose-100 text-rose-700 text-[9px] font-black uppercase tracking-wider rounded-lg flex items-center gap-1">
-                        <AlertTriangle size={12} /> Excesso de Carga
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-1 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[9px] font-black uppercase tracking-wider rounded-lg flex items-center gap-1">
-                        <CheckCircle2 size={12} /> Peso Conforme
-                      </span>
+                return (
+                  <div 
+                    key={truck.id}
+                    onClick={() => setSelectedTruckId(truck.id)}
+                    className={cn(
+                      "bg-white rounded-3xl border p-5 shadow-2xs hover:shadow-md cursor-pointer transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-l-4",
+                      isSelected ? "border-emerald-500 ring-2 ring-emerald-500/10" : "border-slate-100",
+                      isOverloaded && !isSelected && "border-l-rose-500"
                     )}
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-slate-900 text-white font-mono text-[9px] font-black rounded">
+                          {truck.plateNumber}
+                        </span>
+                        <span className="text-xs text-slate-500 font-bold">{truck.driverName}</span>
+                      </div>
+                      <h4 className="font-black text-slate-900 text-sm">
+                        {truck.vehicleType === 'BETONEIRA_3EIXOS' ? 'Betoneira Scania 3 Eixos' : 'Betoneira Mercedes 4 Eixos'}
+                      </h4>
+                      <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono">
+                        <span>Volume: <strong>{truck.allocatedVolumeM3}m³ / {truck.volumetricCapacityM3}m³</strong></span>
+                        <span>PBT Real: <strong>{(currentTotalWeight / 1000).toFixed(1)}t</strong></span>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      {isOverloaded ? (
+                        <span className="px-2.5 py-1 bg-rose-50 border border-rose-100 text-rose-700 text-[9px] font-black uppercase tracking-wider rounded-lg flex items-center gap-1">
+                          <AlertTriangle size={12} /> Excesso de Carga
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[9px] font-black uppercase tracking-wider rounded-lg flex items-center gap-1">
+                          <CheckCircle2 size={12} /> Peso Conforme
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="bg-white border border-slate-200/60 rounded-2xl overflow-hidden shadow-3xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-50/70 border-b border-slate-100">
+                      <th className="py-3.5 px-6">Placa / Modelo</th>
+                      <th className="py-3.5 px-4">Motorista</th>
+                      <th className="py-3.5 px-4 text-center">Volume</th>
+                      <th className="py-3.5 px-4 text-center">PBT Real</th>
+                      <th className="py-3.5 px-4 text-center">Limite</th>
+                      <th className="py-3.5 px-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredFleet.map((truck) => {
+                      const currentTotalWeight = truck.tareWeightKg + truck.cargoWeightKg;
+                      const isOverloaded = currentTotalWeight > truck.maxGvwKg || truck.frontAxleWeightKg > 6000;
+                      const isSelected = selectedTruckId === truck.id;
+
+                      return (
+                        <tr 
+                          key={truck.id} 
+                          onClick={() => setSelectedTruckId(truck.id)}
+                          className={cn(
+                            "cursor-pointer transition-colors",
+                            isSelected ? "bg-emerald-50/50 hover:bg-emerald-50" : "hover:bg-slate-50/40"
+                          )}
+                        >
+                          <td className="py-3.5 px-6 font-bold">
+                            <div className="flex items-center gap-2">
+                              <span className="px-1.5 py-0.5 bg-slate-900 text-white font-mono text-[9px] font-black rounded">
+                                {truck.plateNumber}
+                              </span>
+                              <span className="text-[11px] text-slate-700">
+                                {truck.vehicleType === 'BETONEIRA_3EIXOS' ? 'Scania 3 Eixos' : 'Mercedes 4 Eixos'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 font-bold text-slate-500 text-[11px]">{truck.driverName}</td>
+                          <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-700">{truck.allocatedVolumeM3} / {truck.volumetricCapacityM3} m³</td>
+                          <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-700">{(currentTotalWeight / 1000).toFixed(1)} t</td>
+                          <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-400">{(truck.maxGvwKg / 1000).toFixed(0)} t</td>
+                          <td className="py-3.5 px-4">
+                            {isOverloaded ? (
+                              <span className="px-2 py-0.5 bg-rose-50 text-rose-700 text-[9px] font-black uppercase rounded border border-rose-100/60">
+                                Excesso
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase rounded border border-emerald-100/60">
+                                Liberado
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Axle Calculator Detail */}
