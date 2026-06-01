@@ -35,3 +35,6 @@ Thumbs.db
 # Agent/AI directories
 .agents/
 .codex/
+
+# Secrets / local credentials
+credentials.md
