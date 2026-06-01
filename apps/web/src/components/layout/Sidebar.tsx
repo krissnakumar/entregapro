@@ -92,7 +92,11 @@ export function Sidebar({ isOpen, onToggle, onMobileClose }: SidebarProps) {
                         <Link
                           key={item.label}
                           to={item.path!}
-                          onClick={onMobileClose}
+                          onClick={() => {
+                            if (window.innerWidth < 1024) {
+                              onMobileClose();
+                            }
+                          }}
                           className={cn(
                             "flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm",
                             isActive
