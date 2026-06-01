@@ -26,7 +26,7 @@ const AdminDashboard = () => {
     <AppLayout>
       <Routes>
         <Route path="" element={<Overview />} />
-        <Route path="analytics" element={<Overview />} />
+        <Route path="analytics" element={<ReportsPage />} />
         <Route path="orders" element={<OrdersList />} />
         <Route path="dispatch" element={<DispatchCommandCenter />} />
         <Route path="tracking" element={<MapView />} />
