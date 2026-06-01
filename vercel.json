@@ -1,0 +1,11 @@
+{
+  "installCommand": "corepack enable && pnpm install",
+  "buildCommand": "pnpm --filter web build",
+  "outputDirectory": "apps/web/dist",
+  "cleanUrls": true,
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/api/(.*)", "dest": "https://entregapro-api.onrender.com/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
