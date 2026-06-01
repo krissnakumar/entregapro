@@ -23,17 +23,37 @@ import {
   Radio,
   RefreshCw,
   SlidersHorizontal,
-  FileText
+  FileText,
+  Building2,
+  Loader2
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import Profile from './Profile';
 import { api } from '../api/client';
+import { useAuthStore } from '../store/useAuthStore';
 
-type SettingsTab = 'overview' | 'notifications' | 'language' | 'billing' | 'profile' | 'dispatch_rules' | 'api_keys';
+type SettingsTab = 'overview' | 'notifications' | 'language' | 'billing' | 'profile' | 'dispatch_rules' | 'api_keys' | 'company';
 
 const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('overview');
+  const user = useAuthStore((state) => state.user);
+  const organizationId = user?.organizationId;
+
+  const { data: companyData, refetch: refetchCompany, isLoading: isLoadingCompany } = useQuery({
+    queryKey: ['company-details', organizationId],
+    queryFn: () => {
+      if (!organizationId) return Promise.resolve(null);
+      return api.get<any>(`/organizations/${organizationId}`);
+    },
+    enabled: !!organizationId,
+  });
+
+  const [compName, setCompName] = useState('');
+  const [compCnpj, setCompCnpj] = useState('');
+  const [compPhone, setCompPhone] = useState('');
+  const [compAddress, setCompAddress] = useState('');
+
   const { data: settingsData } = useQuery({
     queryKey: ['settings'],
     queryFn: () => api.get<Record<string, any>>('/settings').catch(() => ({})),
@@ -80,6 +100,15 @@ const SettingsPage = () => {
     if (settingsData.apiKeys) setApiKeys(settingsData.apiKeys);
   }, [settingsData]);
 
+  React.useEffect(() => {
+    if (companyData) {
+      setCompName(companyData.name || '');
+      setCompCnpj(companyData.cnpj || '');
+      setCompPhone(companyData.phone || '');
+      setCompAddress(companyData.address || '');
+    }
+  }, [companyData]);
+
   const saveSettingMutation = useMutation({
     mutationFn: ({ key, value }: { key: string; value: any }) => api.put(`/settings/${key}`, { value }),
   });
@@ -101,6 +130,7 @@ const SettingsPage = () => {
       title: 'Geral & Pessoal',
       items: [
         { id: 'profile', name: 'Informações do Perfil', desc: 'Atualizar credenciais de acesso, nome e avatar', icon: User, action: () => setActiveTab('profile') },
+        { id: 'company', name: 'Dados da Empresa', desc: 'Gerenciar razão social, CNPJ, telefone e endereço corporativo', icon: Building2, action: () => setActiveTab('company') },
         { id: 'notifications', name: 'Central de Notificações', desc: 'Configurar canais de alerta (Push, Email, Docas)', icon: Bell, action: () => setActiveTab('notifications') },
         { id: 'language', name: 'Idioma e Localização', desc: 'Ajustar formato pt-BR e fuso horário oficial', icon: Globe, action: () => setActiveTab('language') },
       ]
@@ -399,6 +429,145 @@ const SettingsPage = () => {
     </div>
   );
 
+  const updateCompanyMutation = useMutation({
+    mutationFn: (payload: any) => {
+      return api.patch(`/organizations/${organizationId}`, payload);
+    },
+    onSuccess: () => {
+      refetchCompany();
+      toast.success('Informações da empresa salvas com sucesso!');
+    },
+    onError: () => {
+      toast.error('Falha ao atualizar dados da empresa no servidor.');
+    }
+  });
+
+  const handleSaveCompany = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!compName.trim()) {
+      toast.error('O nome da empresa é obrigatório.');
+      return;
+    }
+    updateCompanyMutation.mutate({
+      name: compName.trim(),
+      cnpj: compCnpj.trim() || null,
+      phone: compPhone.trim() || null,
+      address: compAddress.trim() || null,
+    });
+  };
+
+  const renderCompany = () => (
+    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+      <div className="flex items-center justify-between mb-8">
+        <button onClick={() => setActiveTab('overview')} className="text-xs font-black text-primary uppercase tracking-widest hover:underline flex items-center gap-1">
+          ← Voltar para o Painel Geral
+        </button>
+        <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+          <Building2 size={22} className="text-primary" /> Perfil da Empresa
+        </h3>
+      </div>
+
+      <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 space-y-6 shadow-sm">
+        {isLoadingCompany ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="animate-spin text-primary animate-spin-slow" size={24} />
+          </div>
+        ) : !companyData ? (
+          <div className="text-center py-8 text-slate-400">
+            <p className="text-sm font-bold">Nenhuma empresa associada ao seu perfil.</p>
+          </div>
+        ) : (
+          <form onSubmit={handleSaveCompany} className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+                Nome da Empresa / Razão Social *
+              </label>
+              <input 
+                type="text" 
+                required
+                value={compName}
+                onChange={(e) => setCompName(e.target.value)}
+                placeholder="Ex: Construtora Modelo Ltda"
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+                  CNPJ Corporativo
+                </label>
+                <input 
+                  type="text" 
+                  value={compCnpj}
+                  onChange={(e) => setCompCnpj(e.target.value)}
+                  placeholder="00.000.000/0001-00"
+                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+                  Telefone / Contato Comercial
+                </label>
+                <input 
+                  type="text" 
+                  value={compPhone}
+                  onChange={(e) => setCompPhone(e.target.value)}
+                  placeholder="(11) 3300-4400"
+                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+                Endereço Matriz / Sede
+              </label>
+              <input 
+                type="text" 
+                value={compAddress}
+                onChange={(e) => setCompAddress(e.target.value)}
+                placeholder="Av. Paulista, 1000 - São Paulo, SP"
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              />
+            </div>
+
+            {/* Quick Metrics from Organization API */}
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+              <div className="text-center">
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">Operadores</span>
+                <span className="font-mono font-black text-slate-700 text-sm">{companyData._count?.users || 0}</span>
+              </div>
+              <div className="text-center">
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">Motoristas</span>
+                <span className="font-mono font-black text-slate-700 text-sm">{companyData._count?.drivers || 0}</span>
+              </div>
+              <div className="text-center">
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">Veículos</span>
+                <span className="font-mono font-black text-slate-700 text-sm">{companyData._count?.vehicles || 0}</span>
+              </div>
+              <div className="text-center">
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">Clientes</span>
+                <span className="font-mono font-black text-slate-700 text-sm">{companyData._count?.customers || 0}</span>
+              </div>
+            </div>
+
+            <button 
+              type="submit"
+              disabled={updateCompanyMutation.isPending}
+              className="w-full py-4 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-md mt-6 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {updateCompanyMutation.isPending ? (
+                <Loader2 className="animate-spin text-white" size={16} />
+              ) : 'Salvar Dados da Empresa'}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+
   const renderBilling = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
       <div className="flex items-center justify-between mb-8">
@@ -539,6 +708,7 @@ const SettingsPage = () => {
       {activeTab === 'dispatch_rules' && renderDispatchRules()}
       {activeTab === 'api_keys' && renderApiKeys()}
       {activeTab === 'billing' && renderBilling()}
+      {activeTab === 'company' && renderCompany()}
       {activeTab === 'profile' && (
         <div className="space-y-6">
           <button onClick={() => setActiveTab('overview')} className="text-xs font-black text-primary uppercase tracking-widest hover:underline flex items-center gap-1">

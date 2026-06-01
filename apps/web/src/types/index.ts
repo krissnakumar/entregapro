@@ -24,6 +24,7 @@ export type User = {
   phone?: string;
   avatarUrl?: string;
   permissions: string[];
+  organizationId?: string;
 }
 
 export type Order = {
