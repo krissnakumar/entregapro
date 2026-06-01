@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,16 @@ import {
   Linking,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import {
   useAuthStore,
   useDriverDeliveries,
+  useNotifications,
+  useMarkAllNotificationsRead,
+  useNotificationStore,
   colors,
   borderRadius,
   shadows,
@@ -25,17 +29,39 @@ import {
 } from '@rn-apps/shared';
 import type { Delivery } from '@rn-apps/shared';
 import TrackingActivator from '../components/TrackingActivator';
+import { useOfflineStore } from '../store/offlineStore';
+import { useNetworkSync } from '../hooks/useNetworkSync';
 
 export default function DriverHomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { user } = useAuthStore();
   const [refreshing, setRefreshing] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  const { cachedDeliveries, setCachedDeliveries } = useOfflineStore();
+  const { isOffline, queueSize } = useNetworkSync();
 
   const queryResult = useDriverDeliveries();
-  const deliveries: Delivery[] | undefined = queryResult.data;
   const isLoading = queryResult.isLoading;
   const refetch = queryResult.refetch;
+
+  // Notification Hooks
+  const { data: notifications } = useNotifications();
+  const markAllRead = useMarkAllNotificationsRead();
+  const storeNotifications = useNotificationStore((s) => s.notifications);
+  const displayNotifications = (storeNotifications.length > 0 ? storeNotifications : notifications) || [];
+  const unreadCount = displayNotifications.filter((n: any) => !n.isRead).length || 0;
+
+  // Sync loaded deliveries to local offline cache
+  useEffect(() => {
+    if (queryResult.data) {
+      setCachedDeliveries(queryResult.data);
+    }
+  }, [queryResult.data, setCachedDeliveries]);
+
+  // Fallback to cache if offline or loading fails
+  const deliveries: Delivery[] = queryResult.data || cachedDeliveries || [];
 
   const activeDelivery = deliveries?.find(
     (d) =>
@@ -49,10 +75,13 @@ export default function DriverHomeScreen() {
   );
 
   const onRefresh = useCallback(async () => {
+    if (isOffline) {
+      return; // Refreshing doesn't apply if offline
+    }
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
-  }, [refetch]);
+  }, [refetch, isOffline]);
 
   const openMaps = (address: string) => {
     const encoded = encodeURIComponent(address);
@@ -67,12 +96,22 @@ export default function DriverHomeScreen() {
 
   const openWhatsApp = (phone: string) => {
     const cleaned = phone.replace(/\D/g, '');
-    Linking.openURL(`https://wa.me/55${cleaned}`);
+    const formatted = cleaned.startsWith('55') && cleaned.length >= 12 ? cleaned : `55${cleaned}`;
+    Linking.openURL(`https://wa.me/${formatted}`);
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {activeDelivery && user?.id && (
+      {/* Offline Mode Banner */}
+      {isOffline && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineBannerText}>
+            📡 Modo Offline {queueSize > 0 ? `• Sync Pendente (${queueSize})` : ''}
+          </Text>
+        </View>
+      )}
+
+      {activeDelivery && user?.id && !isOffline && (
         <TrackingActivator
           driverId={user.id}
           deliveryId={activeDelivery.id}
@@ -95,12 +134,25 @@ export default function DriverHomeScreen() {
               </Text>
             </View>
           </View>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Profile')}
-            style={styles.profileButton}
-          >
-            <Text style={styles.profileButtonText}>Perfil</Text>
-          </TouchableOpacity>
+          <View style={styles.headerRightActions}>
+            <TouchableOpacity
+              onPress={() => setShowNotifications(true)}
+              style={styles.bellButton}
+            >
+              <Text style={styles.bellIcon}>🔔</Text>
+              {unreadCount > 0 && (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>{unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Profile')}
+              style={styles.profileButton}
+            >
+              <Text style={styles.profileButtonText}>Perfil</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Active Delivery Card */}
@@ -164,7 +216,7 @@ export default function DriverHomeScreen() {
               <TouchableOpacity
                 style={styles.contactBtn}
                 onPress={() =>
-                  openWhatsApp(activeDelivery.customer?.whatsapp || '')
+                  openWhatsApp(activeDelivery.customer?.phone || '')
                 }
               >
                 <Text style={styles.contactBtnText}>💬 WhatsApp</Text>
@@ -179,7 +231,7 @@ export default function DriverHomeScreen() {
         style={styles.list}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} enabled={!isOffline} />
         }
       >
         <View style={styles.sectionHeader}>
@@ -189,14 +241,14 @@ export default function DriverHomeScreen() {
           </Text>
         </View>
 
-        {isLoading && deliveries?.length === 0 && (
+        {isLoading && deliveries.length === 0 && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.loadingText}>Carregando manifestos...</Text>
           </View>
         )}
 
-        {!isLoading && deliveries?.length === 0 && (
+        {!isLoading && deliveries.length === 0 && (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>📭</Text>
             <Text style={styles.emptyTitle}>Nenhum manifesto hoje</Text>
@@ -206,7 +258,7 @@ export default function DriverHomeScreen() {
           </View>
         )}
 
-        {deliveries?.map((delivery) => {
+        {deliveries.map((delivery) => {
           const isCompleted = delivery.status === 'DELIVERED';
           const statusColor = getStatusColor(delivery.status);
           const statusBg = getStatusBg(delivery.status);
@@ -245,8 +297,8 @@ export default function DriverHomeScreen() {
                   <Text style={styles.deliveryCustomerName} numberOfLines={1}>
                     {delivery.customer?.name}
                   </Text>
-                  {delivery.weight && (
-                    <Text style={styles.deliveryWeight}>{delivery.weight}</Text>
+                  {delivery.quantity && (
+                    <Text style={styles.deliveryWeight}>{delivery.quantity}</Text>
                   )}
                 </View>
                 <Text style={styles.deliveryAddress} numberOfLines={1}>
@@ -274,6 +326,68 @@ export default function DriverHomeScreen() {
         })}
       </ScrollView>
 
+      {/* Notifications Modal */}
+      {showNotifications && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Notificações</Text>
+              <TouchableOpacity
+                onPress={() => setShowNotifications(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScroll}>
+              {displayNotifications && displayNotifications.length > 0 ? (
+                displayNotifications.map((n: any) => (
+                  <View
+                    key={n.id}
+                    style={[
+                      styles.notificationItem,
+                      !n.isRead && styles.notificationItemUnread,
+                    ]}
+                  >
+                    <View style={styles.notificationHeader}>
+                      <Text style={styles.notificationTitle}>{n.title}</Text>
+                      {!n.isRead && <View style={styles.notificationUnreadDot} />}
+                    </View>
+                    <Text style={styles.notificationMessage}>{n.message}</Text>
+                    <Text style={styles.notificationDate}>
+                      {new Date(n.createdAt).toLocaleString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <View style={styles.modalEmpty}>
+                  <Text style={styles.modalEmptyIcon}>🔔</Text>
+                  <Text style={styles.modalEmptyText}>Nenhuma notificação</Text>
+                </View>
+              )}
+            </ScrollView>
+
+            {unreadCount > 0 && (
+              <TouchableOpacity
+                style={styles.modalMarkAllBtn}
+                onPress={() => {
+                  markAllRead.mutate();
+                  Alert.alert('Sucesso', 'Todas as notificações marcadas como lidas.');
+                }}
+              >
+                <Text style={styles.modalMarkAllText}>Marcar todas como lidas</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
+
       {/* Bottom Navigation */}
       <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 8 }]}>
         <TouchableOpacity style={styles.navItemActive}>
@@ -294,6 +408,19 @@ export default function DriverHomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  offlineBanner: {
+    backgroundColor: '#F59E0B',
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  offlineBannerText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
   header: {
     backgroundColor: '#1E293B',
     paddingHorizontal: 20,
@@ -325,7 +452,42 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
-  userName: { fontSize: 16, fontWeight: '800', color: colors.white, maxWidth: 180 },
+  userName: { fontSize: 16, fontWeight: '800', color: colors.white, maxWidth: 120 },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bellButton: {
+    width: 40,
+    height: 40,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: borderRadius.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  bellIcon: {
+    fontSize: 18,
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: colors.error,
+    borderRadius: 9,
+    width: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#1E293B',
+  },
+  bellBadgeText: {
+    color: colors.white,
+    fontSize: 8,
+    fontWeight: '900',
+  },
   profileButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -506,4 +668,118 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 8 },
   emptyText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
+
+  // Modal styles
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    justifyContent: 'flex-end',
+    zIndex: 999,
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '80%',
+    padding: 20,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: colors.text,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  modalScroll: {
+    maxHeight: 400,
+  },
+  notificationItem: {
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.lg,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  notificationItemUnread: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  notificationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  notificationTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  notificationUnreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#2563EB',
+  },
+  notificationMessage: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  notificationDate: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: colors.textTertiary,
+  },
+  modalEmpty: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  modalEmptyIcon: {
+    fontSize: 36,
+    marginBottom: 10,
+    opacity: 0.5,
+  },
+  modalEmptyText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  modalMarkAllBtn: {
+    backgroundColor: '#1E293B',
+    borderRadius: borderRadius.lg,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  modalMarkAllText: {
+    color: colors.white,
+    fontWeight: '800',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
 });

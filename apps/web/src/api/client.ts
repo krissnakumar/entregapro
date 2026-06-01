@@ -1,3 +1,5 @@
+import { useAuthStore } from '../store/useAuthStore';
+
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -24,6 +26,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
 
   if (!response.ok) {
+    if (response.status === 401 && endpoint !== '/auth/login') {
+      useAuthStore.getState().logout();
+    }
     const error = await response.json();
     console.error(`API Error [${endpoint}]:`, error);
     throw new Error(error.message || 'Something went wrong');

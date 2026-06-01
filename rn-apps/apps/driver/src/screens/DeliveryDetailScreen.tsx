@@ -14,11 +14,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { CameraView } from 'expo-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as FileSystem from 'expo-file-system';
+import * as Location from 'expo-location';
 import {
   useAuthStore,
   useSubmitPOD,
+  useDelivery,
+  useUpdateDeliveryStatus,
   colors,
   borderRadius,
   shadows,
@@ -29,18 +32,30 @@ import {
   formatCurrency,
 } from '@rn-apps/shared';
 import type { Delivery } from '@rn-apps/shared';
+import SignaturePad from '../components/SignaturePad';
+import { useOfflineStore } from '../store/offlineStore';
 
 export default function DeliveryDetailScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const delivery: Delivery = route.params?.delivery;
+  const initialDelivery: Delivery = route.params?.delivery;
+  
+  // Real-time query to synchronize status updates and POD completion
+  const { data: liveDelivery } = useDelivery(initialDelivery.id);
+  
+  const { isOffline, enqueueMutation, updateLocalDeliveryStatus, updateLocalDeliveryPOD } = useOfflineStore();
+  const delivery = liveDelivery || initialDelivery;
+  
   const { user } = useAuthStore();
   const submitPOD = useSubmitPOD();
+  const updateStatus = useUpdateDeliveryStatus();
+  const [permission, requestPermission] = useCameraPermissions();
 
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const [photoData, setPhotoData] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
+  const [showSignaturePad, setShowSignaturePad] = useState(false);
   const [cameraType, setCameraType] = useState<'photo' | 'signature'>('photo');
   const [notes, setNotes] = useState('');
   const cameraRef = useRef<CameraView>(null);
@@ -51,12 +66,58 @@ export default function DeliveryDetailScreen() {
   const statusBg = getStatusBg(delivery.status);
   const statusLabel = getStatusLabel(delivery.status);
 
+  // Timeline Step Generator
+  const getTimelineSteps = () => {
+    const steps = [
+      { label: 'Designado', key: 'ASSIGNED' },
+      { label: 'Carregando', key: 'LOADING' },
+      { label: 'Em Trânsito', key: 'IN_TRANSIT' },
+      { label: 'Entregue', key: 'DELIVERED' },
+      { label: 'POD Enviado', key: 'POD' },
+    ];
+    const statusOrder = ['PENDING', 'ASSIGNED', 'LOADING', 'IN_TRANSIT', 'DELIVERED'];
+    const currentIndex = statusOrder.indexOf(delivery.status);
+
+    return steps.map((step, idx) => {
+      let active = false;
+      let completed = false;
+
+      if (step.key === 'POD') {
+        completed = isCompleted && (!!signatureData || !!delivery.signature_url);
+        active = isCompleted && !completed;
+      } else {
+        const stepIdx = statusOrder.indexOf(step.key);
+        completed = currentIndex > stepIdx;
+        active = currentIndex === stepIdx;
+      }
+
+      return { ...step, active, completed };
+    });
+  };
+
   const toggleCamera = useCallback(
-    (type: 'photo' | 'signature') => {
+    async (type: 'photo' | 'signature') => {
+      if (type === 'signature') {
+        setShowSignaturePad(true);
+        return;
+      }
+
+      // Check and request camera permission before showing camera overlay
+      if (!permission || !permission.granted) {
+        const res = await requestPermission();
+        if (!res.granted) {
+          Alert.alert(
+            'Permissão necessária',
+            'Precisamos de acesso à câmera para fotografar o lacre da entrega.'
+          );
+          return;
+        }
+      }
+
       setCameraType(type);
       setShowCamera(true);
     },
-    [],
+    [permission, requestPermission]
   );
 
   const handleCapture = useCallback(async () => {
@@ -70,7 +131,7 @@ export default function DeliveryDetailScreen() {
 
       if (photo?.uri) {
         const base64 = await FileSystem.readAsStringAsync(photo.uri, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding: 'base64',
         });
         const dataUri = `data:image/jpeg;base64,${base64}`;
 
@@ -91,18 +152,36 @@ export default function DeliveryDetailScreen() {
     if (!signatureData || !photoData) {
       Alert.alert(
         'Atenção',
-        'É obrigatório capturar a assinatura digital e a foto do lacre antes de finalizar.',
+        'É obrigatório capturar a assinatura digital e a foto do lacre antes de finalizar.'
+      );
+      return;
+    }
+
+    if (isOffline) {
+      // Offline mode support
+      updateLocalDeliveryPOD(delivery.id, signatureData, photoData);
+      enqueueMutation('POD', delivery.id, {
+        signatureUrl: signatureData,
+        photoUrl: photoData,
+      });
+      Alert.alert(
+        'Modo Offline',
+        'Comprovante assinado e registrado localmente. A sincronização com a central será feita assim que houver sinal de internet.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
       return;
     }
 
     try {
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
       await submitPOD.mutateAsync({
         deliveryId: delivery.id,
         signatureUrl: signatureData,
         photoUrl: photoData,
-        lat: undefined,
-        lng: undefined,
+        lat: loc.coords.latitude,
+        lng: loc.coords.longitude,
       });
       Alert.alert('Sucesso', 'Entrega finalizada com sucesso!', [
         { text: 'OK', onPress: () => navigation.goBack() },
@@ -110,27 +189,35 @@ export default function DeliveryDetailScreen() {
     } catch (err: any) {
       Alert.alert('Erro', err.message || 'Falha ao enviar comprovantes.');
     }
-  }, [delivery.id, signatureData, photoData, submitPOD, navigation]);
-
-  const updateStatusMutation = submitPOD; // Reuse for initial status updates
+  }, [delivery.id, signatureData, photoData, submitPOD, navigation, isOffline, updateLocalDeliveryPOD, enqueueMutation]);
 
   const handleStartTrip = useCallback(async () => {
+    if (isOffline) {
+      // Offline mode support
+      updateLocalDeliveryStatus(delivery.id, 'IN_TRANSIT');
+      enqueueMutation('STATUS', delivery.id, { status: 'IN_TRANSIT' });
+      Alert.alert(
+        'Modo Offline',
+        'Viagem iniciada localmente. O status será transmitido à central quando a conexão for restabelecida.'
+      );
+      return;
+    }
+
     try {
-      await submitPOD.mutateAsync({
-        deliveryId: delivery.id,
-        signatureUrl: undefined,
-        photoUrl: undefined,
+      await updateStatus.mutateAsync({
+        id: delivery.id,
+        status: 'IN_TRANSIT',
       });
       Alert.alert('Sucesso', 'Viagem iniciada!');
     } catch (err: any) {
       Alert.alert('Erro', err.message || 'Falha ao iniciar viagem.');
     }
-  }, [delivery.id, submitPOD]);
+  }, [delivery.id, updateStatus, isOffline, updateLocalDeliveryStatus, enqueueMutation]);
 
   const openMaps = (address: string) => {
     const encoded = encodeURIComponent(address);
     Linking.openURL(
-      `https://www.google.com/maps/search/?api=1&query=${encoded}`,
+      `https://www.google.com/maps/search/?api=1&query=${encoded}`
     );
   };
 
@@ -139,13 +226,32 @@ export default function DeliveryDetailScreen() {
   };
 
   const openWhatsApp = (phone: string) => {
-    Linking.openURL(`https://wa.me/55${phone.replace(/\D/g, '')}`);
+    const cleaned = phone.replace(/\D/g, '');
+    const formatted = cleaned.startsWith('55') && cleaned.length >= 12 ? cleaned : `55${cleaned}`;
+    Linking.openURL(`https://wa.me/${formatted}`);
   };
 
   if (!delivery) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Text style={styles.errorText}>Entrega não encontrada</Text>
+      </View>
+    );
+  }
+
+  // Signature drawing pad overlay
+  if (showSignaturePad) {
+    return (
+      <View style={[styles.signatureOverlayContainer, { paddingTop: insets.top + 30 }]}>
+        <View style={styles.signaturePadWrapper}>
+          <SignaturePad
+            onSave={(base64) => {
+              setSignatureData(base64);
+              setShowSignaturePad(false);
+            }}
+            onClose={() => setShowSignaturePad(false)}
+          />
+        </View>
       </View>
     );
   }
@@ -192,13 +298,20 @@ export default function DeliveryDetailScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Offline Mode Banner */}
+      {isOffline && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineBannerText}>📡 Modo Offline Ativo</Text>
+        </View>
+      )}
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backBtnText}>← Voltar</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerSubtitle}>{delivery.id}</Text>
+          <Text style={styles.headerSubtitle}>{delivery.id.slice(0, 8)}...</Text>
           <Text style={styles.headerTitle}>Ordem de Despacho</Text>
         </View>
         <View style={[styles.headerBadge, { backgroundColor: statusBg }]}>
@@ -212,6 +325,57 @@ export default function DeliveryDetailScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* Real-time Delivery Timeline Widget */}
+        <View style={styles.timelineCard}>
+          <Text style={styles.timelineCardTitle}>📊 Linha do Tempo da Entrega</Text>
+          <View style={styles.timelineContainer}>
+            {getTimelineSteps().map((step, idx) => {
+              const isLast = idx === 4;
+              return (
+                <View key={step.key} style={styles.timelineStepWrapper}>
+                  <View style={styles.timelineNodeBlock}>
+                    <View
+                      style={[
+                        styles.timelineCircle,
+                        step.completed && styles.timelineCircleCompleted,
+                        step.active && styles.timelineCircleActive,
+                      ]}
+                    >
+                      {step.completed ? (
+                        <Text style={styles.timelineCheckText}>✓</Text>
+                      ) : (
+                        <View
+                          style={[
+                            styles.timelineDot,
+                            step.active && styles.timelineDotActive,
+                          ]}
+                        />
+                      )}
+                    </View>
+                    {!isLast && (
+                      <View
+                        style={[
+                          styles.timelineConnector,
+                          step.completed && styles.timelineConnectorCompleted,
+                        ]}
+                      />
+                    )}
+                  </View>
+                  <Text
+                    style={[
+                      styles.timelineLabel,
+                      step.completed && styles.timelineLabelCompleted,
+                      step.active && styles.timelineLabelActive,
+                    ]}
+                  >
+                    {step.label}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
         {/* Customer Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
@@ -243,9 +407,6 @@ export default function DeliveryDetailScreen() {
           <View style={styles.loadItem}>
             <Text style={styles.loadLabel}>Volumes / Peso</Text>
             <Text style={styles.loadValue}>{delivery.quantity}</Text>
-            {delivery.weight && (
-              <Text style={styles.loadSubvalue}>{delivery.weight}</Text>
-            )}
           </View>
         </View>
 
@@ -296,7 +457,7 @@ export default function DeliveryDetailScreen() {
               <TouchableOpacity
                 style={styles.contactBtn}
                 onPress={() =>
-                  openWhatsApp(delivery.customer?.whatsapp || '')
+                  openWhatsApp(delivery.customer?.phone || '')
                 }
               >
                 <Text style={styles.contactBtnIcon}>💬</Text>
@@ -326,7 +487,7 @@ export default function DeliveryDetailScreen() {
                     style={styles.recaptureBtn}
                     onPress={() => toggleCamera('signature')}
                   >
-                    <Text style={styles.recaptureBtnText}>Recapturar</Text>
+                    <Text style={styles.recaptureBtnText}>Recapturar Assinatura</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -337,7 +498,7 @@ export default function DeliveryDetailScreen() {
                   <Text style={styles.captureIcon}>✍️</Text>
                   <Text style={styles.captureLabel}>Assinatura Digital</Text>
                   <Text style={styles.captureHint}>
-                    Toque para capturar
+                    Toque para assinar com o dedo
                   </Text>
                 </TouchableOpacity>
               )}
@@ -354,7 +515,7 @@ export default function DeliveryDetailScreen() {
                     style={styles.recaptureBtn}
                     onPress={() => toggleCamera('photo')}
                   >
-                    <Text style={styles.recaptureBtnText}>Recapturar</Text>
+                    <Text style={styles.recaptureBtnText}>Recapturar Foto</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -363,7 +524,7 @@ export default function DeliveryDetailScreen() {
                   onPress={() => toggleCamera('photo')}
                 >
                   <Text style={styles.captureIcon}>📷</Text>
-                  <Text style={styles.captureLabel}>Foto do Lacre</Text>
+                  <Text style={styles.captureLabel}>Foto do Lacre / Carga</Text>
                   <Text style={styles.captureHint}>
                     Documento / Lacre
                   </Text>
@@ -404,9 +565,9 @@ export default function DeliveryDetailScreen() {
             <TouchableOpacity
               style={[styles.footerBtn, styles.footerBtnPrimary]}
               onPress={handleStartTrip}
-              disabled={submitPOD.isPending}
+              disabled={updateStatus.isPending}
             >
-              {submitPOD.isPending ? (
+              {updateStatus.isPending ? (
                 <ActivityIndicator color={colors.white} />
               ) : (
                 <Text style={styles.footerBtnText}>
@@ -423,6 +584,19 @@ export default function DeliveryDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
+  offlineBanner: {
+    backgroundColor: '#F59E0B',
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  offlineBannerText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
   errorText: { textAlign: 'center', marginTop: 40, color: colors.error },
   header: {
     flexDirection: 'row',
@@ -454,6 +628,102 @@ const styles = StyleSheet.create({
   headerBadgeText: { fontSize: 8, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   scroll: { flex: 1 },
   scrollContent: { padding: 20, paddingBottom: 100 },
+  
+  // Timeline Styles
+  timelineCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 20,
+  },
+  timelineCardTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 16,
+  },
+  timelineContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 4,
+  },
+  timelineStepWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  timelineNodeBlock: {
+    alignItems: 'center',
+    width: '100%',
+    position: 'relative',
+    height: 24,
+  },
+  timelineCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  timelineCircleActive: {
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
+  },
+  timelineCircleCompleted: {
+    borderColor: '#10B981',
+    backgroundColor: '#D1FAE5',
+  },
+  timelineCheckText: {
+    color: '#059669',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  timelineDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#CBD5E1',
+  },
+  timelineDotActive: {
+    backgroundColor: '#2563EB',
+  },
+  timelineConnector: {
+    position: 'absolute',
+    left: '50%',
+    right: '-50%',
+    top: 10,
+    height: 2,
+    backgroundColor: '#E2E8F0',
+    zIndex: 1,
+  },
+  timelineConnectorCompleted: {
+    backgroundColor: '#10B981',
+  },
+  timelineLabel: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 6,
+    width: '90%',
+  },
+  timelineLabelActive: {
+    color: '#2563EB',
+    fontWeight: '800',
+  },
+  timelineLabelCompleted: {
+    color: '#0F172A',
+  },
+
   section: { marginBottom: 20 },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -497,7 +767,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   loadValue: { fontSize: 12, fontWeight: '700', color: colors.text },
-  loadSubvalue: { fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginTop: 2 },
   loadDivider: { width: 1, backgroundColor: colors.border },
   sectionLabel: {
     fontSize: 10,
@@ -586,11 +855,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.success,
     backgroundColor: colors.successBg,
-    minHeight: 140,
+    minHeight: 180,
   },
   capturedImage: { width: '100%', height: 140 },
-  recaptureBtn: { padding: 8, alignItems: 'center' },
-  recaptureBtnText: { fontSize: 11, fontWeight: '700', color: colors.primary },
+  recaptureBtn: { padding: 12, alignItems: 'center', backgroundColor: colors.white },
+  recaptureBtnText: { fontSize: 11, fontWeight: '800', color: colors.primary },
   completedBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -661,5 +930,17 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 30,
     backgroundColor: colors.white,
+  },
+  // Signature pad styles
+  signatureOverlayContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  signaturePadWrapper: {
+    width: '100%',
+    maxWidth: 500,
   },
 });

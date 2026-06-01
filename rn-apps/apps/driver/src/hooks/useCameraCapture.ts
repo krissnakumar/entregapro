@@ -49,7 +49,7 @@ export function useCameraCapture() {
       }
 
       const base64 = await FileSystem.readAsStringAsync(photo.uri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64',
       });
 
       setCapturedUri(photo.uri);

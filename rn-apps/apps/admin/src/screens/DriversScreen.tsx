@@ -19,7 +19,7 @@ export default function DriversScreen() {
   const { data: drivers, isLoading } = useDrivers();
 
   const filtered = (drivers || []).filter((d: any) =>
-    d.name?.toLowerCase().includes(search.toLowerCase()),
+    (d.user?.name || d.name || '').toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -51,33 +51,38 @@ export default function DriversScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
-          {filtered.map((d: any) => (
+          {filtered.map((d: any) => {
+            const driverName = d.user?.name || d.name || '';
+            const isActive = d.isOnline ?? d.active ?? false;
+            const vehiclePlate = d.vehicle?.vehicleNumber || d.vehicle?.plate || '';
+            return (
             <View key={d.id} style={styles.card}>
               <View style={styles.cardTop}>
                 <View style={styles.avatarSmall}>
-                  <Text style={styles.avatarText}>{d.name?.charAt(0)}</Text>
+                  <Text style={styles.avatarText}>{driverName?.charAt(0)}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={styles.nameRow}>
-                    <Text style={styles.driverName}>{d.name}</Text>
+                    <Text style={styles.driverName}>{driverName}</Text>
                     <View
                       style={[
                         styles.statusDot,
-                        { backgroundColor: d.active ? colors.success : colors.muted },
+                        { backgroundColor: isActive ? colors.success : colors.muted },
                       ]}
                     />
                   </View>
                   {d.phone && <Text style={styles.driverDetail}>{d.phone}</Text>}
                 </View>
-                {d.vehicle?.plate && (
+                {vehiclePlate && (
                   <View style={styles.vehicleBadge}>
-                    <Text style={styles.vehicleBadgeText}>{d.vehicle.plate}</Text>
+                    <Text style={styles.vehicleBadgeText}>{vehiclePlate}</Text>
                   </View>
                 )}
               </View>
               {d.licenseNumber && <Text style={styles.driverLicense}>{d.licenseNumber}</Text>}
             </View>
-          ))}
+            );
+          })}
         </ScrollView>
       )}
     </View>

@@ -13,18 +13,27 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.entregapro.driver"
+      "bundleIdentifier": "com.entregapro.driver",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#4F46E5"
       },
-      "package": "com.entregapro.driver"
+      "package": "com.entregapro.driver",
+      "versionCode": 1
+    },
+    "extra": {
+      "environment": "production",
+      "apiUrl": "https://api.entregapro.com.br"
     },
     "plugins": [
       "expo-location",
       "expo-camera",
       "expo-secure-store"
-    ]
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
   }
 }

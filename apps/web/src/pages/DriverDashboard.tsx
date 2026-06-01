@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
@@ -47,86 +47,11 @@ interface DriverTask {
   podPhoto?: string;
 }
 
-// ==========================================
-// DADOS SIMULADOS DE ALTA FIDELIDADE (pt-BR)
-// ==========================================
-const mockDriverTasksData: DriverTask[] = [
-  {
-    id: 'TSK-9901',
-    deliveryNumber: 'NFE-554210',
-    status: 'IN_TRANSIT',
-    customer: {
-      name: 'Votorantim Cimentos S.A.',
-      phone: '11998887766',
-      whatsapp: '11998887766'
-    },
-    deliveryAddress: 'Av. das Nações Unidas, 14171 - Doca 4',
-    destinationCity: 'São Paulo - SP',
-    materialType: 'Cimento Portland CP-II (Granel)',
-    quantity: '450 Sacos',
-    weight: '32.5 Toneladas',
-    scheduledTime: '18:00 Hoje',
-    notes: 'Atenção: Exige uso de EPI completo (Capacete, Óculos, Botas) na portaria principal.'
-  },
-  {
-    id: 'TSK-9902',
-    deliveryNumber: 'NFE-554211',
-    status: 'LOADING',
-    customer: {
-      name: 'Gerdau Aços Longos',
-      phone: '19987654321',
-      whatsapp: '19987654321'
-    },
-    deliveryAddress: 'Rodovia Anhangüera, Km 98 - Galpão Industrial',
-    destinationCity: 'Campinas - SP',
-    materialType: 'Vergalhão de Aço CA50 10mm',
-    quantity: '180 Feixes',
-    weight: '28.0 Toneladas',
-    scheduledTime: 'Amanhã 12:00',
-    notes: 'Carga com excesso lateral. Verificar correntes de fixação e cintas catraca a cada 100km.'
-  },
-  {
-    id: 'TSK-9903',
-    deliveryNumber: 'CTE-881203',
-    status: 'DELIVERED',
-    customer: {
-      name: 'Ambev Distribuição e Logística',
-      phone: '11977778888',
-      whatsapp: '11977778888'
-    },
-    deliveryAddress: 'Av. Itavuvu, 3000 - Centro Logístico',
-    destinationCity: 'Jundiaí - SP',
-    materialType: 'Carga Paletizada de Bebidas',
-    quantity: '24 Paletes Fechados',
-    weight: '14.2 Toneladas',
-    scheduledTime: '10:00 Hoje',
-    notes: 'Canhoto digitalizado e aprovado sem ressalvas na doca de recebimento.'
-  },
-  {
-    id: 'TSK-9904',
-    deliveryNumber: 'NFE-554219',
-    status: 'ASSIGNED',
-    customer: {
-      name: 'Bayer S.A. (Divisão Agrícola)',
-      phone: '16999990000',
-      whatsapp: '16999990000'
-    },
-    deliveryAddress: 'Rodovia Anhanguera, Km 318 - Armazém Químico',
-    destinationCity: 'Ribeirão Preto - SP',
-    materialType: 'Defensivos Agrícolas Classificados',
-    quantity: '12 Contêineres IBC',
-    weight: '16.0 Toneladas',
-    scheduledTime: 'Amanhã 16:00',
-    notes: 'Carga Perigosa. Documentação de contingência e kit de mitigação ambiental a bordo.'
-  }
-];
-
 const DriverDashboard = () => {
   const { user, logout } = useAuthStore();
   const queryClient = useQueryClient();
   
   // Estado local gerenciando as tarefas interativas do motorista
-  const [tasksList, setTasksList] = useState<DriverTask[]>([]);
   const [activeTab, setActiveTab] = useState<'tasks' | 'profile' | 'detail'>('tasks');
   const [selectedDelivery, setSelectedDelivery] = useState<DriverTask | null>(null);
   
@@ -135,11 +60,35 @@ const DriverDashboard = () => {
   const [showPhoto, setShowPhoto] = useState(false);
   const [podPayloadData, setPodPayloadData] = useState<{ signature?: string; photo?: string }>({});
 
-  // Simula busca em API local
-  const { isLoading } = useQuery({
+  // Busca entregas atribuídas ao motorista da API real
+  const { data: driverDeliveries, isLoading, refetch: refetchDeliveries } = useQuery({
     queryKey: ['driver-cab-deliveries'],
     queryFn: () => api.get<any[]>('/deliveries?driver=true').catch(() => []),
   });
+
+  // Deriva a lista de tarefas diretamente da resposta da API
+  const tasksList: DriverTask[] = useMemo(() => {
+    if (driverDeliveries && driverDeliveries.length > 0) {
+      return driverDeliveries.map((d: any, idx: number) => ({
+        id: d.id || `TSK-${String(idx + 1).padStart(4, '0')}`,
+        deliveryNumber: d.deliveryNumber || d.invoiceNumber || `NFE-${String(Math.random()).slice(2, 8)}`,
+        status: d.status || 'ASSIGNED',
+        customer: {
+          name: d.customer?.name || d.customerName || 'Cliente',
+          phone: d.customer?.phone || '11999999999',
+          whatsapp: d.customer?.phone || d.customer?.whatsapp || '11999999999',
+        },
+        deliveryAddress: d.deliveryAddress || d.address || '',
+        destinationCity: d.destinationCity || '',
+        materialType: d.materialType || 'Geral',
+        quantity: d.quantity || d.materialQuantity || '',
+        weight: d.totalWeight || d.weight || '',
+        scheduledTime: d.scheduledTime || d.deliveryDeadline || 'Hoje',
+        notes: d.notes || '',
+      }));
+    }
+    return [];
+  }, [driverDeliveries]);
 
   // Identifica a entrega prioritária atual
   const activeDelivery = tasksList.find(d => ['ASSIGNED', 'LOADING', 'IN_TRANSIT'].includes(d.status));
@@ -152,7 +101,7 @@ const DriverDashboard = () => {
       return { id, newStatus };
     },
     onSuccess: (data) => {
-      setTasksList(prev => prev.map(t => t.id === data.id ? { ...t, status: data.newStatus } : t));
+      refetchDeliveries();
       if (selectedDelivery?.id === data.id) {
         setSelectedDelivery(prev => prev ? { ...prev, status: data.newStatus } : null);
       }
@@ -169,7 +118,7 @@ const DriverDashboard = () => {
       return id;
     },
     onSuccess: (id) => {
-      setTasksList(prev => prev.map(t => t.id === id ? { ...t, status: 'DELIVERED' } : t));
+      refetchDeliveries();
       toast.success('Sucesso na Operação!', {
         description: 'Canhoto digital e lacres sincronizados com a SEFAZ e rede PostGIS.'
       });
@@ -493,8 +442,8 @@ const DriverDashboard = () => {
 
           <button 
             onClick={() => {
-              toast.success('Banco de dados local SQLite otimizado.');
-              setTasksList([]);
+              toast.success('Sincronizando cargas com o servidor...');
+              refetchDeliveries();
             }}
             className="w-full p-4 bg-white border border-slate-200 rounded-xl font-black text-xs text-slate-700 uppercase tracking-widest hover:bg-slate-50 transition-colors shadow-2xs"
           >

@@ -17,9 +17,10 @@ interface Driver {
   cnhExpiration?: string;
   tripsCount?: number;
   currentVehicle?: {
+    id?: string;
     vehicleNumber: string;
     type: string;
-  };
+  } | null;
 }
 
 // Conjunto inicial de motoristas de concreto/agregados com dados profissionais
@@ -39,6 +40,7 @@ const DriversList = () => {
     cnhNumber: '',
     cnhCategory: 'E' as const,
     cnhExpiration: '',
+    vehicleId: '',
   });
 
   // Cofre de documentos ativo
@@ -60,12 +62,53 @@ const DriversList = () => {
     retry: false,
   });
 
+  const { data: vehicles } = useQuery({
+    queryKey: ['vehicles'],
+    queryFn: async () => {
+      const res = await api.get<any[]>('/vehicles');
+      return res;
+    },
+    retry: false,
+  });
+
   const createDriverMutation = useMutation({
     mutationFn: (payload: any) => api.post('/drivers', payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
     },
   });
+
+  const updateDriverMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: any }) => api.patch(`/drivers/${id}`, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+    },
+  });
+
+  const getAvailableVehicles = (currentVehicleId?: string) => {
+    if (!vehicles) return [];
+    const assignedVehicleIds = baseDrivers
+      .map(d => d.currentVehicle?.id)
+      .filter((id): id is string => !!id && id !== currentVehicleId);
+    
+    return vehicles.filter(v => !assignedVehicleIds.includes(v.id));
+  };
+
+  const handleUpdateVehicle = (driverId: string, vehicleId: string | null) => {
+    updateDriverMutation.mutate(
+      { id: driverId, payload: { vehicleId } },
+      {
+        onSuccess: () => {
+          toast.success('Alocação de veículo atualizada com sucesso.');
+        },
+        onError: (err: any) => {
+          toast.error(`Erro ao alocar veículo: ${err.message || 'Erro desconhecido'}`);
+        }
+      }
+    );
+  };
 
   // Junta o remoto com o local evitando duplicações
   const baseDrivers = (remoteDrivers && remoteDrivers.length > 0)
@@ -119,12 +162,13 @@ const DriversList = () => {
         cnhNumber: newDriver.cnhNumber,
         cnhCategory: newDriver.cnhCategory,
         cnhExpiration: newDriver.cnhExpiration,
+        vehicleId: newDriver.vehicleId || null,
       },
       {
         onSuccess: () => {
           toast.success(`Condutor ${newDriver.name} averbado com sucesso no prontuário de frota.`);
           setIsModalOpen(false);
-          setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '' });
+          setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '' });
         },
         onError: () => {
           toast.error('Falha ao averbar condutor no backend.');
@@ -139,20 +183,20 @@ const DriversList = () => {
   };
 
   return (
-    <div className="space-y-8 font-sans select-none pb-12 animate-in fade-in duration-300">
+    <div className="space-y-8 font-sans pb-12 animate-in fade-in duration-300">
       
       {/* Cabeçalho */}
       <div className="bg-white border border-slate-200 p-6 rounded-[2rem] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-black uppercase tracking-widest border border-indigo-100">
+            <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-bold uppercase tracking-widest border border-indigo-100">
               Escala de Pessoal
             </span>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               Motoristas Ativos
             </span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Quadro de Motoristas & Credenciais
           </h1>
           <p className="text-slate-500 text-xs font-medium mt-0.5">
@@ -175,7 +219,7 @@ const DriversList = () => {
 
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer outline-none shrink-0"
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer outline-none shrink-0"
           >
             <Plus size={16} className="shrink-0" />
             <span>Averbar Motorista</span>
@@ -187,7 +231,7 @@ const DriversList = () => {
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 bg-white border border-slate-200 p-4 rounded-2xl">
         {/* Categoria CNH */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
+          <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1">
             <Award size={12} /> CNH:
           </span>
           {(['Todas', 'C', 'D', 'E'] as const).map(cat => (
@@ -208,7 +252,7 @@ const DriversList = () => {
 
         {/* Status Operacional */}
         <div className="flex items-center gap-2 border-t sm:border-t-0 sm:border-l border-slate-100 sm:pl-6 pt-2 sm:pt-0 w-full sm:w-auto">
-          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
+          <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1">
             <Filter size={12} /> Escala:
           </span>
           {(['Todos', 'disponível', 'em_rota', 'em_descanso'] as const).map(st => (
@@ -238,13 +282,13 @@ const DriversList = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50">
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Motorista</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status Operacional</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Habilitação (CNH)</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Contato</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Veículo Alocado</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Viagens</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Ações</th>
+                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Motorista</th>
+                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Status Operacional</th>
+                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Habilitação (CNH)</th>
+                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Contato</th>
+                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Veículo Alocado</th>
+                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400 text-center">Viagens</th>
+                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -284,7 +328,7 @@ const DriversList = () => {
                       <td className="p-5">
                         <div className="flex items-center gap-3.5">
                           <div className="relative shrink-0">
-                            <div className="w-10 h-10 bg-slate-50 border border-slate-200 text-slate-700 rounded-xl flex items-center justify-center font-black text-xs group-hover:scale-105 transition-transform">
+                            <div className="w-10 h-10 bg-slate-50 border border-slate-200 text-slate-700 rounded-xl flex items-center justify-center font-bold text-xs group-hover:scale-105 transition-transform">
                               {initials}
                             </div>
                             <span className={cn(
@@ -317,7 +361,7 @@ const DriversList = () => {
                               key={st}
                               onClick={() => handleUpdateStatus(driver.id, st)}
                               className={cn(
-                                "px-2 py-1 rounded text-[8px] font-black uppercase tracking-wider transition-all cursor-pointer outline-none border",
+                                "px-2 py-1 rounded text-[8px] font-bold uppercase tracking-wider transition-all cursor-pointer outline-none border",
                                 currentStatus === st 
                                   ? "bg-slate-900 border-slate-900 text-white shadow-2xs" 
                                   : "bg-white border-slate-200 text-slate-400 hover:text-slate-700"
@@ -331,14 +375,14 @@ const DriversList = () => {
                       <td className="p-5">
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5">
-                            <span className="px-1.5 py-0.5 bg-slate-900 text-white font-mono font-black text-[9px] rounded" title="Categoria da CNH">
+                            <span className="px-1.5 py-0.5 bg-slate-900 text-white font-mono font-bold text-[9px] rounded" title="Categoria da CNH">
                               {driver.cnhCategory || 'E'}
                             </span>
                             <span className="font-mono font-bold text-xs text-slate-700">
                               {formattedCnh}
                             </span>
                           </div>
-                          <span className={cn("px-1.5 py-0.5 rounded border text-[8px] font-black uppercase tracking-wider inline-block", cnhMeta.color)}>
+                          <span className={cn("px-1.5 py-0.5 rounded border text-[8px] font-bold uppercase tracking-wider inline-block", cnhMeta.color)}>
                             {cnhMeta.label}
                           </span>
                         </div>
@@ -350,19 +394,28 @@ const DriversList = () => {
                         </div>
                       </td>
                       <td className="p-5 max-w-xs">
-                        {driver.currentVehicle ? (
-                          <div className="flex items-start gap-1.5 text-xs text-slate-700 leading-relaxed font-bold">
-                            <Truck size={13} className="text-indigo-500 shrink-0 mt-0.5" />
-                            <span className="truncate">
-                              {driver.currentVehicle.type} <strong className="text-slate-400 font-mono font-normal font-sans">({driver.currentVehicle.vehicleNumber})</strong>
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-300 text-[10px] italic">Nenhum Veículo Alocado</span>
-                        )}
+                        <div className="flex items-center gap-1.5 w-full">
+                          <Truck size={13} className={cn("shrink-0", driver.currentVehicle ? "text-indigo-500" : "text-slate-300")} />
+                          <select
+                            value={driver.currentVehicle?.id || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              handleUpdateVehicle(driver.id, val === '' ? null : val);
+                            }}
+                            disabled={updateDriverMutation.isPending}
+                            className="w-full px-2 py-1.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 focus:border-indigo-500 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            <option value="">Nenhum Veículo</option>
+                            {getAvailableVehicles(driver.currentVehicle?.id).map((v) => (
+                              <option key={v.id} value={v.id}>
+                                {v.type} ({v.vehicleNumber})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </td>
                       <td className="p-5 text-center whitespace-nowrap">
-                        <span className="text-xs font-mono font-black text-slate-700 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-lg">
+                        <span className="text-xs font-mono font-bold text-slate-700 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-lg">
                           {driver.tripsCount || 0}
                         </span>
                       </td>
@@ -383,7 +436,7 @@ const DriversList = () => {
                 <tr>
                   <td colSpan={7} className="py-16 text-center bg-white">
                     <UserCheck className="mx-auto text-slate-300 mb-3" size={40} />
-                    <p className="text-sm font-black text-slate-900">Nenhum condutor qualificado atende aos critérios</p>
+                    <p className="text-sm font-bold text-slate-900">Nenhum condutor qualificado atende aos critérios</p>
                     <p className="text-xs text-slate-400 font-medium max-w-sm mx-auto mt-1">
                       Verifique os filtros selecionados ou cadastre um novo condutor com sua respectiva categoria de CNH.
                     </p>
@@ -397,7 +450,7 @@ const DriversList = () => {
 
       {/* Modal de Cadastro Rápido de Condutor */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 font-sans select-none animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 font-sans animate-in fade-in duration-200">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs" onClick={() => setIsModalOpen(false)} />
           
           <div className="relative bg-white border border-slate-200 rounded-[2rem] shadow-xl w-full max-w-md overflow-hidden flex flex-col">
@@ -407,7 +460,7 @@ const DriversList = () => {
                   <ShieldCheck size={18} />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-900 leading-none">Averbar Motorista</h3>
+                  <h3 className="text-base font-bold text-slate-900 leading-none">Averbar Motorista</h3>
                   <p className="text-[11px] font-medium text-slate-400 mt-0.5">Credenciamento e CNH corporativa</p>
                 </div>
               </div>
@@ -418,7 +471,7 @@ const DriversList = () => {
 
             <form onSubmit={handleCreateDriver} className="p-6 space-y-4 bg-white flex-1 overflow-y-auto">
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Nome Completo do Condutor *</label>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Nome Completo do Condutor *</label>
                 <input
                   required
                   type="text"
@@ -430,7 +483,7 @@ const DriversList = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Número de Registro CNH *</label>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Número de Registro CNH *</label>
                 <input
                   required
                   type="text"
@@ -444,7 +497,7 @@ const DriversList = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Categoria *</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Categoria *</label>
                   <select
                     value={newDriver.cnhCategory}
                     onChange={(e) => setNewDriver({ ...newDriver, cnhCategory: e.target.value as any })}
@@ -457,7 +510,7 @@ const DriversList = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Validade CNH *</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Validade CNH *</label>
                   <input
                     required
                     type="date"
@@ -469,7 +522,7 @@ const DriversList = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Telefone Celular / WhatsApp</label>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Telefone Celular / WhatsApp</label>
                 <input
                   type="tel"
                   value={newDriver.phone}
@@ -477,6 +530,22 @@ const DriversList = () => {
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 transition-all"
                   placeholder="(11) 97777-6666"
                 />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Veículo Alocado</label>
+                <select
+                  value={newDriver.vehicleId}
+                  onChange={(e) => setNewDriver({ ...newDriver, vehicleId: e.target.value })}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                >
+                  <option value="">Nenhum Veículo Alocado</option>
+                  {getAvailableVehicles().map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.type} ({v.vehicleNumber})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
@@ -489,7 +558,7 @@ const DriversList = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1 cursor-pointer outline-none"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1 cursor-pointer outline-none"
                 >
                   <CheckCircle2 size={14} />
                   <span>Concluir Cadastro</span>

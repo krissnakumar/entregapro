@@ -72,7 +72,7 @@ export default function DeliveriesScreen() {
                 </View>
                 <Text style={styles.customerName}>{delivery.customer?.name}</Text>
                 <View style={styles.detailsRow}>
-                  {delivery.driver && <Text style={styles.detail}>🚚 {delivery.driver}</Text>}
+                  {delivery.driver && <Text style={styles.detail}>🚚 {delivery.driver?.user?.name || delivery.driver?.name || ''}</Text>}
                   {delivery.materialType && <Text style={styles.detail}>📦 {delivery.materialType}</Text>}
                 </View>
                 {delivery.scheduledTime && (

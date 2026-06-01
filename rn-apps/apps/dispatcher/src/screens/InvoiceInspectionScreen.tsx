@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { colors, borderRadius } from '@rn-apps/shared';
+import { api, colors, borderRadius } from '@rn-apps/shared';
 
 export default function InvoiceInspectionScreen() {
   const insets = useSafeAreaInsets();
@@ -28,10 +28,17 @@ export default function InvoiceInspectionScreen() {
     'Revisar Documentação',
   ];
 
-  const handleSave = () => {
-    Alert.alert('Observação Salva', remark.trim()
-      ? `Registro atualizado: "${remark}"`
-      : 'Observação limpa.');
+  const handleSave = async () => {
+    try {
+      if (remark.trim()) {
+        await api.patch(`/invoices/${invoice.id || invoice.number}/remarks`, { remark: remark.trim() });
+      }
+      Alert.alert('Observação Salva', remark.trim()
+        ? `Registro atualizado: "${remark}"`
+        : 'Observação limpa.');
+    } catch {
+      Alert.alert('Erro', 'Não foi possível salvar a observação.');
+    }
     navigation.goBack();
   };
 

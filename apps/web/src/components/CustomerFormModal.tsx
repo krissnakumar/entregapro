@@ -54,7 +54,7 @@ const CustomerFormModal = ({ isOpen, onClose, onCustomerCreated }: CustomerFormM
   };
 
   return (
-    <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 font-sans select-none animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 font-sans animate-in fade-in duration-200">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs" onClick={onClose} />
       
       <div className="relative bg-white border border-slate-200 rounded-[2rem] shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
@@ -66,7 +66,7 @@ const CustomerFormModal = ({ isOpen, onClose, onCustomerCreated }: CustomerFormM
               <Building2 size={18} />
             </div>
             <div>
-              <h3 className="text-base font-black text-slate-900 leading-none">Cadastrar Novo Cliente</h3>
+              <h3 className="text-base font-bold text-slate-900 leading-none">Cadastrar Novo Cliente</h3>
               <p className="text-[11px] font-medium text-slate-400 mt-0.5">Vínculo de entrega e faturamento operacional</p>
             </div>
           </div>
@@ -78,7 +78,7 @@ const CustomerFormModal = ({ isOpen, onClose, onCustomerCreated }: CustomerFormM
         {/* Formulário Interno */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 bg-white">
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Razão Social / Nome Fantasia *</label>
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Razão Social / Nome Fantasia *</label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input
@@ -94,7 +94,7 @@ const CustomerFormModal = ({ isOpen, onClose, onCustomerCreated }: CustomerFormM
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Telefone Principal *</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Telefone Principal *</label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input
@@ -108,7 +108,7 @@ const CustomerFormModal = ({ isOpen, onClose, onCustomerCreated }: CustomerFormM
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">WhatsApp / Plantão</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">WhatsApp / Plantão</label>
               <div className="relative">
                 <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input
@@ -123,7 +123,7 @@ const CustomerFormModal = ({ isOpen, onClose, onCustomerCreated }: CustomerFormM
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Endereço Principal / Canteiro de Obra *</label>
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Endereço Principal / Canteiro de Obra *</label>
             <div className="relative">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input
@@ -138,7 +138,7 @@ const CustomerFormModal = ({ isOpen, onClose, onCustomerCreated }: CustomerFormM
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Instruções Espaciais / Restrições de Descarga</label>
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Instruções Espaciais / Restrições de Descarga</label>
             <div className="relative">
               <StickyNote className="absolute left-3 top-3 text-slate-400" size={16} />
               <textarea
@@ -161,7 +161,7 @@ const CustomerFormModal = ({ isOpen, onClose, onCustomerCreated }: CustomerFormM
             <button
               type="submit"
               disabled={createCustomerMutation.isPending}
-              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer outline-none"
+              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer outline-none"
             >
               {createCustomerMutation.isPending && <Loader2 className="animate-spin shrink-0" size={14} />}
               <span>Salvar Cliente</span>

@@ -13,6 +13,9 @@ import { useNavigation } from '@react-navigation/native';
 import {
   useAuthStore,
   useAnalytics,
+  useNotifications,
+  useMarkAllNotificationsRead,
+  useNotificationStore,
   colors,
   borderRadius,
   shadows,
@@ -56,7 +59,15 @@ export default function AdminHomeScreen() {
   const navigation = useNavigation<any>();
   const { user, logout } = useAuthStore();
   const [showSidebar, setShowSidebar] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const { data: analytics, isLoading, error } = useAnalytics();
+  const { data: notifications } = useNotifications();
+  const markAllRead = useMarkAllNotificationsRead();
+  const unreadCount = notifications?.filter((n) => !n.isRead).length || 0;
+  const storeNotifications = useNotificationStore((s) => s.notifications);
+  const setNotifications = useNotificationStore((s) => s.setNotifications);
+  const addNotification = useNotificationStore((s) => s.addNotification);
+  const displayNotifications = (storeNotifications.length > 0 ? storeNotifications : notifications) || [];
 
   const handleLogout = () => {
     Alert.alert('Encerrar Sessão', 'Deseja sair do painel administrativo?', [
@@ -136,13 +147,26 @@ export default function AdminHomeScreen() {
             <Text style={styles.headerStatusText}>Sistemas Operacionais Conectados</Text>
           </View>
         </View>
-        <TouchableOpacity onPress={handleLogout}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {user?.name?.charAt(0) || 'A'}
-            </Text>
-          </View>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={() => setShowNotifications(true)}
+            style={styles.bellButton}
+          >
+            <Text style={styles.bellIcon}>🔔</Text>
+            {unreadCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleLogout}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {user?.name?.charAt(0) || 'A'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -229,6 +253,68 @@ export default function AdminHomeScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Notifications Modal */}
+      {showNotifications && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Notificações</Text>
+              <TouchableOpacity
+                onPress={() => setShowNotifications(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScroll}>
+              {displayNotifications.length > 0 ? (
+                displayNotifications.map((n: any) => (
+                  <View
+                    key={n.id}
+                    style={[
+                      styles.notificationItem,
+                      !n.isRead && styles.notificationItemUnread,
+                    ]}
+                  >
+                    <View style={styles.notificationHeader}>
+                      <Text style={styles.notificationTitle}>{n.title}</Text>
+                      {!n.isRead && <View style={styles.notificationUnreadDot} />}
+                    </View>
+                    <Text style={styles.notificationMessage}>{n.message}</Text>
+                    <Text style={styles.notificationDate}>
+                      {new Date(n.createdAt).toLocaleString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <View style={styles.modalEmpty}>
+                  <Text style={styles.modalEmptyIcon}>🔔</Text>
+                  <Text style={styles.modalEmptyText}>Nenhuma notificação</Text>
+                </View>
+              )}
+            </ScrollView>
+
+            {unreadCount > 0 && (
+              <TouchableOpacity
+                style={styles.modalMarkAllBtn}
+                onPress={() => {
+                  markAllRead.mutate();
+                  Alert.alert('Sucesso', 'Todas as notificações marcadas como lidas.');
+                }}
+              >
+                <Text style={styles.modalMarkAllText}>Marcar todas como lidas</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -309,4 +395,57 @@ const styles = StyleSheet.create({
   },
   quickIcon: { fontSize: 28, marginBottom: 8 },
   quickLabel: { fontSize: 12, fontWeight: '700', color: colors.text },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bellButton: {
+    width: 36, height: 36, backgroundColor: colors.background,
+    borderRadius: borderRadius.lg, justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: colors.border, position: 'relative',
+  },
+  bellIcon: { fontSize: 16 },
+  bellBadge: {
+    position: 'absolute', top: -4, right: -4, backgroundColor: colors.error,
+    borderRadius: 9, width: 18, height: 18, justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1.5, borderColor: colors.white,
+  },
+  bellBadgeText: { color: colors.white, fontSize: 8, fontWeight: '900' },
+  modalOverlay: {
+    position: 'absolute', top: 0, bottom: 0, left: 0, right: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)', justifyContent: 'flex-end', zIndex: 999,
+  },
+  modalContent: {
+    backgroundColor: colors.white, borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    maxHeight: '80%', padding: 20, paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '900', color: colors.text },
+  modalCloseBtn: {
+    width: 32, height: 32, borderRadius: 16, backgroundColor: colors.background,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  modalCloseText: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
+  modalScroll: { maxHeight: 400 },
+  notificationItem: {
+    backgroundColor: colors.background, borderRadius: borderRadius.lg,
+    padding: 14, marginBottom: 12, borderWidth: 1, borderColor: colors.borderLight,
+  },
+  notificationItemUnread: { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' },
+  notificationHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 4,
+  },
+  notificationTitle: { fontSize: 12, fontWeight: '800', color: colors.text },
+  notificationUnreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#2563EB' },
+  notificationMessage: { fontSize: 12, color: colors.textSecondary, lineHeight: 18, marginBottom: 6 },
+  notificationDate: { fontSize: 9, fontWeight: '600', color: colors.textTertiary },
+  modalEmpty: { alignItems: 'center', paddingVertical: 40 },
+  modalEmptyIcon: { fontSize: 36, marginBottom: 10, opacity: 0.5 },
+  modalEmptyText: { fontSize: 14, color: colors.textSecondary },
+  modalMarkAllBtn: {
+    backgroundColor: '#1E293B', borderRadius: borderRadius.lg,
+    paddingVertical: 14, alignItems: 'center', marginTop: 16,
+  },
+  modalMarkAllText: { color: colors.white, fontWeight: '800', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 },
 });

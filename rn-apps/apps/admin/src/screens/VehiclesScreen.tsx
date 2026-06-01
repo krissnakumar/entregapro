@@ -19,8 +19,8 @@ export default function VehiclesScreen() {
   const { data: vehicles, isLoading } = useVehicles();
 
   const filtered = (vehicles || []).filter((v: any) =>
-    v.plate?.toLowerCase().includes(search.toLowerCase()) ||
-    v.number?.toLowerCase().includes(search.toLowerCase()),
+    v.vehicleNumber?.toLowerCase().includes(search.toLowerCase()) ||
+    v.type?.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -60,7 +60,7 @@ export default function VehiclesScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={styles.nameRow}>
-                    <Text style={styles.vehicleNumber}>{v.plate || v.number}</Text>
+                    <Text style={styles.vehicleNumber}>{v.vehicleNumber}</Text>
                     <View style={[styles.statusBadge, { backgroundColor: v.active ? '#ECFDF5' : '#F3F4F6' }]}>
                       <Text style={[styles.statusText, { color: v.active ? colors.success : colors.textTertiary }]}>
                         {v.active ? 'Ativo' : 'Inativo'}
@@ -70,7 +70,7 @@ export default function VehiclesScreen() {
                   <Text style={styles.vehicleDetail}>
                     {[v.type, v.capacity, v.fuelType].filter(Boolean).join(' · ')}
                   </Text>
-                  {v.driver && <Text style={styles.driverAssigned}>Motorista: {v.driver}</Text>}
+                  {v.driver && <Text style={styles.driverAssigned}>Motorista: {v.driver?.user?.name || v.driver?.name || ''}</Text>}
                 </View>
               </View>
             </View>

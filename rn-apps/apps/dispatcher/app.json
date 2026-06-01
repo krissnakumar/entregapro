@@ -13,16 +13,25 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.entregapro.dispatcher"
+      "bundleIdentifier": "com.entregapro.dispatcher",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#2563EB"
       },
-      "package": "com.entregapro.dispatcher"
+      "package": "com.entregapro.dispatcher",
+      "versionCode": 1
+    },
+    "extra": {
+      "environment": "production",
+      "apiUrl": "https://api.entregapro.com.br"
     },
     "plugins": [
       "expo-secure-store"
-    ]
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
   }
 }

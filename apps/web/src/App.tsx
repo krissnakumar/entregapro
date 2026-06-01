@@ -13,7 +13,7 @@ import { Role } from './types';
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute = ({ children, roles }: { children: React.ReactNode, roles?: Role[] }) => {
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, token } = useAuthStore();
 
   if (!token || !user) {
@@ -21,6 +21,26 @@ const ProtectedRoute = ({ children, roles }: { children: React.ReactNode, roles?
   }
 
   return <>{children}</>;
+};
+
+const DashboardRouter = () => {
+  const { user } = useAuthStore();
+
+  // Determine which dashboard to show based on user role
+  if (!user) return <Navigate to="/login" replace />;
+
+  // Driver role goes to driver dashboard exclusively
+  if (user.role === Role.DRIVER || user.role === Role.HELPER) {
+    return <DriverDashboard />;
+  }
+
+  // Dispatcher role
+  if (user.role === Role.DISPATCHER) {
+    return <DispatcherDashboard />;
+  }
+
+  // Admin, Super Admin, Accountant, and all other admin roles
+  return <AdminDashboard />;
 };
 
 const AppRoutes = () => {
@@ -36,22 +56,7 @@ const AppRoutes = () => {
         path="/dashboard/*"
         element={
           <ProtectedRoute>
-            {user?.role === Role.DISPATCHER ? (
-              <DispatcherDashboard />
-            ) : user?.role === Role.ADMIN || 
-             user?.role === Role.SUPER_ADMIN || 
-             user?.role === Role.ACCOUNTANT || 
-             window.location.pathname.includes('/users') || 
-             window.location.pathname.includes('/roles') || 
-             window.location.pathname.includes('/invoices') || 
-             window.location.pathname.includes('/reports') || 
-             window.location.pathname.includes('/deliveries') || 
-             window.location.pathname.includes('/fuel') || 
-             window.location.pathname.includes('/loading') ? (
-              <AdminDashboard />
-            ) : (
-              <DriverDashboard />
-            )}
+            <DashboardRouter />
           </ProtectedRoute>
         }
       />

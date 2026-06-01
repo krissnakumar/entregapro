@@ -79,20 +79,20 @@ const CustomersList = () => {
   };
 
   return (
-    <div className="space-y-8 font-sans select-none pb-12 animate-in fade-in duration-300">
+    <div className="space-y-8 font-sans pb-12 animate-in fade-in duration-300">
       
       {/* Cabeçalho */}
       <div className="bg-white border border-slate-200 p-6 rounded-[2rem] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-black uppercase tracking-widest border border-indigo-100">
+            <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-bold uppercase tracking-widest border border-indigo-100">
               Diretório Operacional
             </span>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               Canteiros e Destinos
             </span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Clientes & Destinos Cadastrados
           </h1>
           <p className="text-slate-500 text-xs font-medium mt-0.5">
@@ -115,7 +115,7 @@ const CustomersList = () => {
 
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer outline-none shrink-0"
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer outline-none shrink-0"
           >
             <Plus size={16} className="shrink-0" />
             <span>Novo Cliente</span>
@@ -125,7 +125,7 @@ const CustomersList = () => {
 
       {/* Opções de Filtro Rápido */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1 mr-1">
+        <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1 mr-1">
           <Filter size={12} /> Filtro:
         </span>
         {(['Todos', 'Ativo', 'Em Auditoria'] as const).map(status => (
@@ -153,12 +153,12 @@ const CustomersList = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50">
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Cliente</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Endereço Principal</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Telefone</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Instruções de Base</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Ações</th>
+                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Cliente</th>
+                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Status</th>
+                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Endereço Principal</th>
+                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Telefone</th>
+                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Instruções de Base</th>
+                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -186,7 +186,7 @@ const CustomersList = () => {
                   <tr key={customer.id} className="hover:bg-slate-50/40 transition-colors group">
                     <td className="p-5">
                       <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center font-black text-sm shrink-0 group-hover:scale-105 transition-transform">
+                        <div className="w-10 h-10 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 group-hover:scale-105 transition-transform">
                           <Building2 size={16} />
                         </div>
                         <div className="min-w-0">
@@ -201,7 +201,7 @@ const CustomersList = () => {
                     </td>
                     <td className="p-5">
                       <span className={cn(
-                        "px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border inline-block whitespace-nowrap",
+                        "px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest border inline-block whitespace-nowrap",
                         customer.status === 'Em Auditoria' 
                           ? "bg-amber-50 text-amber-700 border-amber-200" 
                           : "bg-emerald-50 text-emerald-700 border-emerald-200"
@@ -257,7 +257,7 @@ const CustomersList = () => {
                 <tr>
                   <td colSpan={6} className="py-16 text-center bg-white">
                     <Building2 className="mx-auto text-slate-300 mb-3" size={40} />
-                    <p className="text-sm font-black text-slate-900">Nenhum cliente frotista encontrado</p>
+                    <p className="text-sm font-bold text-slate-900">Nenhum cliente frotista encontrado</p>
                     <p className="text-xs text-slate-400 font-medium max-w-sm mx-auto mt-1">
                       Verifique os termos da busca ou clique em "Novo Cliente" para averbar o primeiro canteiro de obras.
                     </p>

@@ -1,19 +1,16 @@
 import { io, Socket } from 'socket.io-client';
-import { Platform } from 'react-native';
-import Constants from 'expo-constants';
+import { ENV } from '../config/env';
 import { getAuthToken } from '../store/authStore';
 
 const getSocketUrl = (): string => {
-  const hostUri = Constants.expoConfig?.hostUri;
-  if (hostUri) {
-    const ip = hostUri.split(':')[0];
-    return `http://${ip}:3001`;
+  // Use configured API URL as base for socket connection
+  const apiUrl = ENV.API_URL;
+  if (apiUrl) {
+    // Replace http with ws for WebSocket connections
+    return apiUrl.replace(/^http/, 'ws');
   }
 
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:3001';
-  }
-  return 'http://localhost:3001';
+  return 'http://localhost:3000';
 };
 
 let socket: Socket | null = null;
@@ -22,11 +19,12 @@ export function getSocket(): Socket | null {
   return socket;
 }
 
-export function connectTracking(driverId: string, deliveryId?: string): Socket {
-  const token = getAuthToken();
+export function connectSocket(url?: string, token?: string | null): Socket {
+  if (socket?.connected) return socket;
 
-  socket = io(getSocketUrl(), {
-    auth: { token },
+  const t = token || getAuthToken();
+  socket = io(url || getSocketUrl(), {
+    auth: { token: t },
     transports: ['websocket'],
     reconnection: true,
     reconnectionAttempts: Infinity,
@@ -34,27 +32,29 @@ export function connectTracking(driverId: string, deliveryId?: string): Socket {
     reconnectionDelayMax: 10000,
   });
 
-  socket.on('connect', () => {
-    console.log('[Tracking] Connected:', socket?.id);
-
-    // Join dispatchers room
-    socket?.emit('joinDispatchers');
-
-    // Join specific delivery room if provided
-    if (deliveryId) {
-      socket?.emit('joinDelivery', deliveryId);
-    }
-  });
-
   socket.on('connect_error', (err) => {
-    console.error('[Tracking] Connection error:', err.message);
+    console.error('[Socket] Connection error:', err.message);
   });
 
   socket.on('disconnect', (reason) => {
-    console.log('[Tracking] Disconnected:', reason);
+    console.log('[Socket] Disconnected:', reason);
   });
 
   return socket;
+}
+
+export function connectTracking(driverId: string, deliveryId?: string): Socket {
+  const s = connectSocket();
+
+  s.off('connect').on('connect', () => {
+    console.log('[Tracking] Connected:', s.id);
+    s.emit('joinDispatchers');
+    if (deliveryId) {
+      s.emit('joinDelivery', deliveryId);
+    }
+  });
+
+  return s;
 }
 
 export function disconnectTracking(): void {
@@ -106,4 +106,18 @@ export function onGeofenceAlert(callback: (data: any) => void): () => void {
   if (!socket) return () => {};
   socket.on('geofenceAlert', callback);
   return () => socket?.off('geofenceAlert', callback);
+}
+
+// ─── Notifications via Socket ───────────────────────────────────────────
+
+export function onNotificationReceived(callback: (data: any) => void): () => void {
+  if (!socket) return () => {};
+  socket.on('newNotification', callback);
+  return () => socket?.off('newNotification', callback);
+}
+
+export function joinUserRoom(userId: string): void {
+  if (socket?.connected) {
+    socket.emit('joinUser', userId);
+  }
 }

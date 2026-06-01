@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { setTokenProvider, getAuthToken } from '@rn-apps/shared';
+import { setTokenProvider, getAuthToken, useRealtimeNotifications } from '@rn-apps/shared';
 import { useAuthStore } from '@rn-apps/shared';
 import AdminLoginScreen from './src/screens/AdminLoginScreen';
 import AdminHomeScreen from './src/screens/AdminHomeScreen';
@@ -18,11 +18,17 @@ import SettingsScreen from './src/screens/SettingsScreen';
 const queryClient = new QueryClient();
 const Stack = createNativeStackNavigator();
 
-setTokenProvider(() => getAuthToken());
-
 function RootNavigator() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
   const isAuthenticated = !!token;
+
+  // Set up token provider once on component mount
+  React.useEffect(() => {
+    setTokenProvider(() => getAuthToken());
+  }, []);
+
+  // Set up real-time notifications
+  useRealtimeNotifications(user?.id);
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>

@@ -1,22 +1,7 @@
-import { Platform } from 'react-native';
-import Constants from 'expo-constants';
+import { ENV } from '../config/env';
+import { logger, NetworkError, AuthError } from '../config/logger';
 
-// Android emulator uses 10.0.2.2 to reach host machine localhost
-// Physical devices need the debugger host IP address
-const getBaseUrl = (): string => {
-  const hostUri = Constants.expoConfig?.hostUri;
-  if (hostUri) {
-    const ip = hostUri.split(':')[0];
-    return `http://${ip}:3001`;
-  }
-
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:3001';
-  }
-  return 'http://localhost:3001';
-};
-
-export const API_BASE_URL = getBaseUrl();
+export const API_BASE_URL = ENV.API_URL;
 
 let getToken: (() => string | null) | null = null;
 
@@ -24,11 +9,64 @@ export function setTokenProvider(provider: () => string | null) {
   getToken = provider;
 }
 
+interface ApiErrorResponse {
+  message?: string;
+  error?: string;
+  code?: string;
+  details?: unknown;
+}
+
+async function handleResponse<T>(response: Response): Promise<T> {
+  let errorData: ApiErrorResponse = {};
+  
+  try {
+    errorData = await response.json();
+  } catch {
+    // Response was not JSON
+  }
+
+  if (!response.ok) {
+    const errorMessage = errorData.message || errorData.error || `Error ${response.status}: ${response.statusText}`;
+    
+    logger.error('API request failed', new Error(errorMessage), {
+      status: response.status,
+      endpoint: response.url,
+      error: errorData,
+    });
+
+    // Handle specific error codes
+    if (response.status === 401 || response.status === 403) {
+      throw new AuthError(errorMessage, {
+        status: response.status,
+        code: errorData.code,
+      });
+    }
+
+    if (response.status >= 500) {
+      throw new NetworkError('Server error. Please try again later.', {
+        status: response.status,
+        originalMessage: errorMessage,
+      });
+    }
+
+    throw new Error(errorMessage);
+  }
+
+  return errorData as T;
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token = getToken?.() ?? null;
+  let token: string | null = null;
+  
+  try {
+    token = getToken?.() ?? null;
+  } catch (error) {
+    // Token retrieval failed (e.g., store not initialized)
+    logger.debug('Token retrieval failed', { error: String(error) });
+  }
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -36,23 +74,22 @@ async function request<T>(
     ...(options.headers as Record<string, string>),
   };
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  try {
+    logger.debug(`API ${options.method || 'GET'} ${endpoint}`);
 
-  if (!response.ok) {
-    let errorMessage = 'Erro de conexão com o servidor';
-    try {
-      const error = await response.json();
-      errorMessage = error.message || errorMessage;
-    } catch {
-      errorMessage = `Erro ${response.status}: ${response.statusText}`;
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+
+    return await handleResponse<T>(response);
+  } catch (error) {
+    if (error instanceof Error && (error.message.includes('Network') || error.message.includes('Failed to fetch'))) {
+      logger.error('Network request failed', error, { endpoint });
+      throw new NetworkError('Unable to connect. Check your internet connection.');
     }
-    throw new Error(errorMessage);
+    throw error;
   }
-
-  return response.json();
 }
 
 export const api = {

@@ -26,14 +26,25 @@ const OrdersList = () => {
 
   const handleOptimize = async () => {
     setIsOptimizing(true);
-    toast.loading('Analisando tráfego e vetores de roteamento...', { id: 'optimize' });
+    toast.loading('Executando despacho inteligente...', { id: 'optimize' });
     
-    // Simulate complex optimization algorithm
-    await new Promise(resolve => setTimeout(resolve, 2500));
-    
-    setIsOptimizing(false);
-    toast.success('Rotas otimizadas com sucesso! Economia de 14.2km de distância percorrida.', { id: 'optimize' });
-    refetch();
+    try {
+      const response = await api.post<{ message: string; savedDistanceKm?: number; assignments: any[] }>('/dispatch/optimize', {});
+      setIsOptimizing(false);
+      
+      const savedDistance = response.savedDistanceKm || 0;
+      toast.success(response.message || 'Despacho inteligente concluído!', { 
+        id: 'optimize',
+        description: response.assignments?.length > 0 
+          ? `Alocados ${response.assignments.length} veículos de forma inteligente. Economia de ${savedDistance}km de distância.` 
+          : 'Nenhuma nova alocação pendente ou motorista disponível.',
+        duration: 6000,
+      });
+      refetch();
+    } catch (err: any) {
+      setIsOptimizing(false);
+      toast.error('Falha ao rodar algoritmo de otimização de despacho.', { id: 'optimize' });
+    }
   };
 
   const copyTrackingLink = (orderId: string) => {

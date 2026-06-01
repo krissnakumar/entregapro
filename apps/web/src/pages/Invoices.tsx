@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../api/client';
 import { 
   Files, 
   FileText, 
@@ -76,218 +78,15 @@ interface OperationalInvoice {
   timelineEvents: Array<{ time: string; title: string; desc: string; user: string; status: string }>;
 }
 
-// ==========================================
-// DADOS OPERACIONAIS 100% LIMPOS (pt-BR)
-// ==========================================
-const mockEnterpriseInvoices: OperationalInvoice[] = [
-  {
-    id: 'OP-2026-901',
-    invoiceNumber: 'NFE-554210',
-    customerName: 'Votorantim Cimentos S.A.',
-    deliveryStatus: 'IN_TRANSIT',
-    priorityLevel: 'CRÍTICA',
-    dispatcherName: 'Carlos M. Albuquerque',
-    assignedDriver: 'Roberto V. Alcantara',
-    driverAssistant: 'Márcio Silva',
-    assignedTruck: 'Scania R540 6x4 (Bitrem)',
-    truckPlateNumber: 'BRA-2E19',
-    materialType: 'Cimento Portland CP-II (Granel)',
-    materialQuantity: '450 Sacos / 30 Paletes',
-    totalWeight: '32.5 Toneladas',
-    volume: '24.0 m³',
-    deliveryDistance: 420,
-    estimatedFuelCost: 1450.00,
-    operationalCost: 3200.00,
-    dispatchTime: '05:30',
-    deliveryDeadline: '18:00 Hoje',
-    currentStage: 'Passagem por Balança Fiscal (Guarulhos)',
-    gpsStatus: 'ATIVO',
-    podStatus: 'PENDENTE',
-    completionPercent: 68,
-    routeType: 'RODOVIA_EXPRESSA',
-    delayStatus: 'NO_PRAZO',
-    createdDate: '2026-05-13',
-    destinationCity: 'São Paulo - SP',
-    address: 'Av. das Nações Unidas, 14171 - Doca 4',
-    warehouseLocation: 'CD Cajamar Principal',
-    stopCount: 2,
-    emptyReturnKm: 180,
-    litersFuelUsed: 220,
-    dieselPrice: 5.95,
-    driverSalaryAlloc: 450.00,
-    assistantPayAlloc: 200.00,
-    maintenanceAlloc: 380.00,
-    palletCount: 30,
-    isFragile: false,
-    isHazardous: false,
-    ocrTranscript: 'NF-e PROCESSADA: SEFAZ AUTORIZADA. PROTOCOLO: 135260001234567. CARGA SECA PESADA DESTINADA A CONSTRUÇÃO CIVIL.',
-    auditLogs: [
-      { time: '05:00', user: 'Sistema Automático', action: 'Geração do Payload Fiscal', notes: 'Importado de ERP com sucesso.' },
-      { time: '05:15', user: 'Carlos M.', action: 'Orquestração de Frota', notes: 'Atribuição manual do veículo BRA-2E19.' },
-      { time: '05:30', user: 'Portaria CD', action: 'Liberação de Cancela', notes: 'Lacres conferidos: L-99812, L-99813.' }
-    ],
-    timelineEvents: [
-      { time: '05:00', title: 'Manifesto Emitido', desc: 'Sincronização com docas concluída', user: 'Sistema', status: 'done' },
-      { time: '05:15', title: 'Carregamento Concluído', desc: '32.5 Toneladas embarcadas', user: 'Doca 2', status: 'done' },
-      { time: '05:30', title: 'Saída Autorizada', desc: 'Motorista assumiu o volante', user: 'Portaria', status: 'done' },
-      { time: '09:45', title: 'Ponto de Controle de Rota', desc: 'Velocidade de cruzeiro estável na Dutra', user: 'Telemetria', status: 'current' },
-      { time: '18:00', title: 'Previsão de Chegada e POD', desc: 'Assinatura digital via tablet', user: 'Cliente Final', status: 'pending' }
-    ]
-  },
-  {
-    id: 'OP-2026-902',
-    invoiceNumber: 'NFE-554211',
-    customerName: 'Gerdau Aços Longos',
-    deliveryStatus: 'LOADING',
-    priorityLevel: 'ALTA',
-    dispatcherName: 'Mariana Souza Dias',
-    assignedDriver: 'Fernando Assis',
-    driverAssistant: 'Nenhum',
-    assignedTruck: 'Volvo FH 460 (Carreta Prancha)',
-    truckPlateNumber: 'BRA-8F22',
-    materialType: 'Vergalhão de Aço CA50 10mm',
-    materialQuantity: '180 Feixes',
-    totalWeight: '28.0 Toneladas',
-    volume: '15.0 m³',
-    deliveryDistance: 150,
-    estimatedFuelCost: 620.00,
-    operationalCost: 1800.00,
-    dispatchTime: 'Aguardando',
-    deliveryDeadline: 'Amanhã 12:00',
-    currentStage: 'Fixação de Cintas de Segurança',
-    gpsStatus: 'ATIVO',
-    podStatus: 'PENDENTE',
-    completionPercent: 25,
-    routeType: 'SERRA_PESADA',
-    delayStatus: 'DOCA_LOTADA',
-    createdDate: '2026-05-13',
-    destinationCity: 'Campinas - SP',
-    address: 'Rodovia Anhangüera, Km 98 - Galpão Industrial',
-    warehouseLocation: 'Usina Gerdau Araçariguama',
-    stopCount: 1,
-    emptyReturnKm: 150,
-    litersFuelUsed: 95,
-    dieselPrice: 5.95,
-    driverSalaryAlloc: 300.00,
-    assistantPayAlloc: 0.00,
-    maintenanceAlloc: 250.00,
-    palletCount: 12,
-    isFragile: false,
-    isHazardous: false,
-    ocrTranscript: 'NF-e PROCESSADA: PRODUTO SIDERÚRGICO LONGO. EXIGE AMARRAÇÃO COM CORRENTES DE GRAU 8.',
-    auditLogs: [
-      { time: '06:30', user: 'Mariana S.', action: 'Agendamento de Pátio', notes: 'Veículo posicionado na prancha de carregamento.' }
-    ],
-    timelineEvents: [
-      { time: '06:00', title: 'Ordem Recebida', desc: 'Integração EDI ativada', user: 'Sistema', status: 'done' },
-      { time: '07:00', title: 'Carregamento em Andamento', desc: 'Guindaste operando carga pesada', user: 'Operador Pátio', status: 'current' }
-    ]
-  },
-  {
-    id: 'OP-2026-903',
-    invoiceNumber: 'CTE-881203',
-    customerName: 'Ambev Distribuição e Logística',
-    deliveryStatus: 'DELIVERED',
-    priorityLevel: 'NORMAL',
-    dispatcherName: 'Carlos M. Albuquerque',
-    assignedDriver: 'Jorge L. Peixoto',
-    driverAssistant: 'Lucas Mendes',
-    assignedTruck: 'Mercedes-Benz Atego 2426 (Sider)',
-    truckPlateNumber: 'BRA-1A05',
-    materialType: 'Carga Paletizada de Bebidas',
-    materialQuantity: '24 Paletes Fechados',
-    totalWeight: '14.2 Toneladas',
-    volume: '38.0 m³',
-    deliveryDistance: 85,
-    estimatedFuelCost: 290.00,
-    operationalCost: 950.00,
-    dispatchTime: '04:00',
-    deliveryDeadline: '10:00 Hoje',
-    currentStage: 'Descarregamento Finalizado (Canhoto Digitalizado)',
-    gpsStatus: 'ATIVO',
-    podStatus: 'ASSINADO',
-    completionPercent: 100,
-    routeType: 'MISTA_URBANA',
-    delayStatus: 'NO_PRAZO',
-    createdDate: '2026-05-13',
-    destinationCity: 'Jundiaí - SP',
-    address: 'Av. Itavuvu, 3000 - Centro Logístico',
-    warehouseLocation: 'CD Jacareí Principal',
-    stopCount: 3,
-    emptyReturnKm: 85,
-    litersFuelUsed: 48,
-    dieselPrice: 5.95,
-    driverSalaryAlloc: 220.00,
-    assistantPayAlloc: 120.00,
-    maintenanceAlloc: 180.00,
-    palletCount: 24,
-    isFragile: true,
-    isHazardous: false,
-    ocrTranscript: 'CT-e FINALIZADO. COMPROVANTE DE ENTREGA ASSINADO POR: GERENTE DE LOGÍSTICA (MATRÍCULA 8821).',
-    auditLogs: [
-      { time: '10:15', user: 'Jorge L.', action: 'Captura de POD', notes: 'Foto do canhoto e geolocalização salvas no PostGIS.' }
-    ],
-    timelineEvents: [
-      { time: '04:00', title: 'Saída da Base', desc: 'Rota de distribuição matinal', user: 'Portaria', status: 'done' },
-      { time: '09:30', title: 'Chegada ao Alvo', desc: 'Início da conferência de vasilhames', user: 'Cliente', status: 'done' },
-      { time: '10:15', title: 'Entrega Concluída', desc: 'Canhoto auditado eletronicamente', user: 'Jorge L.', status: 'done' }
-    ]
-  },
-  {
-    id: 'OP-2026-904',
-    invoiceNumber: 'NFE-554219',
-    customerName: 'Bayer S.A. (Divisão Agrícola)',
-    deliveryStatus: 'DELAYED',
-    priorityLevel: 'CRÍTICA',
-    dispatcherName: 'Mariana Souza Dias',
-    assignedDriver: 'Sérgio Ramos',
-    driverAssistant: 'Antônio Costa',
-    assignedTruck: 'DAF XF 530 (Baú Blindado)',
-    truckPlateNumber: 'BRA-9X11',
-    materialType: 'Defensivos Agrícolas Classificados',
-    materialQuantity: '12 IBCs / Contêineres',
-    totalWeight: '16.0 Toneladas',
-    volume: '20.0 m³',
-    deliveryDistance: 680,
-    estimatedFuelCost: 2400.00,
-    operationalCost: 5100.00,
-    dispatchTime: 'Ontem 22:00',
-    deliveryDeadline: '14:00 Hoje',
-    currentStage: 'Parada Policial / Fiscalização Rodoviária Prolongada',
-    gpsStatus: 'ATIVO',
-    podStatus: 'PENDENTE',
-    completionPercent: 55,
-    routeType: 'INTERESTADUAL',
-    delayStatus: 'ATRASADO_TRANSITO',
-    createdDate: '2026-05-12',
-    destinationCity: 'Ribeirão Preto - SP',
-    address: 'Rodovia Anhanguera, Km 318 - Armazém Químico',
-    warehouseLocation: 'CD Paulínia Hub',
-    stopCount: 1,
-    emptyReturnKm: 680,
-    litersFuelUsed: 380,
-    dieselPrice: 5.95,
-    driverSalaryAlloc: 800.00,
-    assistantPayAlloc: 400.00,
-    maintenanceAlloc: 750.00,
-    palletCount: 12,
-    isFragile: false,
-    isHazardous: true,
-    ocrTranscript: 'ATENÇÃO: CARGA PERIGOSA CLASSE 9. LICENÇA IBAMA E PAINEL DE SEGURANÇA OBRIGATÓRIOS.',
-    auditLogs: [
-      { time: '08:00', user: 'Sérgio R.', action: 'Notificação de Retenção', notes: 'Fiscalização de rotina na divisa. Previsão de liberação em 2h.' }
-    ],
-    timelineEvents: [
-      { time: 'Ontem', title: 'Carregamento Químico', desc: 'Inspeção de lacres de alta segurança', user: 'Doca Q', status: 'done' },
-      { time: '08:00', title: 'Alerta de Parada Prolongada', desc: 'Veículo imobilizado na rodovia', user: 'Telemetria', status: 'current' }
-    ]
-  }
-];
-
 export const InvoicesPage: React.FC = () => {
-  const [invoicesList, setInvoicesList] = useState<OperationalInvoice[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<OperationalInvoice | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState<string>('overview');
+
+  // Busca manifestos da API real
+  const { data: apiInvoices, refetch: refetchInvoices } = useQuery({
+    queryKey: ['invoices-operational'],
+    queryFn: () => api.get<OperationalInvoice[]>('/invoices').catch(() => [] as OperationalInvoice[]),
+  });
   
   // Motores de Busca e Filtros Globais
   const [globalSearch, setGlobalSearch] = useState<string>('');
@@ -319,7 +118,7 @@ export const InvoicesPage: React.FC = () => {
 
   // Filtragem Otimizada sem Vínculos de Receita
   const filteredRecords = useMemo(() => {
-    return invoicesList.filter(inv => {
+    return (apiInvoices || []).filter(inv => {
       if (statusFilter !== 'ALL' && inv.deliveryStatus !== statusFilter) return false;
       if (priorityFilter !== 'ALL' && inv.priorityLevel !== priorityFilter) return false;
       if (inv.deliveryDistance > customKmRange) return false;
@@ -343,21 +142,22 @@ export const InvoicesPage: React.FC = () => {
         inv.totalWeight.toLowerCase().includes(term)
       );
     });
-  }, [invoicesList, globalSearch, statusFilter, priorityFilter, customKmRange]);
+  }, [apiInvoices, globalSearch, statusFilter, priorityFilter, customKmRange]);
 
   // Cálculos Exclusivos de Volume, Custos Rodoviários e Entregas Ativas
   const kpis = useMemo(() => {
-    let totalInvoices = invoicesList.length;
-    let activeDeliveries = invoicesList.filter(i => ['IN_TRANSIT', 'LOADING'].includes(i.deliveryStatus)).length;
-    let completedInvoices = invoicesList.filter(i => i.deliveryStatus === 'DELIVERED').length;
-    let delayedDeliveries = invoicesList.filter(i => i.deliveryStatus === 'DELAYED').length;
-    let pendingDispatch = invoicesList.filter(i => ['ASSIGNED', 'PLANNED'].includes(i.deliveryStatus)).length;
+    const list = apiInvoices || [];
+    let totalInvoices = list.length;
+    let activeDeliveries = list.filter(i => ['IN_TRANSIT', 'LOADING'].includes(i.deliveryStatus)).length;
+    let completedInvoices = list.filter(i => i.deliveryStatus === 'DELIVERED').length;
+    let delayedDeliveries = list.filter(i => i.deliveryStatus === 'DELAYED').length;
+    let pendingDispatch = list.filter(i => ['ASSIGNED', 'PLANNED'].includes(i.deliveryStatus)).length;
     
-    let totalWeightTon = invoicesList.reduce((acc, curr) => acc + parseFloat(curr.totalWeight), 0);
-    let totalDistanceKm = invoicesList.reduce((acc, curr) => acc + curr.deliveryDistance, 0);
-    let totalFuelEst = invoicesList.reduce((acc, curr) => acc + curr.estimatedFuelCost, 0);
-    let totalOperationalCost = invoicesList.reduce((acc, curr) => acc + curr.operationalCost, 0);
-    let failedDeliveries = invoicesList.filter(i => i.deliveryStatus === 'FAILED').length;
+    let totalWeightTon = list.reduce((acc, curr) => acc + parseFloat(curr.totalWeight), 0);
+    let totalDistanceKm = list.reduce((acc, curr) => acc + curr.deliveryDistance, 0);
+    let totalFuelEst = list.reduce((acc, curr) => acc + curr.estimatedFuelCost, 0);
+    let totalOperationalCost = list.reduce((acc, curr) => acc + curr.operationalCost, 0);
+    let failedDeliveries = list.filter(i => i.deliveryStatus === 'FAILED').length;
 
     return {
       totalInvoices,
@@ -371,7 +171,7 @@ export const InvoicesPage: React.FC = () => {
       totalOperationalCost,
       failedDeliveries
     };
-  }, [invoicesList]);
+  }, [apiInvoices]);
 
   const getStatusBadge = (status: OperationalInvoice['deliveryStatus']) => {
     switch(status) {
@@ -450,7 +250,7 @@ export const InvoicesPage: React.FC = () => {
           <button 
             onClick={() => {
               toast.success('Sincronizando fila de despachos e geolocalizações no PostGIS...');
-              setInvoicesList([...invoicesList]);
+              refetchInvoices();
             }}
             className="p-2.5 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
             title="Sincronizar Ledger"

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,24 +10,88 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { useDispatchOrders, colors, borderRadius, shadows } from '@rn-apps/shared';
+import MapView, { Marker, Callout } from 'react-native-maps';
+import {
+  useDispatchOrders,
+  colors,
+  borderRadius,
+  shadows,
+  connectTracking,
+  disconnectTracking,
+  onDriverLocationUpdated,
+  useAuthStore,
+} from '@rn-apps/shared';
+
+interface LiveLocation {
+  lat: number;
+  lng: number;
+  speed?: number;
+  timestamp?: string;
+}
 
 export default function GpsMonitoringScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const { user } = useAuthStore();
   const { data: orders, isLoading } = useDispatchOrders();
+  const [liveLocations, setLiveLocations] = useState<Record<string, LiveLocation>>({});
 
-  const fleet = (orders || []).map((order: any) => ({
-    id: order.id,
-    driver: order.driver?.name || order.assignedDriver || 'N/D',
-    truck: order.vehicle?.plate || order.assignedTruck || 'N/D',
-    destination: order.deliveryAddress || order.destination || order.primaryDestination || 'N/D',
-    gpsLocation: order.gpsLocation || order.currentLocation || 'Aguardando coordenadas',
-    eta: order.eta || order.estimatedArrival || 'N/D',
-    routeProgress: order.routeProgress || 0,
-    delayed: order.delayed || false,
-    invoiceCount: (order.invoices || order.items || []).length,
-  }));
+  // 1. Map socket location updates
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('[DispatcherMap] Connecting tracking socket for:', user.id);
+    connectTracking(user.id);
+
+    const unsubscribe = onDriverLocationUpdated((data) => {
+      console.log('[DispatcherMap] Live location update:', data);
+      if (data.driverId && data.lat && data.lng) {
+        setLiveLocations((prev) => ({
+          ...prev,
+          [data.driverId]: {
+            lat: data.lat,
+            lng: data.lng,
+            speed: data.speed,
+            timestamp: new Date().toISOString(),
+          },
+        }));
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      disconnectTracking();
+    };
+  }, [user?.id]);
+
+  // 2. Format vehicles list with live tracking data
+  const fleet = (orders || []).map((order: any) => {
+    const delivery = order.deliveries?.[0];
+    const driverId = delivery?.driver?.id || '';
+    const liveLoc = liveLocations[driverId];
+
+    return {
+      id: order.id,
+      driverId,
+      driverName: delivery?.driver?.user?.name || delivery?.driver?.name || order.assignedDriver || 'N/D',
+      truckPlate: delivery?.vehicle?.vehicleNumber || order.assignedTruck || 'N/D',
+      destination: delivery?.deliveryAddress || order.destination || order.primaryDestination || 'N/D',
+      latitude: liveLoc ? liveLoc.lat : -23.5505,
+      longitude: liveLoc ? liveLoc.lng : -46.6333,
+      speed: liveLoc?.speed || 0,
+      eta: order.eta || order.estimatedArrival || 'N/D',
+      routeProgress: order.routeProgress || 0,
+      delayed: order.delayed || false,
+      invoiceCount: (delivery?.invoices || order.invoices || order.items || []).length,
+    };
+  }).filter((v: any) => v.driverId !== ''); // Only show vehicles with drivers
+
+  const centralRegion = {
+    latitude: fleet.length > 0 ? fleet[0].latitude : -23.5505,
+    longitude: fleet.length > 0 ? fleet[0].longitude : -46.6333,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -38,14 +102,45 @@ export default function GpsMonitoringScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>📍 Frota Em Movimento</Text>
-          <Text style={styles.headerSubtitle}>Acompanhe coordenadas e tempo estimado</Text>
+          <Text style={styles.headerSubtitle}>Coordenadas via Socket.IO em tempo real</Text>
         </View>
         <View style={styles.headerBadge}>
-          <Text style={styles.headerBadgeText}>RASTREAMENTO</Text>
+          <Text style={styles.headerBadgeText}>LIVE</Text>
         </View>
       </View>
 
+      {/* Map View */}
+      <View style={styles.mapContainer}>
+        <MapView
+          style={styles.map}
+          initialRegion={centralRegion}
+          showsUserLocation={false}
+          showsMyLocationButton={false}
+        >
+          {fleet.map((vehicle: any) => (
+            <Marker
+              key={vehicle.id}
+              coordinate={{ latitude: vehicle.latitude, longitude: vehicle.longitude }}
+            >
+              <View style={styles.truckMarker}>
+                <Text style={styles.truckMarkerText}>🚛</Text>
+              </View>
+              <Callout>
+                <View style={styles.calloutContainer}>
+                  <Text style={styles.calloutTitle}>{vehicle.driverName}</Text>
+                  <Text style={styles.calloutText}>Placa: {vehicle.truckPlate}</Text>
+                  <Text style={styles.calloutText}>Velocidade: {vehicle.speed} km/h</Text>
+                  <Text style={styles.calloutText}>Destino: {vehicle.destination}</Text>
+                </View>
+              </Callout>
+            </Marker>
+          ))}
+        </MapView>
+      </View>
+
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.sectionTitle}>Monitoramento do Painel</Text>
+
         {isLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#2563EB" />
@@ -61,8 +156,8 @@ export default function GpsMonitoringScreen() {
             <View key={vehicle.id} style={styles.vehicleCard}>
               <View style={styles.vehicleCardTop}>
                 <View style={styles.vehicleInfo}>
-                  <Text style={styles.vehicleDriver}>{vehicle.driver}</Text>
-                  <Text style={styles.vehicleTruck}>{vehicle.truck}</Text>
+                  <Text style={styles.vehicleDriver}>{vehicle.driverName}</Text>
+                  <Text style={styles.vehicleTruck}>Placa: {vehicle.truckPlate}</Text>
                 </View>
                 <View style={styles.vehicleStatus}>
                   {vehicle.delayed ? (
@@ -85,7 +180,7 @@ export default function GpsMonitoringScreen() {
                 <View style={styles.progressLabels}>
                   <Text style={styles.progressLabel}>Base</Text>
                   <Text style={styles.progressLabel}>{vehicle.routeProgress}%</Text>
-                  <Text style={styles.progressLabel}>{vehicle.destination}</Text>
+                  <Text style={styles.progressLabel} numberOfLines={1}>{vehicle.destination.split(',')[0]}</Text>
                 </View>
                 <View style={styles.progressBar}>
                   <View
@@ -105,7 +200,7 @@ export default function GpsMonitoringScreen() {
                 <View style={styles.locationRow}>
                   <Text style={styles.locationIcon}>📍</Text>
                   <Text style={styles.locationText} numberOfLines={1}>
-                    {vehicle.gpsLocation}
+                    Lat: {vehicle.latitude.toFixed(5)} • Lng: {vehicle.longitude.toFixed(5)}
                   </Text>
                 </View>
                 <Text style={styles.invoiceCount}>
@@ -115,12 +210,6 @@ export default function GpsMonitoringScreen() {
             </View>
           ))
         )}
-
-        <View style={styles.footerNote}>
-          <Text style={styles.footerNoteText}>
-            📌 Roteamento e notas gerenciados pela central Admin
-          </Text>
-        </View>
       </ScrollView>
     </View>
   );
@@ -143,8 +232,56 @@ const styles = StyleSheet.create({
     borderRadius: 6, borderWidth: 1, borderColor: '#C7D2FE',
   },
   headerBadgeText: { fontSize: 8, fontWeight: '800', color: '#4338CA', textTransform: 'uppercase', letterSpacing: 0.5 },
+  mapContainer: {
+    height: 260,
+    width: '100%',
+    backgroundColor: '#E2E8F0',
+  },
+  map: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  truckMarker: {
+    backgroundColor: '#FFFFFF',
+    padding: 6,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  truckMarkerText: {
+    fontSize: 16,
+  },
+  calloutContainer: {
+    padding: 8,
+    width: 180,
+  },
+  calloutTitle: {
+    fontWeight: '800',
+    fontSize: 12,
+    color: colors.text,
+    marginBottom: 4,
+  },
+  calloutText: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 12,
+  },
   loadingContainer: { alignItems: 'center', paddingTop: 40 },
   loadingText: { marginTop: 12, fontSize: 14, color: colors.textSecondary },
   emptyContainer: { alignItems: 'center', paddingTop: 40 },
@@ -182,9 +319,4 @@ const styles = StyleSheet.create({
   locationIcon: { fontSize: 12 },
   locationText: { fontSize: 10, color: colors.textSecondary },
   invoiceCount: { fontSize: 9, fontWeight: '700', color: colors.textTertiary },
-  footerNote: {
-    padding: 14, backgroundColor: colors.background, borderRadius: borderRadius.lg,
-    borderWidth: 1, borderColor: colors.borderLight, marginTop: 8,
-  },
-  footerNoteText: { fontSize: 10, color: colors.textSecondary, textAlign: 'center' },
 });

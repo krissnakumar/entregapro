@@ -1,3 +1,7 @@
+import { getStatusLabel, getStatusHexColor, getStatusHexBg } from '@entregapro/ui/constants';
+
+export { getStatusLabel, getStatusHexColor as getStatusColor, getStatusHexBg as getStatusBg };
+
 export const colors = {
   // Primary palette
   primary: '#4F46E5',       // Indigo-600
@@ -140,60 +144,4 @@ export const typography = {
     textTransform: 'uppercase' as const,
     letterSpacing: 0.8,
   },
-};
-
-export const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'PENDING': return colors.statusPending;
-    case 'ASSIGNED': return colors.statusAssigned;
-    case 'LOADING':
-    case 'LOADING_STARTED': return colors.statusLoading;
-    case 'IN_TRANSIT':
-    case 'TRUCK_ARRIVED':
-    case 'DISPATCHED': return colors.statusInTransit;
-    case 'DELIVERED':
-    case 'COMPLETED':
-    case 'UNLOADING': return colors.statusDelivered;
-    case 'CANCELLED':
-    case 'DELIVERY_FAILED': return colors.statusCancelled;
-    default: return colors.textTertiary;
-  }
-};
-
-export const getStatusBg = (status: string) => {
-  switch (status) {
-    case 'PENDING': return '#F3F4F6';
-    case 'ASSIGNED': return '#EFF6FF';
-    case 'LOADING':
-    case 'LOADING_STARTED': return '#FFFBEB';
-    case 'IN_TRANSIT':
-    case 'TRUCK_ARRIVED':
-    case 'DISPATCHED': return '#F5F3FF';
-    case 'DELIVERED':
-    case 'COMPLETED':
-    case 'UNLOADING': return '#ECFDF5';
-    case 'CANCELLED':
-    case 'DELIVERY_FAILED': return '#FEF2F2';
-    default: return '#F8FAFC';
-  }
-};
-
-export const getStatusLabel = (status: string) => {
-  const labels: Record<string, string> = {
-    PENDING: 'Pendente',
-    ASSIGNED: 'Atribuído',
-    LOADING: 'Carregando',
-    LOADING_STARTED: 'A Carregar',
-    LOADING_COMPLETED: 'Carregado',
-    TRUCK_ARRIVED: 'Caminhão Chegou',
-    DISPATCHED: 'Despachado',
-    IN_TRANSIT: 'Em Trânsito',
-    ARRIVED_DESTINATION: 'Chegou ao Destino',
-    UNLOADING: 'Descarregando',
-    COMPLETED: 'Concluído',
-    DELIVERED: 'Entregue',
-    CANCELLED: 'Cancelado',
-    DELIVERY_FAILED: 'Falha na Entrega',
-  };
-  return labels[status] || status;
 };

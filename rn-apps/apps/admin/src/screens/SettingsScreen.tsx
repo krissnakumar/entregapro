@@ -16,7 +16,7 @@ const SETTINGS_GROUPS = [
     title: 'Sistema',
     items: [
       { label: 'Configurações Gerais', value: 'Portal Centralizador' },
-      { label: 'API Base', value: 'http://10.0.2.2:3001' },
+      { label: 'API Base', value: 'http://10.0.2.2:3000' },
       { label: 'Versão do App', value: '1.0.0 (RN)' },
     ],
   },

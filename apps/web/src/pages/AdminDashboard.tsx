@@ -7,6 +7,7 @@ import DriversList from '../components/DriversList';
 import VehiclesList from '../components/VehiclesList';
 import UserManagement from '../components/UserManagement';
 import ReportsPage from './Reports';
+import DeliveriesManagement from './DeliveriesManagement';
 import ProfilePage from './Profile';
 import SettingsPage from './Settings';
 import InvoicesPage from './Invoices';
@@ -33,6 +34,7 @@ import {
   Smartphone,
   TrendingUp,
   Files,
+  FileSpreadsheet,
   Map as LucideMap
 } from 'lucide-react';
 import { useState } from 'react';
@@ -67,12 +69,14 @@ const AdminDashboard = () => {
         { name: 'Motoristas', path: '/dashboard/drivers', icon: Users },
         { name: 'Frota Ativa', path: '/dashboard/vehicles', icon: Truck },
         { name: 'Combustível & Manut', path: '/dashboard/fuel', icon: Settings },
+        { name: 'Verificação de Carga', path: '/dashboard/loading', icon: ClipboardList },
       ]
     },
     {
       title: 'Inteligência',
       items: [
         { name: 'Faturas e Notas', path: '/dashboard/invoices', icon: Files },
+        { name: 'Importação Faturamento', path: '/dashboard/billing', icon: FileSpreadsheet },
         { name: 'Logs de Operação', path: '/dashboard/reports', icon: ClipboardList },
       ]
     },
@@ -87,7 +91,7 @@ const AdminDashboard = () => {
   ];
 
   return (
-    <div className="flex h-screen bg-white text-slate-900 overflow-hidden font-sans select-none">
+    <div className="flex h-screen bg-white text-slate-900 overflow-hidden font-sans">
       
       {/* MOBILE SIDEBAR BACKDROP */}
       {isSidebarOpen && (
@@ -111,7 +115,7 @@ const AdminDashboard = () => {
                 <ShieldCheck size={20} strokeWidth={2.5} />
               </div>
               <div className="flex flex-col min-w-0">
-                <h2 className="text-xs font-black tracking-tight text-slate-900 leading-none uppercase truncate">EntregaPRO</h2>
+                <h2 className="text-xs font-bold tracking-tight text-slate-900 leading-none uppercase truncate">EntregaPRO</h2>
                 <span className="text-[8px] font-bold text-indigo-600 tracking-widest mt-0.5 block truncate">ADMIN REPORTS</span>
               </div>
             </div>
@@ -129,7 +133,7 @@ const AdminDashboard = () => {
           {navGroups.map((group) => (
             <div key={group.title} className="space-y-1">
               {isSidebarOpen && (
-                <h3 className="px-3 text-[9px] font-black uppercase tracking-[0.15em] text-slate-400 mb-2 block truncate">
+                <h3 className="px-3 text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 mb-2 block truncate">
                   {group.title}
                 </h3>
               )}
@@ -164,7 +168,7 @@ const AdminDashboard = () => {
         </nav>
 
         <div className="p-4 border-t border-slate-100 space-y-1 bg-slate-50/50 shrink-0">
-          <div className="px-3 py-1 text-[8px] font-black uppercase text-slate-400 tracking-widest block truncate">
+          <div className="px-3 py-1 text-[8px] font-bold uppercase text-slate-400 tracking-widest block truncate">
             {isSidebarOpen ? 'Controle de Sessão' : 'SYS'}
           </div>
           <button
@@ -196,13 +200,13 @@ const AdminDashboard = () => {
             <NotificationsDropdown />
             <div className="flex items-center space-x-3 sm:space-x-4 border-l border-slate-200 pl-3 sm:pl-6 min-w-0">
               <div className="text-right hidden sm:block leading-tight truncate">
-                <p className="text-xs font-black text-slate-900 truncate">{user?.name || 'Administrador Global'}</p>
-                <p className="text-[9px] text-indigo-600 uppercase font-black tracking-widest mt-0.5">
+                <p className="text-xs font-bold text-slate-900 truncate">{user?.name || 'Administrador Global'}</p>
+                <p className="text-[9px] text-indigo-600 uppercase font-bold tracking-widest mt-0.5">
                   {user?.role || 'ADMIN'}
                 </p>
               </div>
               <div 
-                className="h-9 w-9 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-black text-xs cursor-pointer hover:bg-indigo-700 transition-colors shadow-xs shrink-0" 
+                className="h-9 w-9 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-xs cursor-pointer hover:bg-indigo-700 transition-colors shadow-xs shrink-0" 
                 onClick={() => navigate('/dashboard/profile')}
                 title="Configurações do Perfil"
               >
@@ -220,7 +224,7 @@ const AdminDashboard = () => {
                 <Route path="customers" element={<CustomersList />} />
                 <Route path="drivers" element={<DriversList />} />
                 <Route path="vehicles" element={<VehiclesList />} />
-                <Route path="deliveries" element={<ReportsPage />} />
+                <Route path="deliveries" element={<DeliveriesManagement />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="analytics" element={<Overview />} />
                 <Route path="users" element={<UserManagement />} />
@@ -229,6 +233,8 @@ const AdminDashboard = () => {
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="fuel" element={<div className="py-6"><FuelMaintenanceModule /></div>} />
+                <Route path="loading" element={<div className="py-6"><LoadingVerificationScreen /></div>} />
+                <Route path="billing" element={<div className="py-6"><ExcelBillingImportScreen /></div>} />
               </Routes>
             </div>
           </main>
