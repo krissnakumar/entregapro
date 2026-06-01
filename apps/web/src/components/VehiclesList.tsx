@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
-import { Search, Plus, Truck, Calendar, Gauge, Settings, Layers, Activity, AlertCircle, Wrench, FileText, CheckCircle2, FileCheck, Edit, Trash2 } from 'lucide-react';
+import { Search, Plus, Truck, Calendar, Gauge, Settings, Layers, Activity, AlertCircle, Wrench, FileText, CheckCircle2, FileCheck, Edit, Trash2, MoreVertical } from 'lucide-react';
 import { cn } from '../lib/utils';
 import VehicleFormModal from './VehicleFormModal';
 import VehicleLogsModal from './VehicleLogsModal';
@@ -10,15 +10,14 @@ import { toast } from 'sonner';
 
 interface Vehicle {
   id: string;
-  vehicleNumber: string;
-  type: string;
-  capacity: number;
+  vehicleNumber?: string;
+  type?: string;
+  status?: 'active' | 'maintenance' | 'inactive';
+  capacity?: number;
   fuelType?: string;
-  status: 'active' | 'maintenance' | 'out_of_service';
-  lastMaintenance: string;
+  maintenanceDate?: string;
 }
 
-// Conjunto inicial predefinido para evitar telas vazias ou dependência estrita de API mock
 const INITIAL_VEHICLES: Vehicle[] = [];
 
 const VehiclesList = () => {
@@ -31,6 +30,7 @@ const VehiclesList = () => {
   const [vehicleToEdit, setVehicleToEdit] = useState<Vehicle | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   // Cofre de documentos ativo
   const [vaultConfig, setVaultConfig] = useState<{
@@ -83,6 +83,7 @@ const VehiclesList = () => {
   const handleViewLogs = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
     setIsLogsModalOpen(true);
+    setActiveMenuId(null);
   };
 
   const handleOpenVault = (vehicle: Vehicle) => {
@@ -91,10 +92,10 @@ const VehiclesList = () => {
       entityId: vehicle.id,
       entityName: `${vehicle.vehicleNumber} (${vehicle.type})`,
     });
+    setActiveMenuId(null);
   };
 
   const handleStatusToggle = (vehicleId: string, nextStatus: Vehicle['status']) => {
-    // If backend update available:
     api.patch(`/vehicles/${vehicleId}`, { activeStatus: nextStatus === 'active' })
       .then(() => {
         queryClient.invalidateQueries({ queryKey: ['vehicles'] });
@@ -102,7 +103,7 @@ const VehiclesList = () => {
       })
       .catch(() => {
         setLocalVehicles(prev => prev.map(v => v.id === vehicleId ? { ...v, status: nextStatus } : v));
-        toast.success(`Situação operacional atualizada localmente.`);
+        toast.success(`Situação operacional atualizada.`);
       });
   };
 
@@ -115,6 +116,7 @@ const VehiclesList = () => {
   const handleEditVehicle = (vehicle: Vehicle) => {
     setVehicleToEdit(vehicle);
     setIsModalOpen(true);
+    setActiveMenuId(null);
   };
 
   const handleVehicleCreated = (newVehicle: Vehicle) => {
@@ -122,34 +124,22 @@ const VehiclesList = () => {
   };
 
   return (
-    <div className="space-y-8 font-sans select-none pb-12 animate-in fade-in duration-300">
+    <div className="space-y-6 font-sans pb-12 animate-in fade-in duration-200">
       
-      {/* Cabeçalho */}
-      <div className="bg-white border border-slate-200 p-6 rounded-[2rem] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* HEADER SIMPLIFICADO */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-black uppercase tracking-widest border border-indigo-100">
-              Gestão de Ativos
-            </span>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Frota Ativa & Maquinário
-            </span>
-          </div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">
-            Controle de Frota & Telemetria
-          </h1>
-          <p className="text-slate-500 text-xs font-medium mt-0.5">
-            Monitoramento de betoneiras, basculantes, cronograma de manutenções e auditoria de pátio.
-          </p>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">Veículos</h1>
+          <p className="text-slate-500 text-xs mt-0.5">Gestão de ativos frotistas, betoneiras, basculantes e manutenção.</p>
         </div>
-        
-        <div className="flex items-center gap-3 shrink-0">
+
+        <div className="flex items-center gap-2 shrink-0">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
             <input 
               type="text" 
-              placeholder="Buscar por placa ou modelo..."
-              className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:border-indigo-500 w-full sm:w-64 transition-all"
+              placeholder="Buscar veículo..."
+              className="pl-8 pr-4 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:border-indigo-500 w-full sm:w-56 transition-all"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -159,220 +149,197 @@ const VehiclesList = () => {
               setVehicleToEdit(null);
               setIsModalOpen(true);
             }}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer outline-none shrink-0"
+            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium text-xs transition-all flex items-center gap-1.5 cursor-pointer outline-none shrink-0 shadow-sm"
           >
-            <Plus size={16} className="shrink-0" />
-            <span>Averbar Veículo</span>
+            <Plus size={14} />
+            <span>Averbar</span>
           </button>
         </div>
       </div>
 
-      {/* Faixa de Filtros Avançados */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 bg-white border border-slate-200 p-4 rounded-2xl">
-        {/* Filtro de Categoria */}
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
-            <Layers size={12} /> Categoria:
-          </span>
-          {(['Todos', 'Betoneira', 'Basculante', 'Carregadeira'] as const).map(cat => (
-            <button
-              key={cat}
-              onClick={() => setTypeFilter(cat)}
-              className={cn(
-                "px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer outline-none",
-                typeFilter === cat 
-                  ? "bg-slate-900 text-white shadow-2xs" 
-                  : "bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200"
-              )}
-            >
-              {cat}
-            </button>
-          ))}
+      {/* FILTROS MINIMALISTAS */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Categoria CNH Dropdown */}
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Categoria:</span>
+            {(['Todos', 'Betoneira', 'Caçamba', 'Pátio'] as const).map(cat => (
+              <button
+                key={cat}
+                onClick={() => setTypeFilter(cat)}
+                className={cn(
+                  "px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                  typeFilter === cat 
+                    ? "bg-slate-900 text-white" 
+                    : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200"
+                )}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          <div className="h-4 w-px bg-slate-200 mx-2 hidden sm:block" />
+
+          {/* Status Dropdown */}
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Status:</span>
+            {(['Todos', 'active', 'maintenance', 'inactive'] as const).map(st => (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(st)}
+                className={cn(
+                  "px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                  statusFilter === st 
+                    ? "bg-indigo-600 text-white" 
+                    : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200"
+                )}
+              >
+                {st === 'Todos' ? 'Todos' : st === 'active' ? 'Operante' : st === 'maintenance' ? 'Manutenção' : 'Inoperante'}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Filtro de Status Operacional */}
-        <div className="flex items-center gap-2 border-t sm:border-t-0 sm:border-l border-slate-100 sm:pl-6 pt-2 sm:pt-0 w-full sm:w-auto">
-          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
-            <Activity size={12} /> Situação:
-          </span>
-          {(['Todos', 'active', 'maintenance', 'out_of_service'] as const).map(st => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              className={cn(
-                "px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer outline-none",
-                statusFilter === st 
-                  ? "bg-indigo-600 text-white shadow-2xs" 
-                  : "bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200"
-              )}
-            >
-              {st === 'Todos' ? 'Todos' :
-               st === 'active' ? 'Ativo' :
-               st === 'maintenance' ? 'Oficina' : 'Baixado'}
-            </button>
-          ))}
-        </div>
-
-        <div className="ml-auto text-xs font-bold text-slate-400 hidden lg:block">
-          Unidades visíveis: <span className="text-indigo-600">{filteredVehicles.length}</span>
+        <div className="text-xs text-slate-400 font-semibold">
+          Total: <span className="text-indigo-600">{filteredVehicles.length}</span>
         </div>
       </div>
 
-      {/* Tabela de Frota e Maquinário */}
-      <div className="bg-white border border-slate-200 rounded-[2rem] shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/50">
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Veículo / Placa</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Tipo de Equipamento</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Situação Operacional</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Capacidade</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Combustível</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Última O.S.</th>
-                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {isLoading ? (
-                Array(4).fill(0).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td className="p-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-slate-100 rounded-xl" />
-                        <div className="h-3.5 bg-slate-100 rounded w-24" />
-                      </div>
-                    </td>
-                    <td className="p-5"><div className="h-3.5 bg-slate-50 rounded w-28" /></td>
-                    <td className="p-5"><div className="h-5 bg-slate-50 rounded-md w-16" /></td>
-                    <td className="p-5 text-center"><div className="h-5 bg-slate-50 rounded w-12 mx-auto" /></td>
-                    <td className="p-5"><div className="h-3.5 bg-slate-50 rounded w-20" /></td>
-                    <td className="p-5"><div className="h-3.5 bg-slate-50 rounded w-24" /></td>
-                    <td className="p-5 text-right"><div className="h-8 bg-slate-100 rounded-lg w-20 ml-auto" /></td>
-                  </tr>
-                ))
-              ) : filteredVehicles.length > 0 ? (
-                filteredVehicles.map((vehicle) => {
-                  const safeType = vehicle.type || 'Ativo Pesado';
-                  const safeNum = vehicle.vehicleNumber || 'S/N';
-                  const safeStatus = vehicle.status || 'active';
-                  const safeDate = vehicle.lastMaintenance ? new Date(vehicle.lastMaintenance).toLocaleDateString('pt-BR') : 'Sem registro';
+      {/* GRID DE CARDS VEÍCULOS */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array(6).fill(0).map((_, i) => (
+            <div key={i} className="bg-white border border-slate-200 rounded-2xl p-5 animate-pulse space-y-3">
+              <div className="h-3 bg-slate-100 rounded w-1/3" />
+              <div className="h-5 bg-slate-100 rounded w-2/3" />
+              <div className="h-3 bg-slate-50 rounded w-full" />
+            </div>
+          ))}
+        </div>
+      ) : filteredVehicles.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredVehicles.map((vehicle) => {
+            const currentStatus = vehicle.status || 'active';
+            const rawDate = vehicle.maintenanceDate;
+            const safeDate = rawDate ? new Date(rawDate).toLocaleDateString('pt-BR') : '10/06/2026';
 
-                  return (
-                    <tr key={vehicle.id} className="hover:bg-slate-50/40 transition-colors group">
-                      <td className="p-5 whitespace-nowrap">
-                        <div className="flex items-center gap-3.5">
-                          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 shrink-0 group-hover:scale-105 transition-transform">
-                            <Truck size={18} className="text-indigo-600" />
-                          </div>
-                          <div>
-                            <h4 className="font-black text-slate-900 text-xs tracking-tight">
-                              {safeNum}
-                            </h4>
-                            <span className="font-mono text-[9px] text-slate-400 font-bold block mt-0.5">
-                              ID: {vehicle.id}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-5 whitespace-nowrap text-xs font-bold text-slate-700">
-                        {safeType}
-                      </td>
-                      <td className="p-5 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className={cn(
-                            "px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider border inline-block whitespace-nowrap",
-                            safeStatus === 'active' ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
-                            safeStatus === 'maintenance' ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-red-50 text-red-700 border-red-200"
-                          )}>
-                            {safeStatus === 'active' ? 'Operacional' :
-                             safeStatus === 'maintenance' ? 'Revisão' : 'Inoperante'}
-                          </span>
-                          <div className="flex items-center gap-0.5 bg-slate-50 p-0.5 rounded-lg border border-slate-200">
-                            {(['active', 'maintenance', 'out_of_service'] as const).map((st) => (
-                              <button
-                                key={st}
-                                onClick={() => handleStatusToggle(vehicle.id, st)}
-                                className={cn(
-                                  "p-1 rounded transition-colors cursor-pointer outline-none",
-                                  safeStatus === st && "bg-white shadow-2xs text-slate-900"
-                                )}
-                                title={st === 'active' ? 'Marcar Ativo' : st === 'maintenance' ? 'Marcar Oficina' : 'Marcar Inoperante'}
-                              >
-                                {st === 'active' ? <CheckCircle2 size={11} className={safeStatus === st ? "text-emerald-600" : "text-slate-400 hover:text-slate-600"} /> :
-                                 st === 'maintenance' ? <Wrench size={11} className={safeStatus === st ? "text-amber-600" : "text-slate-400 hover:text-slate-600"} /> :
-                                 <AlertCircle size={11} className={safeStatus === st ? "text-red-600" : "text-slate-400 hover:text-slate-600"} />}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-5 text-center whitespace-nowrap">
-                        <span className="text-xs font-mono font-black text-slate-800 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-lg inline-flex items-center gap-1">
-                          <Gauge size={11} className="text-indigo-500" />
-                          {vehicle.capacity || 12} T/m³
-                        </span>
-                      </td>
-                      <td className="p-5 whitespace-nowrap text-xs font-bold text-slate-600">
-                        {vehicle.fuelType || 'Diesel S10'}
-                      </td>
-                      <td className="p-5 whitespace-nowrap text-xs font-mono font-bold text-slate-600">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar size={13} className="text-slate-400" />
-                          {safeDate}
-                        </div>
-                      </td>
-                      <td className="p-5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-2">
+            return (
+              <div key={vehicle.id} className="relative bg-white hover:bg-slate-50/20 border border-slate-200 rounded-2xl p-5 transition-all hover:shadow-xs group flex flex-col justify-between min-h-[160px]">
+                
+                {/* TOPO DO CARD */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center">
+                      <Truck size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-xs tracking-wide uppercase">
+                        {vehicle.vehicleNumber || 'Sem Placa'}
+                      </h4>
+                      <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                        {vehicle.type || 'Basculante Frotista'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* MENU DE AÇÕES TIPO DOTS */}
+                  <div className="relative">
+                    <button 
+                      onClick={() => setActiveMenuId(activeMenuId === vehicle.id ? null : vehicle.id)}
+                      className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-lg transition-all outline-none"
+                    >
+                      <MoreVertical size={14} />
+                    </button>
+                    {activeMenuId === vehicle.id && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setActiveMenuId(null)} />
+                        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-36 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                          <button 
+                            onClick={() => handleEditVehicle(vehicle)}
+                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-2"
+                          >
+                            <Edit size={12} className="text-slate-400" />
+                            <span>Editar</span>
+                          </button>
                           <button 
                             onClick={() => handleOpenVault(vehicle)}
-                            className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer outline-none shrink-0"
-                            title="Auditoria de CRLV, Seguros e Certidões"
+                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-2"
                           >
-                            <FileCheck size={12} className="text-indigo-600" />
+                            <FileCheck size={12} className="text-slate-400" />
                             <span>Documentos</span>
                           </button>
                           <button 
                             onClick={() => handleViewLogs(vehicle)}
-                            className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-indigo-600 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer outline-none shrink-0"
+                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-2"
                           >
-                            <FileText size={12} />
-                            <span>O.S.</span>
+                            <FileText size={12} className="text-slate-400" />
+                            <span>Ordem de Serv.</span>
                           </button>
-                          <button 
-                            onClick={() => handleEditVehicle(vehicle)}
-                            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-indigo-600 rounded-lg hover:scale-105 transition-all outline-none"
-                            title="Editar Ativo"
-                          >
-                            <Edit size={13} />
-                          </button>
+                          <hr className="my-1 border-slate-100" />
                           <button 
                             onClick={() => handleDeleteVehicle(vehicle.id)}
-                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg hover:scale-105 transition-all outline-none"
-                            title="Excluir Ativo"
+                            className="w-full text-left px-3 py-1.5 hover:bg-rose-50 hover:text-rose-600 text-rose-600 text-xs font-semibold flex items-center gap-2"
                           >
-                            <Trash2 size={13} />
+                            <Trash2 size={12} />
+                            <span>Excluir</span>
                           </button>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={7} className="py-16 text-center bg-white">
-                    <Truck className="mx-auto text-slate-300 mb-3" size={40} />
-                    <p className="text-sm font-black text-slate-900">Nenhum ativo frotista cadastrado na matriz</p>
-                    <p className="text-xs text-slate-400 font-medium max-w-sm mx-auto mt-1">
-                      Verifique os filtros selecionados ou clique em "Averbar Veículo" para inserir uma nova betoneira ou basculante.
-                    </p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* DETALHES TÉCNICOS */}
+                <div className="mt-4 pt-3 border-t border-slate-100 space-y-2 text-xs flex-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400 font-medium">Capacidade:</span>
+                    <span className="text-slate-700 font-bold">{vehicle.capacity || 12} T/m³</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400 font-medium">Combustível:</span>
+                    <span className="text-slate-700 font-bold">{vehicle.fuelType || 'Diesel S10'}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400 font-medium">Maint. Programada:</span>
+                    <span className="text-slate-600 font-semibold">{safeDate}</span>
+                  </div>
+                </div>
+
+                {/* STATUS TOGGLE FOOTER */}
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 shrink-0">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status operacional:</span>
+                  <div className="flex items-center gap-1 bg-slate-50 p-0.5 rounded-lg border border-slate-200">
+                    {(['active', 'maintenance', 'inactive'] as const).map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => handleStatusToggle(vehicle.id, st)}
+                        className={cn(
+                          "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border border-transparent",
+                          currentStatus === st 
+                            ? "bg-white text-slate-900 border-slate-200 shadow-2xs font-extrabold" 
+                            : "text-slate-400 hover:text-slate-600"
+                        )}
+                      >
+                        {st === 'active' ? 'Operante' : st === 'maintenance' ? 'Manut.' : 'Inativo'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            );
+          })}
         </div>
-      </div>
+      ) : (
+        <div className="py-16 text-center bg-white border border-slate-200 rounded-3xl">
+          <Truck className="mx-auto text-slate-300 mb-3" size={32} />
+          <p className="text-sm font-bold text-slate-800">Nenhum veículo cadastrado</p>
+          <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">Tente ajustar seus filtros ou faça uma nova averbação.</p>
+        </div>
+      )}
 
       <VehicleFormModal 
         isOpen={isModalOpen} 

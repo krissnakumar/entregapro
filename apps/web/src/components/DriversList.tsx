@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
-import { Search, Plus, MapPin, Truck, Star, Phone, ShieldCheck, AlertTriangle, UserCheck, X, Award, CheckCircle2, Filter, FileCheck, Edit, Trash2 } from 'lucide-react';
+import { Search, Plus, MapPin, Truck, Star, Phone, ShieldCheck, AlertTriangle, UserCheck, X, Award, CheckCircle2, Filter, FileCheck, Edit, Trash2, MoreVertical, Calendar } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { DocumentVaultModal } from './DocumentVaultModal';
 import { toast } from 'sonner';
@@ -23,7 +23,6 @@ interface Driver {
   } | null;
 }
 
-// Conjunto inicial de motoristas de concreto/agregados com dados profissionais
 const INITIAL_DRIVERS: Driver[] = [];
 
 const DriversList = () => {
@@ -32,9 +31,10 @@ const DriversList = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>('Todas');
   const [statusFilter, setStatusFilter] = useState<string>('Todos');
   
-  // Controle do modal interno de cadastro rápido
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+
   const [newDriver, setNewDriver] = useState({
     name: '',
     phone: '',
@@ -51,7 +51,6 @@ const DriversList = () => {
     entityName: string;
   }>({ isOpen: false, entityId: '', entityName: '' });
 
-  // Mantém estado local unificado para garantia de interface 100% funcional sem latência
   const [localDrivers, setLocalDrivers] = useState<Driver[]>(INITIAL_DRIVERS);
 
   const { data: remoteDrivers, isLoading } = useQuery({
@@ -91,17 +90,17 @@ const DriversList = () => {
   const deleteDriverMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/drivers/${id}`),
     onSuccess: () => {
-      toast.success('Prontuário de condutor removido com sucesso.');
+      toast.success('Prontuário de condutor removido.');
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
     },
     onError: (err: any) => {
-      toast.error(err.message || 'Falha ao remover prontuário do condutor.');
+      toast.error(err.message || 'Falha ao remover prontuário.');
     }
   });
 
   const handleDeleteDriver = (id: string) => {
-    if (confirm('Deseja realmente revogar o credenciamento e excluir este motorista do prontuário operacional?')) {
+    if (confirm('Deseja realmente remover este motorista do prontuário operacional?')) {
       deleteDriverMutation.mutate(id);
     }
   };
@@ -117,6 +116,7 @@ const DriversList = () => {
       vehicleId: driver.currentVehicle?.id || '',
     });
     setIsModalOpen(true);
+    setActiveMenuId(null);
   };
 
   const getAvailableVehicles = (currentVehicleId?: string) => {
@@ -133,21 +133,34 @@ const DriversList = () => {
       { id: driverId, payload: { vehicleId } },
       {
         onSuccess: () => {
-          toast.success('Alocação de veículo atualizada com sucesso.');
+          toast.success('Alocação de veículo atualizada.');
         },
         onError: (err: any) => {
-          toast.error(`Erro ao alocar veículo: ${err.message || 'Erro desconhecido'}`);
+          toast.toast.error(`Erro ao alocar veículo: ${err.message}`);
         }
       }
     );
   };
 
-  // Junta o remoto com o local evitando duplicações
+  const handleUpdateStatus = (driverId: string, nextStatus: any) => {
+    updateDriverMutation.mutate(
+      { id: driverId, payload: { status: nextStatus } },
+      {
+        onSuccess: () => {
+          toast.success(`Status operacional alterado para ${nextStatus.replace('_', ' ')}.`);
+        },
+        onError: () => {
+          setLocalDrivers(prev => prev.map(d => d.id === driverId ? { ...d, status: nextStatus } : d));
+          toast.success(`Status operacional alterado localmente.`);
+        }
+      }
+    );
+  };
+
   const baseDrivers = (remoteDrivers && remoteDrivers.length > 0)
     ? [...localDrivers.filter(ld => !remoteDrivers.some(rd => rd.id === ld.id)), ...remoteDrivers]
     : localDrivers;
 
-  // Aplicação de filtros combinados com checagem segura
   const filteredDrivers = baseDrivers.filter(driver => {
     const safeName = driver.name || '';
     const safeCnh = driver.cnhNumber || '';
@@ -163,13 +176,12 @@ const DriversList = () => {
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  // Validador visual de CNH vencida ou a vencer
   const checkCnhStatus = (expirationDate?: string) => {
-    if (!expirationDate) return { label: 'Sem Registro', color: 'text-slate-400 bg-slate-50 border-slate-200' };
+    if (!expirationDate) return { label: 'Sem Registro', color: 'text-slate-400 bg-slate-50' };
     const daysLeft = Math.ceil((new Date(expirationDate).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
-    if (daysLeft < 0) return { label: 'CNH Vencida', color: 'text-red-700 bg-red-50 border-red-200 animate-pulse' };
-    if (daysLeft <= 45) return { label: `Atenção: Vence em ${daysLeft}d`, color: 'text-amber-700 bg-amber-50 border-amber-200' };
-    return { label: 'CNH Regular', color: 'text-emerald-700 bg-emerald-50 border-emerald-100' };
+    if (daysLeft < 0) return { label: 'Vencida', color: 'text-red-700 bg-red-50' };
+    if (daysLeft <= 45) return { label: `Validade: ${daysLeft} dias`, color: 'text-amber-700 bg-amber-50' };
+    return { label: 'Regular', color: 'text-emerald-700 bg-emerald-50' };
   };
 
   const handleOpenVault = (driver: Driver) => {
@@ -178,12 +190,13 @@ const DriversList = () => {
       entityId: driver.id,
       entityName: driver.name || 'Condutor Credenciado',
     });
+    setActiveMenuId(null);
   };
 
   const handleSubmitDriver = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDriver.name || !newDriver.cnhNumber || !newDriver.cnhExpiration) {
-      toast.error('Preencha os campos obrigatórios de qualificação do condutor.');
+      toast.error('Preencha os campos obrigatórios.');
       return;
     }
 
@@ -201,7 +214,7 @@ const DriversList = () => {
         { id: editingDriver.id, payload },
         {
           onSuccess: () => {
-            toast.success(`Motorista ${newDriver.name} atualizado com sucesso no prontuário.`);
+            toast.success('Cadastro atualizado com sucesso.');
             setIsModalOpen(false);
             setEditingDriver(null);
             setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '' });
@@ -216,308 +229,260 @@ const DriversList = () => {
         payload,
         {
           onSuccess: () => {
-            toast.success(`Condutor ${newDriver.name} averbado com sucesso no prontuário de frota.`);
+            toast.success('Motorista averbado com sucesso.');
             setIsModalOpen(false);
             setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '' });
           },
           onError: () => {
-            toast.error('Falha ao averbar condutor no backend.');
+            toast.error('Falha ao averbar motorista.');
           },
         },
       );
     }
   };
 
-  const handleUpdateStatus = (driverId: string, nextStatus: any) => {
-    setLocalDrivers(prev => prev.map(d => d.id === driverId ? { ...d, status: nextStatus } : d));
-    toast.success(`Status operacional alterado com sucesso.`);
-  };
-
   return (
-    <div className="space-y-8 font-sans pb-12 animate-in fade-in duration-300">
+    <div className="space-y-6 font-sans pb-12 animate-in fade-in duration-200">
       
-      {/* Cabeçalho */}
-      <div className="bg-white border border-slate-200 p-6 rounded-[2rem] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* HEADER SIMPLIFICADO */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-bold uppercase tracking-widest border border-indigo-100">
-              Escala de Pessoal
-            </span>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Motoristas Ativos
-            </span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Quadro de Motoristas & Credenciais
-          </h1>
-          <p className="text-slate-500 text-xs font-medium mt-0.5">
-            Monitoramento de CNH, categorias autorizadas, pontuação operacional e designação de ativos.
-          </p>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">Motoristas</h1>
+          <p className="text-slate-500 text-xs mt-0.5">Gerenciamento de prontuário, credenciais e alocações de ativos.</p>
         </div>
 
-        {/* Botão de Averbação */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
             <input 
               type="text" 
-              placeholder="Buscar por nome, CNH ou placa..."
-              className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:border-indigo-500 w-full sm:w-64 transition-all"
+              placeholder="Buscar motorista..."
+              className="pl-8 pr-4 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:border-indigo-500 w-full sm:w-56 transition-all"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-
           <button 
             onClick={() => {
               setEditingDriver(null);
               setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '' });
               setIsModalOpen(true);
             }}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer outline-none shrink-0"
+            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium text-xs transition-all flex items-center gap-1.5 cursor-pointer outline-none shrink-0 shadow-sm"
           >
-            <Plus size={16} className="shrink-0" />
-            <span>Averbar Motorista</span>
+            <Plus size={14} />
+            <span>Adicionar</span>
           </button>
         </div>
       </div>
 
-      {/* Faixa de Filtros Avançados */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 bg-white border border-slate-200 p-4 rounded-2xl">
-        {/* Categoria CNH */}
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1">
-            <Award size={12} /> CNH:
-          </span>
-          {(['Todas', 'C', 'D', 'E'] as const).map(cat => (
-            <button
-              key={cat}
-              onClick={() => setCategoryFilter(cat)}
-              className={cn(
-                "px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer outline-none",
-                categoryFilter === cat 
-                  ? "bg-slate-900 text-white shadow-2xs" 
-                  : "bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200"
-              )}
-            >
-              {cat === 'Todas' ? cat : `Cat. ${cat}`}
-            </button>
-          ))}
+      {/* FILTROS MINIMALISTAS */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Categoria CNH Dropdown */}
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">CNH:</span>
+            {(['Todas', 'C', 'D', 'E'] as const).map(cat => (
+              <button
+                key={cat}
+                onClick={() => setCategoryFilter(cat)}
+                className={cn(
+                  "px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                  categoryFilter === cat 
+                    ? "bg-slate-900 text-white" 
+                    : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200"
+                )}
+              >
+                {cat === 'Todas' ? 'Todas' : `Cat. ${cat}`}
+              </button>
+            ))}
+          </div>
+
+          <div className="h-4 w-px bg-slate-200 mx-2 hidden sm:block" />
+
+          {/* Status Dropdown */}
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Status:</span>
+            {(['Todos', 'disponível', 'em_rota', 'em_descanso'] as const).map(st => (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(st)}
+                className={cn(
+                  "px-2 py-1 rounded-lg text-xs font-semibold capitalize transition-all cursor-pointer",
+                  statusFilter === st 
+                    ? "bg-indigo-600 text-white" 
+                    : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200"
+                )}
+              >
+                {st === 'Todos' ? 'Todos' : st === 'disponível' ? 'Livre' : st === 'em_rota' ? 'Em Rota' : 'Descanso'}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Status Operacional */}
-        <div className="flex items-center gap-2 border-t sm:border-t-0 sm:border-l border-slate-100 sm:pl-6 pt-2 sm:pt-0 w-full sm:w-auto">
-          <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1">
-            <Filter size={12} /> Escala:
-          </span>
-          {(['Todos', 'disponível', 'em_rota', 'em_descanso'] as const).map(st => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              className={cn(
-                "px-2.5 py-1 rounded-lg text-xs font-bold capitalize transition-all cursor-pointer outline-none",
-                statusFilter === st 
-                  ? "bg-indigo-600 text-white shadow-2xs" 
-                  : "bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200"
-              )}
-            >
-              {st.replace('_', ' ')}
-            </button>
-          ))}
-        </div>
-
-        <div className="ml-auto text-xs font-bold text-slate-400 hidden lg:block">
-          Condutores visíveis: <span className="text-indigo-600">{filteredDrivers.length}</span>
+        <div className="text-xs text-slate-400 font-semibold">
+          Total: <span className="text-indigo-600">{filteredDrivers.length}</span>
         </div>
       </div>
 
-      {/* Tabela de Motoristas */}
-      <div className="bg-white border border-slate-200 rounded-[2rem] shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/50">
-                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Motorista</th>
-                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Status Operacional</th>
-                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Habilitação (CNH)</th>
-                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Contato</th>
-                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Veículo Alocado</th>
-                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400 text-center">Viagens</th>
-                <th className="p-5 text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {isLoading ? (
-                Array(4).fill(0).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td className="p-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-slate-100 rounded-xl" />
-                        <div className="space-y-1">
-                          <div className="h-3.5 bg-slate-100 rounded w-28" />
-                          <div className="h-2.5 bg-slate-50 rounded w-16" />
-                        </div>
+      {/* CARDS MINIMALISTAS */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array(6).fill(0).map((_, i) => (
+            <div key={i} className="bg-white border border-slate-200 rounded-2xl p-5 animate-pulse space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-slate-100 rounded-full" />
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-3 bg-slate-100 rounded w-2/3" />
+                  <div className="h-2.5 bg-slate-50 rounded w-1/3" />
+                </div>
+              </div>
+              <div className="h-3.5 bg-slate-100 rounded w-full" />
+              <div className="h-3 bg-slate-50 rounded w-1/2" />
+            </div>
+          ))}
+        </div>
+      ) : filteredDrivers.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredDrivers.map((driver) => {
+            const cnhMeta = checkCnhStatus(driver.cnhExpiration);
+            const safeName = driver.name || 'Condutor Autorizado';
+            const initials = safeName.split(' ').map(n => n[0]).filter(Boolean).join('').substring(0, 2).toUpperCase() || 'MT';
+            const currentStatus = driver.status || 'disponível';
+
+            return (
+              <div key={driver.id} className="relative bg-white hover:bg-slate-50/20 border border-slate-200 rounded-2xl p-5 transition-all hover:shadow-xs group flex flex-col justify-between min-h-[160px]">
+                
+                {/* TOPO DO CARD */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="relative shrink-0">
+                      <div className="w-10 h-10 bg-slate-100 border border-slate-200 text-slate-700 rounded-full flex items-center justify-center font-bold text-xs">
+                        {initials}
                       </div>
-                    </td>
-                    <td className="p-5"><div className="h-5 bg-slate-50 rounded-md w-16" /></td>
-                    <td className="p-5"><div className="h-3.5 bg-slate-50 rounded w-36" /></td>
-                    <td className="p-5"><div className="h-3.5 bg-slate-50 rounded w-24" /></td>
-                    <td className="p-5"><div className="h-3.5 bg-slate-50 rounded w-36" /></td>
-                    <td className="p-5 text-center"><div className="h-5 bg-slate-50 rounded w-8 mx-auto" /></td>
-                    <td className="p-5 text-right"><div className="h-8 bg-slate-100 rounded-lg w-20 ml-auto" /></td>
-                  </tr>
-                ))
-              ) : filteredDrivers.length > 0 ? (
-                filteredDrivers.map((driver) => {
-                  const cnhMeta = checkCnhStatus(driver.cnhExpiration);
-                  const safeName = driver.name || 'Condutor Autorizado';
-                  const initials = safeName.split(' ').map(n => n[0]).filter(Boolean).join('').substring(0, 2).toUpperCase() || 'MT';
-                  const currentStatus = driver.status || 'disponível';
-                  const safeCnhNumber = driver.cnhNumber || 'Não informada';
-                  const formattedCnh = safeCnhNumber.length >= 10 
-                    ? safeCnhNumber.replace(/(\d{3})(\d{3})(\d{3})(\d+)/, '$1.$2.$3-$4')
-                    : safeCnhNumber;
-
-                  return (
-                    <tr key={driver.id} className="hover:bg-slate-50/40 transition-colors group">
-                      <td className="p-5">
-                        <div className="flex items-center gap-3.5">
-                          <div className="relative shrink-0">
-                            <div className="w-10 h-10 bg-slate-50 border border-slate-200 text-slate-700 rounded-xl flex items-center justify-center font-bold text-xs group-hover:scale-105 transition-transform">
-                              {initials}
-                            </div>
-                            <span className={cn(
-                              "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white",
-                              currentStatus === 'disponível' ? "bg-emerald-500" :
-                              currentStatus === 'em_rota' ? "bg-indigo-500" : "bg-amber-500"
-                            )} title={`Status: ${currentStatus}`} />
-                          </div>
-                          <div className="min-w-0">
-                            <h4 className="font-bold text-slate-900 text-xs leading-tight truncate">
-                              {safeName}
-                            </h4>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="font-mono text-[9px] text-slate-400 font-bold">
-                                {driver.id}
-                              </span>
-                              <span className="text-slate-300 text-[10px]">•</span>
-                              <span className="inline-flex items-center text-amber-500 text-[10px] font-bold">
-                                <Star size={10} className="fill-current mr-0.5" />
-                                {(driver.rating || 5.0).toFixed(1)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-5 whitespace-nowrap">
-                        <div className="flex items-center gap-1">
-                          {(['disponível', 'em_rota', 'em_descanso'] as const).map((st) => (
-                            <button
-                              key={st}
-                              onClick={() => handleUpdateStatus(driver.id, st)}
-                              className={cn(
-                                "px-2 py-1 rounded text-[8px] font-bold uppercase tracking-wider transition-all cursor-pointer outline-none border",
-                                currentStatus === st 
-                                  ? "bg-slate-900 border-slate-900 text-white shadow-2xs" 
-                                  : "bg-white border-slate-200 text-slate-400 hover:text-slate-700"
-                              )}
-                            >
-                              {st === 'disponível' ? 'Livre' : st === 'em_rota' ? 'Rota' : 'Pausa'}
-                            </button>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="p-5">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="px-1.5 py-0.5 bg-slate-900 text-white font-mono font-bold text-[9px] rounded" title="Categoria da CNH">
-                              {driver.cnhCategory || 'E'}
-                            </span>
-                            <span className="font-mono font-bold text-xs text-slate-700">
-                              {formattedCnh}
-                            </span>
-                          </div>
-                          <span className={cn("px-1.5 py-0.5 rounded border text-[8px] font-bold uppercase tracking-wider inline-block", cnhMeta.color)}>
-                            {cnhMeta.label}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="p-5 whitespace-nowrap text-xs text-slate-600 font-mono font-bold">
-                        <div className="flex items-center gap-1.5">
-                          <Phone size={13} className="text-indigo-500" />
-                          {driver.phone || '(Sem contato)'}
-                        </div>
-                      </td>
-                      <td className="p-5 max-w-xs">
-                        <div className="flex items-center gap-1.5 w-full">
-                          <Truck size={13} className={cn("shrink-0", driver.currentVehicle ? "text-indigo-500" : "text-slate-300")} />
-                          <select
-                            value={driver.currentVehicle?.id || ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              handleUpdateVehicle(driver.id, val === '' ? null : val);
-                            }}
-                            disabled={updateDriverMutation.isPending}
-                            className="w-full px-2 py-1.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 focus:border-indigo-500 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all cursor-pointer disabled:opacity-50"
-                          >
-                            <option value="">Nenhum Veículo</option>
-                            {getAvailableVehicles(driver.currentVehicle?.id).map((v) => (
-                              <option key={v.id} value={v.id}>
-                                {v.type} ({v.vehicleNumber})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </td>
-                      <td className="p-5 text-center whitespace-nowrap">
-                        <span className="text-xs font-mono font-bold text-slate-700 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-lg">
-                          {driver.tripsCount || 0}
+                      <span className={cn(
+                        "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white",
+                        currentStatus === 'disponível' ? "bg-emerald-500" :
+                        currentStatus === 'em_rota' ? "bg-indigo-500" : "bg-amber-500"
+                      )} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-xs group-hover:text-indigo-600 transition-colors">
+                        {safeName}
+                      </h4>
+                      <p className="text-[10px] font-mono text-slate-400 mt-0.5 flex items-center gap-1.5">
+                        <span>ID: {driver.id.substring(0, 8)}...</span>
+                        <span>•</span>
+                        <span className="inline-flex items-center text-amber-500 font-semibold">
+                          <Star size={9} className="fill-current mr-0.5" />
+                          {(driver.rating || 5.0).toFixed(1)}
                         </span>
-                      </td>
-                      <td className="p-5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleOpenVault(driver)}
-                            className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer outline-none shrink-0"
-                            title="Dossiê de CNH, ASO e Gerenciamento de Risco"
-                          >
-                            <FileCheck size={12} className="text-indigo-600" />
-                            <span>Certidões</span>
-                          </button>
-                          <button
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* MENU DE AÇÕES TIPO DOTS */}
+                  <div className="relative">
+                    <button 
+                      onClick={() => setActiveMenuId(activeMenuId === driver.id ? null : driver.id)}
+                      className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-lg transition-all outline-none"
+                    >
+                      <MoreVertical size={14} />
+                    </button>
+                    {activeMenuId === driver.id && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setActiveMenuId(null)} />
+                        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-36 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                          <button 
                             onClick={() => handleEditDriver(driver)}
-                            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-indigo-600 rounded-lg hover:scale-105 transition-all outline-none"
-                            title="Editar Motorista"
+                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-2"
                           >
-                            <Edit size={13} />
+                            <Edit size={12} className="text-slate-400" />
+                            <span>Editar</span>
                           </button>
-                          <button
-                            onClick={() => handleDeleteDriver(driver.id)}
-                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg hover:scale-105 transition-all outline-none"
-                            title="Excluir Motorista"
+                          <button 
+                            onClick={() => handleOpenVault(driver)}
+                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-2"
                           >
-                            <Trash2 size={13} />
+                            <FileCheck size={12} className="text-slate-400" />
+                            <span>Documentos</span>
+                          </button>
+                          <hr className="my-1 border-slate-100" />
+                          <button 
+                            onClick={() => handleDeleteDriver(driver.id)}
+                            className="w-full text-left px-3 py-1.5 hover:bg-rose-50 hover:text-rose-600 text-rose-600 text-xs font-semibold flex items-center gap-2"
+                          >
+                            <Trash2 size={12} />
+                            <span>Excluir</span>
                           </button>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={7} className="py-16 text-center bg-white">
-                    <UserCheck className="mx-auto text-slate-300 mb-3" size={40} />
-                    <p className="text-sm font-bold text-slate-900">Nenhum condutor qualificado atende aos critérios</p>
-                    <p className="text-xs text-slate-400 font-medium max-w-sm mx-auto mt-1">
-                      Verifique os filtros selecionados ou cadastre um novo condutor com sua respectiva categoria de CNH.
-                    </p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* DETALHES DE ALOCAÇÃO & CONTATO */}
+                <div className="mt-4 pt-3 border-t border-slate-100 space-y-2 text-xs flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-medium">Veículo Alocado:</span>
+                    <select
+                      value={driver.currentVehicle?.id || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        handleUpdateVehicle(driver.id, val === '' ? null : val);
+                      }}
+                      disabled={updateDriverMutation.isPending}
+                      className="bg-transparent border-0 hover:text-indigo-600 focus:text-indigo-600 focus:ring-0 text-slate-700 text-xs font-semibold text-right outline-none cursor-pointer max-w-[140px] truncate"
+                    >
+                      <option value="">Nenhum</option>
+                      {getAvailableVehicles(driver.currentVehicle?.id).map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.vehicleNumber} ({v.type})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400 font-medium">CNH Cat. {driver.cnhCategory || 'E'}:</span>
+                    <span className={cn("px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase", cnhMeta.color)}>
+                      {cnhMeta.label}
+                    </span>
+                  </div>
+                </div>
+
+                {/* STATUS TOGGLE FOOTER */}
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 shrink-0">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status operacional:</span>
+                  <div className="flex items-center gap-1 bg-slate-50 p-0.5 rounded-lg border border-slate-200">
+                    {(['disponível', 'em_rota', 'em_descanso'] as const).map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => handleUpdateStatus(driver.id, st)}
+                        className={cn(
+                          "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border border-transparent",
+                          currentStatus === st 
+                            ? "bg-white text-slate-900 border-slate-200 shadow-2xs font-extrabold" 
+                            : "text-slate-400 hover:text-slate-600"
+                        )}
+                      >
+                        {st === 'disponível' ? 'Livre' : st === 'em_rota' ? 'Rota' : 'Pausa'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            );
+          })}
         </div>
-      </div>
+      ) : (
+        <div className="py-16 text-center bg-white border border-slate-200 rounded-3xl">
+          <UserCheck className="mx-auto text-slate-300 mb-3" size={32} />
+          <p className="text-sm font-bold text-slate-800">Nenhum motorista encontrado</p>
+          <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">Tente ajustar seus filtros ou faça uma nova averbação.</p>
+        </div>
+      )}
 
       {/* Modal de Cadastro Rápido de Condutor */}
       {isModalOpen && (
