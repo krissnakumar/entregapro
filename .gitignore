@@ -18,9 +18,6 @@ out/
 .expo/
 *.gemini/
 
-# Backend (ignored for frontend repository)
-apps/api/
-
 # Editor/OS files
 .DS_Store
 Thumbs.db
