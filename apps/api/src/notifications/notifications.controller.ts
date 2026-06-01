@@ -36,13 +36,13 @@ export class NotificationsController {
   }
 
   @Patch(":id/read")
-  markAsRead(@Param("id") id: string) {
-    return this.notificationsService.markAsRead(id);
+  markAsRead(@Param("id") id: string, @Req() req: any) {
+    return this.notificationsService.markAsRead(id, req.user.userId, req.user.organizationId);
   }
 
   @Patch("read-all")
   markAllAsRead(@Req() req: any) {
-    return this.notificationsService.markAllAsRead(req.user.userId);
+    return this.notificationsService.markAllAsRead(req.user.userId, req.user.organizationId);
   }
 
   @Post("push-token")

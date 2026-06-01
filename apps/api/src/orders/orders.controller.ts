@@ -1,4 +1,4 @@
-import { Controller, Get, Param, NotFoundException, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, NotFoundException, UseGuards, Req } from "@nestjs/common";
 import { OrdersService } from "./orders.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -14,8 +14,8 @@ export class OrdersController {
   @Get(":id")
   @Roles(Role.ADMIN, Role.DISPATCHER)
   @RequirePermissions("VIEW_ASSIGNED_TASKS", "MONITOR_OPERATIONS")
-  async findOne(@Param("id") id: string) {
-    const order = await this.ordersService.findOne(id);
+  async findOne(@Param("id") id: string, @Req() req: any) {
+    const order = await this.ordersService.findOne(id, req.user.organizationId);
     if (!order) {
       throw new NotFoundException("Order not found");
     }

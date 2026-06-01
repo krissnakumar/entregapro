@@ -5,10 +5,10 @@ import { PrismaService } from "../prisma/prisma.service";
 export class OrdersService {
   constructor(private prisma: PrismaService) {}
 
-  async findOne(id: string) {
+  async findOne(id: string, organizationId: string) {
     // Try to find as an Order first, then fall back to Delivery
-    const order = await this.prisma.order.findUnique({
-      where: { id },
+    const order = await this.prisma.order.findFirst({
+      where: { id, organizationId, deletedAt: null },
       include: {
         deliveries: {
           include: {
@@ -52,8 +52,8 @@ export class OrdersService {
     }
 
     // Fallback: try as a Delivery directly
-    const delivery = await this.prisma.delivery.findUnique({
-      where: { id },
+    const delivery = await this.prisma.delivery.findFirst({
+      where: { id, organizationId, deletedAt: null },
       include: {
         customer: true,
         vehicle: true,

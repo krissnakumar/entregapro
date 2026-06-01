@@ -21,14 +21,17 @@ export class DispatchService {
     // Verifica se o customerId enviado existe no banco
     let existingCustomer: any = null;
     if (targetCustomerId) {
-      existingCustomer = await this.prisma.customer.findUnique({
-        where: { id: targetCustomerId }
+      existingCustomer = await this.prisma.customer.findFirst({
+        where: { id: targetCustomerId, organizationId: data.organizationId, deletedAt: null },
       });
     }
 
     if (!existingCustomer) {
       // Busca o primeiro cliente disponível como fallback seguro
-      const firstCustomer = await this.prisma.customer.findFirst();
+      const firstCustomer = await this.prisma.customer.findFirst({
+        where: { organizationId: data.organizationId, deletedAt: null },
+        orderBy: { createdAt: "asc" },
+      });
       if (firstCustomer) {
         targetCustomerId = firstCustomer.id;
       } else {
@@ -41,7 +44,7 @@ export class DispatchService {
             address: "Endereço Padrão",
             latitude: -23.5505,
             longitude: -46.6333,
-            organizationId: data.organizationId || null
+            organizationId: data.organizationId,
           }
         });
         targetCustomerId = newCustomer.id;

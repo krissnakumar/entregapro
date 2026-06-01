@@ -35,3 +35,6 @@ Thumbs.db
 
 # Secrets / local credentials
 credentials.md
+
+# Supabase local dev artifacts
+supabase/

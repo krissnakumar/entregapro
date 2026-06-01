@@ -72,15 +72,15 @@ export class InvoicesController {
   @Get(":id")
   @Roles(Role.ADMIN, Role.DISPATCHER, Role.ACCOUNTANT)
   @RequirePermissions("VIEW_INVOICES")
-  findOne(@Param("id") id: string) {
-    return this.invoicesService.findOne(id);
+  findOne(@Param("id") id: string, @Req() req: any) {
+    return this.invoicesService.findOne(id, req.user.organizationId);
   }
 
   @Patch(":id/confirm")
   @Roles(Role.ADMIN, Role.DISPATCHER)
   @RequirePermissions("MANAGE_INVOICES")
-  confirm(@Param("id") id: string) {
-    return this.invoicesService.confirm(id);
+  confirm(@Param("id") id: string, @Req() req: any) {
+    return this.invoicesService.confirm(id, req.user.organizationId);
   }
 
   @Post("excel-import")

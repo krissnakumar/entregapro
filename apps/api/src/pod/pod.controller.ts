@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, UseGuards, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UseGuards, NotFoundException, Req } from '@nestjs/common';
 import { PodService } from './pod.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -21,9 +21,10 @@ export class PodController {
   @RequirePermissions("UPLOAD_POD")
   async submitPod(
     @Param('deliveryId') deliveryId: string,
-    @Body() data: { signatureUrl?: string; photoUrl?: string; lat?: number; lng?: number }
+    @Body() data: { signatureUrl?: string; photoUrl?: string; lat?: number; lng?: number },
+    @Req() req: any,
   ) {
-    return this.podService.savePod(deliveryId, data);
+    return this.podService.savePod(deliveryId, req.user.organizationId, req.user.userId, data);
   }
 
   @Get('public/:deliveryId')

@@ -38,32 +38,31 @@ export class JobSitesService {
   }
 
   async update(id: string, dto: UpdateJobSiteDto, organizationId: string) {
-    const site = await this.prisma.jobSite.findFirst({
+    const res = await this.prisma.jobSite.updateMany({
       where: { id, organizationId, deletedAt: null },
+      data: dto,
     });
-    if (!site) throw new NotFoundException("Job site not found");
-    return this.prisma.jobSite.update({ where: { id }, data: dto });
+    if (res.count === 0) throw new NotFoundException("Job site not found");
+    return this.findOne(id, organizationId);
   }
 
   async remove(id: string, organizationId: string) {
-    const site = await this.prisma.jobSite.findFirst({
+    const res = await this.prisma.jobSite.updateMany({
       where: { id, organizationId, deletedAt: null },
-    });
-    if (!site) throw new NotFoundException("Job site not found");
-    return this.prisma.jobSite.update({
-      where: { id },
       data: { deletedAt: new Date() },
     });
+    if (res.count === 0) throw new NotFoundException("Job site not found");
+    return { success: true };
   }
 
-  async findByDelivery(deliveryId: string) {
-    const delivery = await this.prisma.delivery.findUnique({
-      where: { id: deliveryId },
+  async findByDelivery(deliveryId: string, organizationId: string) {
+    const delivery = await this.prisma.delivery.findFirst({
+      where: { id: deliveryId, organizationId, deletedAt: null },
       select: { jobSiteId: true, latitude: true, longitude: true },
     });
     if (!delivery?.jobSiteId) return null;
-    return this.prisma.jobSite.findUnique({
-      where: { id: delivery.jobSiteId },
+    return this.prisma.jobSite.findFirst({
+      where: { id: delivery.jobSiteId, organizationId, deletedAt: null },
     });
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { InjectQueue } from "@nestjs/bullmq";
 import { Queue } from "bullmq";
@@ -149,11 +149,15 @@ export class InvoicesService implements OnModuleInit {
     };
   }
 
-  async confirm(id: string) {
-    return this.prisma.invoice.update({
-      where: { id },
+  async confirm(id: string, organizationId: string) {
+    const res = await this.prisma.invoice.updateMany({
+      where: { id, organizationId, deletedAt: null },
       data: { status: InvoiceStatus.PROCESSED },
     });
+    if (res.count === 0) {
+      throw new NotFoundException("Invoice not found");
+    }
+    return this.findOne(id, organizationId);
   }
 
   async findAll(organizationId: string) {
@@ -164,11 +168,13 @@ export class InvoicesService implements OnModuleInit {
     });
   }
 
-  async findOne(id: string) {
-    return this.prisma.invoice.findUnique({
-      where: { id },
+  async findOne(id: string, organizationId: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id, organizationId, deletedAt: null },
       include: { items: true, delivery: true },
     });
+    if (!invoice) throw new NotFoundException("Invoice not found");
+    return invoice;
   }
 
   async importExcel(rows: any[], organizationId: string) {
@@ -190,7 +196,7 @@ export class InvoicesService implements OnModuleInit {
       // Detect duplicate invoices
       if (row.invoiceNumber) {
         const existing = await this.prisma.invoice.findFirst({
-          where: { invoiceNumber: row.invoiceNumber },
+          where: { invoiceNumber: row.invoiceNumber, organizationId, deletedAt: null },
         });
         if (existing) errors.push(`Duplicate invoice detected: ${row.invoiceNumber}`);
       }
@@ -199,7 +205,7 @@ export class InvoicesService implements OnModuleInit {
         validatedRows.push({ row, status: "ERROR", errors });
       } else {
         let customerObj = await this.prisma.customer.findFirst({
-          where: { name: { equals: row.customer, mode: "insensitive" } },
+          where: { name: { equals: row.customer, mode: "insensitive" }, organizationId, deletedAt: null },
         });
         if (!customerObj) {
           customerObj = await this.prisma.customer.create({

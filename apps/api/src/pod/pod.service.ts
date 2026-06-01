@@ -8,11 +8,24 @@ export class PodService {
 
   constructor(private prisma: PrismaService) {}
 
-  async savePod(deliveryId: string, data: { signatureUrl?: string; photoUrl?: string; lat?: number; lng?: number }) {
+  async savePod(
+    deliveryId: string,
+    organizationId: string,
+    userId: string,
+    data: { signatureUrl?: string; photoUrl?: string; lat?: number; lng?: number },
+  ) {
     this.logger.log(`Saving POD for delivery ${deliveryId}`);
 
-    const delivery = await this.prisma.delivery.findUnique({
-      where: { id: deliveryId },
+    const driver = await this.prisma.driver.findFirst({
+      where: { userId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!driver) {
+      throw new NotFoundException("Driver not found");
+    }
+
+    const delivery = await this.prisma.delivery.findFirst({
+      where: { id: deliveryId, organizationId, driverId: driver.id, deletedAt: null },
       select: { id: true, status: true },
     });
 
@@ -24,8 +37,8 @@ export class PodService {
       throw new ConflictException(`Delivery ${deliveryId} is already completed`);
     }
 
-    return this.prisma.delivery.update({
-      where: { id: deliveryId },
+    const res = await this.prisma.delivery.updateMany({
+      where: { id: deliveryId, organizationId, driverId: driver.id, deletedAt: null },
       data: {
         signature_url: data.signatureUrl,
         proof_image_url: data.photoUrl,
@@ -36,5 +49,9 @@ export class PodService {
         completedAt: new Date(),
       },
     });
+    if (res.count === 0) {
+      throw new NotFoundException(`Delivery ${deliveryId} not found`);
+    }
+    return { success: true };
   }
 }

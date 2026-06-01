@@ -23,16 +23,17 @@ export class NotificationsService {
     });
   }
 
-  async markAsRead(id: string) {
-    return this.prisma.notification.update({
-      where: { id },
+  async markAsRead(id: string, userId: string, organizationId: string) {
+    const res = await this.prisma.notification.updateMany({
+      where: { id, userId, organizationId, isRead: false },
       data: { isRead: true },
     });
+    return { success: res.count > 0 };
   }
 
-  async markAllAsRead(userId: string) {
+  async markAllAsRead(userId: string, organizationId: string) {
     return this.prisma.notification.updateMany({
-      where: { userId, isRead: false },
+      where: { userId, organizationId, isRead: false },
       data: { isRead: true },
     });
   }
