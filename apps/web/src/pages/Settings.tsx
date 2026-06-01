@@ -429,6 +429,56 @@ const SettingsPage = () => {
     </div>
   );
 
+  const [isFetchingCnpj, setIsFetchingCnpj] = useState(false);
+
+  const fetchCompanyFromCnpj = async (cnpjToFetch: string) => {
+    const digits = cnpjToFetch.replace(/\D/g, '');
+    if (digits.length !== 14) {
+      toast.error('CNPJ deve conter exatamente 14 dígitos para consulta.');
+      return;
+    }
+    
+    setIsFetchingCnpj(true);
+    const promise = fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error('CNPJ não encontrado ou limite de requisições excedido.');
+        const data = await res.json();
+        
+        if (data.razao_social) setCompName(data.razao_social);
+        
+        if (data.ddd_telefone_1) {
+          const cleanPhone = data.ddd_telefone_1.replace(/\D/g, '');
+          if (cleanPhone.length >= 10) {
+            const ddd = cleanPhone.substring(0, 2);
+            const num = cleanPhone.substring(2);
+            setCompPhone(`(${ddd}) ${num.substring(0, 4)}-${num.substring(4)}`);
+          } else {
+            setCompPhone(data.ddd_telefone_1);
+          }
+        }
+        
+        const street = data.logradouro || '';
+        const number = data.numero || '';
+        const neighborhood = data.bairro || '';
+        const city = data.municipio || '';
+        const state = data.uf || '';
+        const zip = data.cep || '';
+        
+        const fullAddr = `${street}, ${number}${neighborhood ? ` - ${neighborhood}` : ''}, ${city} - ${state}${zip ? `, CEP ${zip}` : ''}`;
+        setCompAddress(fullAddr);
+        
+        return data;
+      });
+
+    toast.promise(promise, {
+      loading: 'Consultando base da Receita Federal...',
+      success: 'Dados da empresa autocompletados com sucesso!',
+      error: (err) => err.message || 'Erro ao consultar CNPJ.',
+    });
+    
+    promise.finally(() => setIsFetchingCnpj(false));
+  };
+
   const updateCompanyMutation = useMutation({
     mutationFn: (payload: any) => {
       return api.patch(`/organizations/${organizationId}`, payload);
@@ -497,13 +547,41 @@ const SettingsPage = () => {
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
                   CNPJ Corporativo
                 </label>
-                <input 
-                  type="text" 
-                  value={compCnpj}
-                  onChange={(e) => setCompCnpj(e.target.value)}
-                  placeholder="00.000.000/0001-00"
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono"
-                />
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={compCnpj}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      if (val.length > 14) val = val.substring(0, 14);
+                      
+                      if (val.length > 12) {
+                        val = val.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+                      } else if (val.length > 8) {
+                        val = val.replace(/^(\d{2})(\d{3})(\d{3})(\d{0,4})/, "$1.$2.$3/$4");
+                      } else if (val.length > 5) {
+                        val = val.replace(/^(\d{2})(\d{3})(\d{0,3})/, "$1.$2.$3");
+                      } else if (val.length > 2) {
+                        val = val.replace(/^(\d{2})(\d{0,3})/, "$1.$2");
+                      }
+                      setCompCnpj(val);
+                    }}
+                    placeholder="00.000.000/0001-00"
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono"
+                  />
+                  <button
+                    type="button"
+                    disabled={isFetchingCnpj || compCnpj.replace(/\D/g, '').length !== 14}
+                    onClick={() => fetchCompanyFromCnpj(compCnpj)}
+                    className="px-4 bg-primary text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5"
+                  >
+                    {isFetchingCnpj ? (
+                      <Loader2 className="animate-spin" size={14} />
+                    ) : (
+                      'Consultar'
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-2">
