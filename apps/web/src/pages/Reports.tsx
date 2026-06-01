@@ -1,763 +1,318 @@
-import React, { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
-import { 
-  FileText, 
-  FileSpreadsheet, 
-  Calendar,
-  Users,
-  Truck,
-  AlertTriangle,
-  Droplet,
-  ShieldAlert,
-  Navigation,
-  Layers,
-  PieChart,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  TrendingUp,
-  MapPin,
-  Search,
-  Filter,
-  Download,
-  Printer,
-  Sparkles,
-  BarChart3,
-  Activity,
-  ArrowUpRight
-} from 'lucide-react';
 import { cn } from '../lib/utils';
+import { toast } from 'sonner';
+import {
+  BarChart3, TrendingUp, TrendingDown, DollarSign,
+  Truck, Clock, AlertTriangle, Download, FileSpreadsheet,
+  FileText, Loader2, ChevronRight, Users, MapPin,
+} from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend,
+} from 'recharts';
 
-type ReportType = 'operational' | 'daily' | 'drivers' | 'vehicles' | 'delayed';
-
-const ReportsPage = () => {
-  const [activeTab, setActiveTab] = useState<ReportType>('operational');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  
-  // Filtros em tempo real de busca avançada
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedMaterialFilter, setSelectedMaterialFilter] = useState('ALL');
-
-  // Buscas de entregas do backend
-  const { data: rawDeliveries } = useQuery({
-    queryKey: ['deliveries-operational-report-v3'],
-    queryFn: async () => {
-      const res = await api.get<any[]>('/deliveries').catch(() => null);
-      return res || [];
-    },
-  });
-
-  const baseList = rawDeliveries || [];
-
-  // Aplicação instantânea de filtros de busca e categoria de material
-  const operationalList = useMemo(() => {
-    return baseList.filter(d => {
-      const matchesSearch = 
-        d.deliveryNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.deliveryAddress?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesMaterial = 
-        selectedMaterialFilter === 'ALL' || 
-        d.materialType?.toLowerCase().includes(selectedMaterialFilter.toLowerCase());
-
-      return matchesSearch && matchesMaterial;
-    });
-  }, [baseList, searchTerm, selectedMaterialFilter]);
-
-  // Outros relatórios com fallback de dados mockados
-  const { data: dailyData = [] } = useQuery({
-    queryKey: ['report-daily-v3', selectedDate],
-    queryFn: async () => {
-      const res = await api.get<any[]>(`/reports/daily?date=${selectedDate}`).catch(() => null);
-      return res || [];
-    },
-  });
-
-  const { data: driversData = [] } = useQuery({
-    queryKey: ['report-drivers-v3'],
-    queryFn: async () => {
-      const res = await api.get<any[]>('/reports/drivers').catch(() => null);
-      return res || [];
-    },
-  });
-
-  const { data: vehiclesData = [] } = useQuery({
-    queryKey: ['report-vehicles-v3'],
-    queryFn: async () => {
-      const res = await api.get<any[]>('/reports/vehicles').catch(() => null);
-      return res || [];
-    },
-  });
-
-  const { data: delayedData = [] } = useQuery({
-    queryKey: ['report-delayed-v3'],
-    queryFn: async () => {
-      const res = await api.get<any[]>('/reports/delayed').catch(() => null);
-      return res || [];
-    },
-  });
-
-  const exportToCSV = (data: any[], filename: string) => {
-    if (!data || data.length === 0) return;
-    const headers = Object.keys(data[0]).join(',');
-    const rows = data.map(obj => {
-      return Object.values(obj).map(v => typeof v === 'object' ? JSON.stringify(v) : v).join(',');
-    }).join('\n');
-    const csvContent = `data:text/csv;charset=utf-8,${headers}\n${rows}`;
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${filename}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+interface ExecutiveStats {
+  dailyCount: number;
+  delayedCount: number;
+  activeDrivers: number;
+  fleetUtilization: number;
+  completedToday: number;
+  avgDeliveryTime: string;
+  financial: {
+    totalRevenue: number;
+    totalCost: number;
+    totalProfit: number;
+    avgMargin: number;
+    totalDeliveries: number;
   };
+  weekly: { name: string; deliveries: number }[];
+  distribution: { name: string; value: number; color: string }[];
+  topDrivers: { id: string; name: string; completedDeliveries: number }[];
+}
 
-  const handlePrintPDF = () => {
-    window.print();
-  };
+const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444'];
 
-  // Funções de extração de volume de carga
-  const parseVolume = (qty: string) => {
-    const num = parseFloat(qty.replace(/[^0-9.]/g, ''));
-    return isNaN(num) ? 0 : num;
-  };
+export function ReportsPage() {
+  const [tab, setTab] = useState<'overview' | 'financial' | 'drivers'>('overview');
 
-  const formatDateStr = (dStr: string) => {
+  const { data: exec, isLoading } = useQuery({
+    queryKey: ['executive-report'],
+    queryFn: () => api.get<ExecutiveStats>('/reports/executive'),
+    refetchInterval: 30000,
+  });
+
+  const handleExport = async (format: 'excel' | 'pdf') => {
     try {
-      return new Date(dStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    } catch {
-      return dStr;
+      const token = localStorage.getItem('entregapro-auth');
+      const t = token ? JSON.parse(token).state?.token : '';
+      const ext = format === 'excel' ? 'xlsx' : 'pdf';
+      const res = await fetch(`/api/reports/export/${format}`, {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      if (!res.ok) throw new Error('Erro ao exportar');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `relatorio_${new Date().toISOString().split('T')[0]}.${ext}`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success(`Relatório exportado como ${ext.toUpperCase()}`);
+    } catch (err: any) {
+      toast.error(err.message);
     }
   };
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'operational': {
-        // Separação operacional instantânea
-        const finishedDeliveries = operationalList.filter(d => d.status === 'DELIVERED');
-        const activeDeliveries = operationalList.filter(d => d.status === 'IN_TRANSIT' || d.status === 'ASSIGNED');
-        const pendingDeliveries = operationalList.filter(d => d.status === 'PENDING');
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 size={32} className="animate-spin text-indigo-600" />
+      </div>
+    );
+  }
 
-        // Totais volumétricos calculados em cima do filtro ativo
-        const concreteVolume = operationalList
-          .filter(d => d.materialType?.toLowerCase().includes('concrete'))
-          .reduce((acc, d) => acc + parseVolume(d.quantity), 0);
-        
-        const gravelVolume = operationalList
-          .filter(d => d.materialType?.toLowerCase().includes('gravel'))
-          .reduce((acc, d) => acc + parseVolume(d.quantity), 0);
-
-        const totalVolume = concreteVolume + gravelVolume;
-        const concretePercent = totalVolume > 0 ? Math.round((concreteVolume / totalVolume) * 100) : 0;
-        const gravelPercent = totalVolume > 0 ? Math.round((gravelVolume / totalVolume) * 100) : 0;
-
-        return (
-          <div className="space-y-8 animate-in fade-in duration-500">
-            
-            {/* Bloco de Busca e Filtragem Rica (Feature-Rich Controls on White BG) */}
-            <div className="bg-white border border-slate-200 rounded-[1.5rem] p-5 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-                {/* Search Bar */}
-                <div className="relative w-full sm:w-72">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                  <input 
-                    type="text" 
-                    placeholder="Buscar ID, Cliente ou Endereço..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 outline-none focus:bg-white focus:border-indigo-600 transition-all"
-                  />
-                </div>
-
-                {/* Dropdown Material Filter */}
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <Filter size={14} className="text-indigo-600 shrink-0" />
-                  <select 
-                    value={selectedMaterialFilter}
-                    onChange={(e) => setSelectedMaterialFilter(e.target.value)}
-                    className="w-full sm:w-auto py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:border-indigo-600 transition-all cursor-pointer"
-                  >
-                    <option value="ALL">Todos os Materiais</option>
-                    <option value="Concrete">Concreto Armado</option>
-                    <option value="Gravel">Brita / Cascalho</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Indicador Global de Resultados do Filtro */}
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 shrink-0">
-                <Sparkles size={14} className="text-amber-500" />
-                <span>{operationalList.length} Manifesto(s) Encontrado(s)</span>
-              </div>
-            </div>
-
-            {/* 📊 Volume & Capacity Overview (White Layout) */}
-            <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-xs space-y-6 transition-all hover:border-slate-300">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-indigo-50 text-indigo-700 rounded-2xl border border-indigo-100">
-                    <PieChart size={22} strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <h3 className="font-black text-slate-900 tracking-tight text-base">Volume & Capacity Overview</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Mapeamento de Cargas e Frotas Averbadas</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-3xl font-black text-indigo-700 tracking-tight font-mono">
-                    {totalVolume} <span className="text-xs font-bold text-slate-400 font-sans tracking-normal">m³</span>
-                  </span>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Volume Acumulado</p>
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                The logistics hub currently tracks a cumulative volume of <strong className="text-slate-900 font-bold">{totalVolume} m³</strong> of scheduled and delivered materials across <strong className="text-slate-900 font-bold">{operationalList.length} heavy dispatches</strong>.
-              </p>
-
-              {/* Trilhas Dinâmicas de Distribuição */}
-              <div className="space-y-3 pt-1">
-                <div className="h-4 bg-slate-100 rounded-full overflow-hidden flex gap-1 p-0.5 border border-slate-200/60">
-                  <div 
-                    className="bg-indigo-600 h-full rounded-full transition-all duration-500"
-                    style={{ width: `${concretePercent || 60}%` }}
-                    title={`Concrete: ${concreteVolume}m³`}
-                  />
-                  <div 
-                    className="bg-amber-500 h-full rounded-full transition-all duration-500"
-                    style={{ width: `${gravelPercent || 40}%` }}
-                    title={`Gravel: ${gravelVolume}m³`}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="flex items-center gap-1.5 text-indigo-700">
-                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" /> Concrete ({concreteVolume} m³ — {concretePercent}%)
-                  </span>
-                  <span className="flex items-center gap-1.5 text-amber-700">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Gravel ({gravelVolume} m³ — {gravelPercent}%)
-                  </span>
-                </div>
-              </div>
-
-              {/* Tabela de Classificação de Material */}
-              <div className="overflow-x-auto pt-2 border border-slate-100 rounded-xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    <tr>
-                      <th className="p-3 pl-4">Material Type</th>
-                      <th className="p-3">Delivery Count</th>
-                      <th className="p-3">Total Volume</th>
-                      <th className="p-3">Primary Units</th>
-                      <th className="p-3 pr-4 text-right">Percentage Share</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 font-medium text-slate-700">
-                    <tr className="hover:bg-slate-50/50">
-                      <td className="p-3 pl-4 font-bold text-slate-900">Concrete</td>
-                      <td className="p-3">{operationalList.filter(d => d.materialType?.toLowerCase().includes('concrete')).length} dispatches</td>
-                      <td className="p-3 font-bold text-indigo-600 font-mono">{concreteVolume} m³</td>
-                      <td className="p-3 text-slate-500">Cubic Meters ($m^3$)</td>
-                      <td className="p-3 pr-4 font-black text-right">{concretePercent}%</td>
-                    </tr>
-                    <tr className="hover:bg-slate-50/50">
-                      <td className="p-3 pl-4 font-bold text-slate-900">Gravel</td>
-                      <td className="p-3">{operationalList.filter(d => d.materialType?.toLowerCase().includes('gravel')).length} dispatches</td>
-                      <td className="p-3 font-bold text-amber-600 font-mono">{gravelVolume} m³</td>
-                      <td className="p-3 text-slate-500">Cubic Meters ($m^3$)</td>
-                      <td className="p-3 pr-4 font-black text-right">{gravelPercent}%</td>
-                    </tr>
-                    <tr className="bg-slate-50 font-bold border-t border-slate-200">
-                      <td className="p-3 pl-4 text-slate-900">Total Combined</td>
-                      <td className="p-3">{operationalList.length} dispatches</td>
-                      <td className="p-3 text-slate-900 font-mono">{totalVolume} m³</td>
-                      <td className="p-3">-</td>
-                      <td className="p-3 pr-4 text-right font-black text-indigo-600">100%</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* 🟢 Finished Deliveries (`DELIVERED`) */}
-            <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-xs space-y-4 transition-all hover:border-slate-300">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-emerald-50 text-emerald-700 rounded-lg">
-                    <CheckCircle2 size={16} strokeWidth={2.5} />
-                  </div>
-                  <h3 className="font-black text-xs uppercase tracking-widest text-slate-900">
-                    Finished Deliveries (<span className="text-emerald-600">DELIVERED</span>)
-                  </h3>
-                </div>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-md">
-                  Validados Eletronicamente
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 font-medium">Successfully completed delivery orders with electronic validation.</p>
-
-              <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    <tr>
-                      <th className="p-3 pl-4">Delivery ID</th>
-                      <th className="p-3">Customer</th>
-                      <th className="p-3">Material & Volume</th>
-                      <th className="p-3">Assigned Driver / Vehicle</th>
-                      <th className="p-3 pr-4">Scheduled Timestamp</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 font-medium text-slate-700">
-                    {finishedDeliveries.map((d) => (
-                      <tr key={d.id} className="hover:bg-slate-50/50">
-                        <td className="p-3 pl-4 font-mono font-bold text-slate-900 flex items-center gap-1.5">
-                          <span>{d.deliveryNumber}</span>
-                        </td>
-                        <td className="p-3 font-bold text-slate-900">{d.customer?.name || 'Cliente Alvo'}</td>
-                        <td className="p-3 font-semibold text-slate-900">{d.materialType} — <span className="text-emerald-600 font-bold">{d.quantity}</span></td>
-                        <td className="p-3">{d.driver?.user?.name || 'John Test Driver'} ({d.vehicle?.vehicleNumber || 'PRO-1003'})</td>
-                        <td className="p-3 pr-4 font-mono text-slate-500">{formatDateStr(d.scheduledTime)}</td>
-                      </tr>
-                    ))}
-                    {finishedDeliveries.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="p-4 text-center text-slate-400 font-bold">Nenhum manifesto concluído com os filtros ativos.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Destaque Tip / Performance Metric em White BG Layout */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-start gap-3">
-                <span className="p-1 bg-emerald-600 text-white rounded-lg mt-0.5 shrink-0">
-                  💡
-                </span>
-                <div>
-                  <p className="text-xs font-bold text-slate-900">
-                    Performance Metric: <span className="font-medium text-slate-600">Finished deliveries account for <strong className="font-bold text-emerald-700">45 m³</strong> (60%) of the total registered logistics volume.</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* 🟡 Active & Upcoming Deliveries (`IN_TRANSIT` / `ASSIGNED`) */}
-            <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-xs space-y-4 transition-all hover:border-slate-300">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-indigo-50 text-indigo-700 rounded-lg">
-                    <Clock size={16} strokeWidth={2.5} />
-                  </div>
-                  <h3 className="font-black text-xs uppercase tracking-widest text-slate-900">
-                    Active & Upcoming Deliveries (<span className="text-indigo-600">IN_TRANSIT / ASSIGNED</span>)
-                  </h3>
-                </div>
-                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-md animate-pulse">
-                  Telemetria Viva
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 font-medium">Deliveries that have been assigned to vehicles and crews, currently in motion or queued for immediate departure.</p>
-
-              <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    <tr>
-                      <th className="p-3 pl-4">Delivery ID</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3">Customer</th>
-                      <th className="p-3">Material & Volume</th>
-                      <th className="p-3">Assigned Driver / Vehicle</th>
-                      <th className="p-3 pr-4">Scheduled Timestamp</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 font-medium text-slate-700">
-                    {activeDeliveries.map((d) => (
-                      <tr key={d.id} className="hover:bg-slate-50/50">
-                        <td className="p-3 pl-4 font-mono font-bold text-slate-900">{d.deliveryNumber}</td>
-                        <td className="p-3">
-                          <span className={cn(
-                            "px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border",
-                            d.status === 'IN_TRANSIT' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-amber-50 text-amber-700 border-amber-200'
-                          )}>
-                            {d.status}
-                          </span>
-                        </td>
-                        <td className="p-3 font-bold text-slate-900">{d.customer?.name || 'Cliente Alvo'}</td>
-                        <td className="p-3 font-semibold text-slate-900">{d.materialType} — <span className="text-indigo-600 font-bold">{d.quantity}</span></td>
-                        <td className="p-3">{d.driver?.user?.name || 'Mike Trucker'} ({d.vehicle?.vehicleNumber || 'PRO-1001'})</td>
-                        <td className="p-3 pr-4 font-mono text-slate-500">{formatDateStr(d.scheduledTime)}</td>
-                      </tr>
-                    ))}
-                    {activeDeliveries.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="p-4 text-center text-slate-400 font-bold">Nenhum manifesto ativo ou programado sob a filtragem.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Destaque Note / Active Hub em White Layout */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-start gap-3">
-                <span className="p-1 bg-indigo-600 text-white rounded-lg mt-0.5 shrink-0">
-                  ℹ️
-                </span>
-                <div>
-                  <p className="text-xs font-bold text-slate-900">
-                    Active Logistics Hub: <span className="font-medium text-slate-600"><strong className="font-bold text-indigo-700">25 m³</strong> of material is currently staged or moving across urban corridors under continuous fleet telemetry.</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* 🔴 Pending Deliveries (`PENDING`) */}
-            <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-xs space-y-4 transition-all hover:border-slate-300">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-rose-50 text-rose-700 rounded-lg">
-                    <AlertCircle size={16} strokeWidth={2.5} />
-                  </div>
-                  <h3 className="font-black text-xs uppercase tracking-widest text-slate-900">
-                    Pending Deliveries (<span className="text-rose-600">PENDING</span>)
-                  </h3>
-                </div>
-                <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-100 px-2.5 py-0.5 rounded-md">
-                  Ação Crítica Exigida
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 font-medium">Registered customer requests awaiting operational scheduling, vehicle pairing, or crew assignment.</p>
-
-              <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    <tr>
-                      <th className="p-3 pl-4">Delivery ID</th>
-                      <th className="p-3">Customer</th>
-                      <th className="p-3">Material & Volume</th>
-                      <th className="p-3">Destination Address</th>
-                      <th className="p-3">Scheduled Timestamp</th>
-                      <th className="p-3 pr-4 text-right">Action Required</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 font-medium text-slate-700">
-                    {pendingDeliveries.map((d) => (
-                      <tr key={d.id} className="hover:bg-rose-50/20">
-                        <td className="p-3 pl-4 font-mono font-bold text-rose-600">{d.deliveryNumber}</td>
-                        <td className="p-3 font-bold text-slate-900">{d.customer?.name || 'Matrix Builders'}</td>
-                        <td className="p-3 font-semibold text-slate-900">{d.materialType} — <span className="text-rose-600 font-bold">{d.quantity}</span></td>
-                        <td className="p-3 text-slate-600 truncate max-w-xs">{d.deliveryAddress || '0 Industrial Ave, São Paulo'}</td>
-                        <td className="p-3 font-mono text-slate-500">{formatDateStr(d.scheduledTime)}</td>
-                        <td className="p-3 pr-4 text-right">
-                          <span className="px-2 py-1 rounded bg-rose-50 text-rose-700 border border-rose-100 text-[9px] font-black uppercase tracking-wider inline-flex items-center gap-1 hover:bg-rose-100 cursor-pointer">
-                            Assign Crew <ArrowUpRight size={10} />
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                    {pendingDeliveries.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="p-4 text-center text-slate-400 font-bold">Nenhum despacho em atraso ou fila pendente.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Destaque Important / Action Required em White BG */}
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-                <span className="p-1 bg-amber-500 text-white rounded-lg mt-0.5 shrink-0">
-                  ⚠️
-                </span>
-                <div>
-                  <p className="text-xs font-bold text-amber-950">
-                    Critical Alert: <span className="font-medium text-amber-900">Dispatchers should verify vehicle availability for <strong className="font-bold text-amber-950">DEL-2024-5000</strong> to ensure strict adherence to mixing and curing window constraints.</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* 📈 Camada Auxiliar de Analytics e Produtividade (Extra Feature-Rich Widgets on White BG) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-              <div className="bg-white border border-slate-200 rounded-[1.5rem] p-6 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
-                    <BarChart3 size={14} className="text-indigo-600" /> Rendimento de Frotas
-                  </span>
-                  <span className="text-xs font-black text-emerald-600">+18.4% Ton</span>
-                </div>
-                <h4 className="font-black text-slate-900 text-lg tracking-tight">Otimização de Trajeto OSRM</h4>
-                <p className="text-xs text-slate-500 font-medium">Consumo médio aferido mantido em estrito controle com desvios rodoviários mitigados com sucesso.</p>
-                
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-400">Pico Dutra/Rodoanel</span>
-                  <span className="font-mono font-black text-indigo-600">92.4% Estável</span>
-                </div>
-              </div>
-
-              <div className="bg-white border border-slate-200 rounded-[1.5rem] p-6 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
-                    <Activity size={14} className="text-emerald-600" /> Confiabilidade Contínua
-                  </span>
-                  <span className="text-xs font-black text-indigo-600">SLA Ativo</span>
-                </div>
-                <h4 className="font-black text-slate-900 text-lg tracking-tight">99.2% Sucesso Operacional</h4>
-                <p className="text-xs text-slate-500 font-medium">Zero anomalias ou falhas registradas no isolamento térmico e agitação dos balões em rotas estaduais.</p>
-                
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-400">Auditoria SEFAZ</span>
-                  <span className="font-mono font-black text-emerald-600">100% Conforme</span>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        );
-      }
-      case 'daily':
-        return (
-          <div className="space-y-4">
-            <div className="flex items-center space-x-4 mb-4">
-              <Calendar size={20} className="text-slate-400" />
-              <input 
-                type="date" 
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="border border-slate-200 rounded-xl p-2.5 text-xs font-bold bg-white outline-none"
-              />
-            </div>
-            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  <tr>
-                    <th className="p-4 pl-6">Nº Manifesto</th>
-                    <th className="p-4">Cliente Alvo</th>
-                    <th className="p-4">Estágio</th>
-                    <th className="p-4">Condutor Oficial</th>
-                    <th className="p-4">Composição da Carga</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50 text-slate-700 font-medium">
-                  {dailyData?.map((item: any) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50">
-                      <td className="p-4 pl-6 font-mono font-bold text-indigo-600">{item.deliveryNumber}</td>
-                      <td className="p-4 font-bold text-slate-900">{item.customer?.name || 'Avulso'}</td>
-                      <td className="p-4">
-                         <span className="px-2.5 py-1 rounded-lg bg-slate-50 text-slate-700 border text-[9px] font-black uppercase tracking-widest">
-                           {item.status}
-                         </span>
-                      </td>
-                      <td className="p-4 font-bold text-slate-800">{item.driver?.user?.name || 'Fila de Reserva'}</td>
-                      <td className="p-4 text-slate-600">{item.materialType}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {(!dailyData || dailyData.length === 0) && (
-                <div className="p-8 text-center text-slate-400 font-bold">Nenhum manifesto averbado nesta data.</div>
-              )}
-            </div>
-          </div>
-        );
-      case 'drivers':
-        return (
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                <tr>
-                  <th className="p-4 pl-6">Capitão de Frota (Motorista)</th>
-                  <th className="p-4">Ordens Despachadas</th>
-                  <th className="p-4">Canhotos Concluídos</th>
-                  <th className="p-4">Integridade de SLA</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50 text-slate-700 font-medium">
-                {driversData?.map((item: any) => (
-                  <tr key={item.id} className="hover:bg-slate-50/50">
-                    <td className="p-4 pl-6 font-bold text-slate-900">{item.name}</td>
-                    <td className="p-4 font-mono text-slate-600">{item.totalDeliveries} Viagens</td>
-                    <td className="p-4 font-mono font-bold text-emerald-600">{item.completedDeliveries} PODs</td>
-                    <td className="p-4 font-black text-indigo-600">
-                      {item.rating || '98%'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-      case 'vehicles':
-        return (
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                <tr>
-                  <th className="p-4 pl-6">Placa do Implemento</th>
-                  <th className="p-4">Configuração do Eixo</th>
-                  <th className="p-4">Ciclos Operacionais</th>
-                  <th className="p-4">Condição de Pátio</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50 text-slate-700 font-medium">
-                {vehiclesData?.map((item: any) => (
-                  <tr key={item.id} className="hover:bg-slate-50/50">
-                    <td className="p-4 pl-6 font-mono font-bold bg-slate-50 rounded px-2 border border-slate-100 text-slate-800">{item.number}</td>
-                    <td className="p-4 font-bold text-slate-900">{item.type}</td>
-                    <td className="p-4 font-mono text-slate-600">{item.usageCount} Entregas</td>
-                    <td className="p-4">
-                      <span className={cn(
-                        "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase border",
-                        item.status === 'Ativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
-                      )}>{item.status}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-      case 'delayed':
-        return (
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                <tr>
-                  <th className="p-4 pl-6">Chave SEFAZ</th>
-                  <th className="p-4">Cliente Retido</th>
-                  <th className="p-4">Previsão Inicial</th>
-                  <th className="p-4">Motivo Mapeado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50 text-slate-700 font-medium">
-                {delayedData?.map((item: any) => (
-                  <tr key={item.id} className="hover:bg-slate-50/50">
-                    <td className="p-4 pl-6 font-mono font-bold text-rose-600">{item.deliveryNumber}</td>
-                    <td className="p-4 font-bold text-slate-900">{item.customer?.name}</td>
-                    <td className="p-4 font-mono text-slate-400">Hoje 14:00</td>
-                    <td className="p-4 font-black text-amber-600 uppercase text-[10px]">Fiscalização em Balança</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {(!delayedData || delayedData.length === 0) && (
-              <div className="p-8 text-center text-slate-400 font-bold">Nenhuma retenção crítica identificada.</div>
-            )}
-          </div>
-        );
-    }
-  };
-
-  const tabs = [
-    { id: 'operational', label: 'Operational Report', icon: Layers },
-    { id: 'daily', label: 'Relatório Diário', icon: Calendar },
-    { id: 'drivers', label: 'Desempenho de Condutores', icon: Users },
-    { id: 'vehicles', label: 'Utilização da Frota', icon: Truck },
-    { id: 'delayed', label: 'Alertas de Atraso', icon: AlertTriangle },
-  ];
+  const fin = exec?.financial;
 
   return (
-    <div className="space-y-8 pb-16 animate-in fade-in duration-500 font-sans select-none">
-      
-      {/* Cabeçalho Limpo e Elegante com Fundo Branco (White Premium Background Header) */}
-      <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden transition-all">
-        {/* Subtle geometric line overlay to maintain wow aesthetic */}
-        <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-indigo-50/50 to-transparent pointer-events-none" />
-        <div className="absolute top-0 left-0 w-2 h-full bg-indigo-600" />
-        
-        <div className="space-y-2 relative z-10 max-w-2xl">
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-[9px] font-black uppercase tracking-widest border border-indigo-100">
-              Módulo Central de Relatórios
-            </span>
-            <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Conexão PostGIS
-            </span>
-          </div>
-          <h1 className="text-3xl font-black tracking-tight text-slate-900">
-            Análise Operacional & Gestão de Volumes
-          </h1>
-          <p className="text-xs text-slate-500 font-medium leading-relaxed">
-            Painel rico de averbação com monitoramento volumétrico consolidado, auditorias eletrônicas de descarga e controle rigoroso de lacres rodoviários.
-          </p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Relatórios</h2>
+          <p className="text-sm text-slate-500">Painel executivo e análises</p>
         </div>
-
-        {/* Estatísticas Rápidas Integradas no Fundo Branco */}
-        <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100 shrink-0 relative z-10 self-start md:self-auto">
-          <div className="px-4 py-2 text-center">
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Sondas PostGIS</span>
-            <span className="text-xs font-black font-mono text-slate-800">22 Sondas</span>
-          </div>
-          <div className="h-6 w-px bg-slate-200" />
-          <div className="px-4 py-2 text-center">
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Sincronia</span>
-            <span className="text-xs font-black font-mono text-indigo-600">1000ms</span>
-          </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => handleExport('excel')}
+            className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer">
+            <FileSpreadsheet size={14} /> Excel
+          </button>
+          <button onClick={() => handleExport('pdf')}
+            className="flex items-center gap-2 px-3 py-2 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 transition-colors cursor-pointer">
+            <FileText size={14} /> PDF
+          </button>
         </div>
       </div>
 
-      {/* Navegação de Categorias de Relatórios (Tabs na Cor Preta/Cinza Elegante) */}
-      <div className="flex border-b border-slate-200 overflow-x-auto no-print custom-scrollbar">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as ReportType)}
+      {/* Metric Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        <MetricCard icon={Truck} label="Hoje" value={String(exec?.dailyCount || 0)} color="text-indigo-600" bg="bg-indigo-50" />
+        <MetricCard icon={CheckCircle} label="Concluídas" value={String(exec?.completedToday || 0)} color="text-emerald-600" bg="bg-emerald-50" />
+        <MetricCard icon={AlertTriangle} label="Atrasadas" value={String(exec?.delayedCount || 0)} color="text-rose-600" bg="bg-rose-50" />
+        <MetricCard icon={Clock} label="Tempo Médio" value={exec?.avgDeliveryTime || '—'} color="text-amber-600" bg="bg-amber-50" />
+        <MetricCard icon={Users} label="Motoristas" value={String(exec?.activeDrivers || 0)} color="text-blue-600" bg="bg-blue-50" />
+        <MetricCard icon={BarChart3} label="Frota" value={`${exec?.fleetUtilization || 0}%`} color="text-purple-600" bg="bg-purple-50" />
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-1 bg-white rounded-2xl border border-slate-100 shadow-sm p-1 w-fit">
+        {(['overview', 'financial', 'drivers'] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)}
             className={cn(
-              "flex items-center space-x-2 px-6 py-4 font-black text-xs uppercase tracking-widest transition-all border-b-2 whitespace-nowrap",
-              activeTab === tab.id ? "border-indigo-600 text-indigo-600 font-black bg-indigo-50/30 rounded-t-xl" : "border-transparent text-slate-400 hover:text-slate-700"
-            )}
-          >
-            <tab.icon size={16} />
-            <span>{tab.label}</span>
+              'px-4 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer',
+              tab === t ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            )}>
+            {t === 'overview' ? 'Visão Geral' : t === 'financial' ? 'Financeiro' : 'Motoristas'}
           </button>
         ))}
       </div>
 
-      {/* Roteamento de Impressão e Renderização da Grelha do Relatório */}
-      <div className="print:block animate-in fade-in duration-300">
-        <div className="hidden print:block mb-8 border-b pb-4">
-          <h1 className="text-3xl font-black uppercase text-slate-900">Auditoria Operacional EntregaPRO</h1>
-          <p className="text-xs font-mono text-slate-500 mt-1">Classificação: {activeTab.toUpperCase()} | Terminal: pt-BR Logística</p>
-        </div>
-        {renderContent()}
-      </div>
+      {tab === 'overview' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Entregas da Semana</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={exec?.weekly || []}>
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Bar dataKey="deliveries" fill="#4f46e5" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
 
-      {/* Ações e Exportações de Rodapé */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print mt-4">
-        <div>
-          <h4 className="font-black text-xs uppercase tracking-widest text-slate-900">Ações de Averbação & Conformidade</h4>
-          <p className="text-[11px] text-slate-500 font-medium">Exporte relatórios validados via SEFAZ / PostGIS para controle de doca.</p>
-        </div>
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Distribuição Hoje</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie
+                  data={exec?.distribution || []}
+                  cx="50%" cy="50%" innerRadius={60} outerRadius={90}
+                  paddingAngle={4} dataKey="value"
+                >
+                  {(exec?.distribution || []).map((entry, i) => (
+                    <Cell key={entry.name} fill={entry.color || COLORS[i]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button 
-            onClick={() => exportToCSV(
-              (activeTab === 'operational' ? operationalList :
-              activeTab === 'daily' ? dailyData : 
-              activeTab === 'drivers' ? driversData :
-              activeTab === 'vehicles' ? vehiclesData : delayedData) || [],
-              `manifesto-${activeTab}`
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Top Motoristas</h3>
+            <div className="space-y-2">
+              {(exec?.topDrivers || []).map((d, i) => (
+                <div key={d.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-colors">
+                  <span className={cn(
+                    "w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white",
+                    i === 0 ? "bg-amber-500" : i === 1 ? "bg-slate-400" : i === 2 ? "bg-amber-700" : "bg-slate-300"
+                  )}>{i + 1}</span>
+                  <span className="flex-1 text-sm font-medium text-slate-700">{d.name}</span>
+                  <span className="text-sm font-bold text-emerald-600">{d.completedDeliveries}</span>
+                </div>
+              ))}
+              {(!exec?.topDrivers || exec.topDrivers.length === 0) && (
+                <p className="text-sm text-slate-400 text-center py-4">Nenhum dado disponível</p>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Resumo Financeiro</h3>
+            {fin ? (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-xl">
+                  <span className="text-sm text-slate-600">Receita Total</span>
+                  <span className="text-lg font-black text-emerald-600">
+                    {fin.totalRevenue?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-rose-50 rounded-xl">
+                  <span className="text-sm text-slate-600">Custo Total</span>
+                  <span className="text-lg font-black text-rose-600">
+                    {fin.totalCost?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-indigo-50 rounded-xl">
+                  <span className="text-sm text-slate-600">Lucro Total</span>
+                  <span className="text-lg font-black text-indigo-600">
+                    {fin.totalProfit?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-amber-50 rounded-xl">
+                  <span className="text-sm text-slate-600">Margem Média</span>
+                  <span className="text-lg font-black text-amber-600">{fin.avgMargin}%</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400 text-center py-4">Calcule os custos das entregas para ver dados financeiros</p>
             )}
-            className="px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-2xs"
-          >
-            <FileSpreadsheet size={14} className="text-emerald-600" />
-            <span>Baixar Planilha CSV</span>
-          </button>
-
-          <button 
-            onClick={handlePrintPDF}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
-          >
-            <Printer size={14} />
-            <span>Imprimir Manifesto PDF</span>
-          </button>
+          </div>
         </div>
-      </div>
+      )}
 
+      {tab === 'financial' && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <h3 className="text-sm font-bold text-slate-900 mb-4">Receita vs Custos (Mensal)</h3>
+          <FinancialChart />
+        </div>
+      )}
+
+      {tab === 'drivers' && (
+        <DriverPerformance />
+      )}
     </div>
   );
-};
+}
 
-export default ReportsPage;
+function FinancialChart() {
+  const { data: financial } = useQuery({
+    queryKey: ['financial-report'],
+    queryFn: () => api.get<{ monthly: { month: string; revenue: number; cost: number; profit: number }[] }>('/reports/financial'),
+    refetchInterval: 60000,
+  });
+
+  if (!financial?.monthly?.length) {
+    return <p className="text-sm text-slate-400 text-center py-8">Calcule os custos das entregas para ver dados financeiros</p>;
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={350}>
+      <BarChart data={financial.monthly}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+        <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+        <YAxis tick={{ fontSize: 11 }} />
+        <Tooltip />
+        <Legend />
+        <Bar dataKey="revenue" name="Receita" fill="#10b981" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="cost" name="Custo" fill="#ef4444" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="profit" name="Lucro" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function DriverPerformance() {
+  const { data: drivers } = useQuery({
+    queryKey: ['report-drivers'],
+    queryFn: () => api.get<any[]>('/reports/drivers'),
+  });
+
+  if (!drivers?.length) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center">
+        <Users size={40} className="mx-auto text-slate-200 mb-2" />
+        <p className="text-sm text-slate-400">Nenhum motorista cadastrado</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-[9px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50">
+              <th className="text-left py-3 px-4">Motorista</th>
+              <th className="text-right py-3 px-4">Total</th>
+              <th className="text-right py-3 px-4">Concluídas</th>
+              <th className="text-right py-3 px-4">Taxa de Sucesso</th>
+            </tr>
+          </thead>
+          <tbody>
+            {drivers.map(d => {
+              const rate = d.totalDeliveries > 0
+                ? Math.round((d.completedDeliveries / d.totalDeliveries) * 100)
+                : 0;
+              return (
+                <tr key={d.id} className="border-t border-slate-50 hover:bg-slate-50 transition-colors">
+                  <td className="py-3 px-4 font-medium text-slate-800">{d.name}</td>
+                  <td className="py-3 px-4 text-right text-slate-600">{d.totalDeliveries}</td>
+                  <td className="py-3 px-4 text-right font-semibold text-emerald-600">{d.completedDeliveries}</td>
+                  <td className="py-3 px-4 text-right">
+                    <span className={cn(
+                      "text-xs font-bold px-2 py-1 rounded-lg",
+                      rate >= 80 ? "bg-emerald-50 text-emerald-600" :
+                      rate >= 50 ? "bg-amber-50 text-amber-600" :
+                      "bg-rose-50 text-rose-600"
+                    )}>
+                      {rate}%
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ icon: Icon, label, value, color, bg }: { icon: any; label: string; value: string; color: string; bg: string }) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className={cn("p-2 rounded-xl", bg)}>
+          <Icon size={16} className={color} />
+        </div>
+      </div>
+      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
+      <p className={cn("text-xl font-black mt-0.5", color)}>{value}</p>
+    </div>
+  );
+}
+
+function CheckCircle(props: any) { return <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>; }

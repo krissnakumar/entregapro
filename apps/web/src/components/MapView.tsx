@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Polygon } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
+import { io, Socket } from 'socket.io-client';
+import { useAuthStore } from '../store/useAuthStore';
 import { 
   Layers, 
   Eye, 
@@ -15,9 +17,13 @@ import {
   Clock, 
   Package, 
   MapPin,
-  Filter
+  Filter,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+
+const SOCKET_URL = import.meta.env.VITE_API_URL?.replace(/^http/, 'ws') || 'ws://localhost:3001';
 
 // Fix for default marker icons in React-Leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -50,7 +56,10 @@ const pendingSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" 
 const MapView = () => {
   const [zoom] = useState(13);
   const [center] = useState<[number, number]>([-23.5505, -46.6333]); // São Paulo default
-  const [simulatedPositions, setSimulatedPositions] = useState<Record<string, [number, number]>>({});
+  const [positions, setPositions] = useState<Record<string, [number, number]>>({});
+  const [socketConnected, setSocketConnected] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
+  const token = useAuthStore(s => s.token);
   
   // Controles de Visibilidade das Camadas e Entregas (Inputs Solicitados pelo Usuário)
   const [showPolygons, setShowPolygons] = useState(true);
@@ -71,17 +80,49 @@ const MapView = () => {
   const deliveries = rawDeliveries || [];
   const zones: Array<{ id: string; name: string; color: string; coords: [number, number][] }> = [];
 
-  // Micro-animação simulando telemetria contínua
+  const { data: jobSites } = useQuery({
+    queryKey: ['job-sites'],
+    queryFn: () => api.get<any[]>('/job-sites'),
+    refetchInterval: 30000,
+  });
+
+  // Socket.IO real-time driver locations
+  useEffect(() => {
+    if (!token) return;
+    const socket: Socket = io(SOCKET_URL, {
+      auth: { token },
+      transports: ['websocket'],
+      reconnection: true,
+    });
+
+    socket.on('connect', () => {
+      setSocketConnected(true);
+      socket.emit('joinDispatchers');
+    });
+
+    socket.on('disconnect', () => setSocketConnected(false));
+
+    socket.on('driverLocationUpdated', (data: { deliveryId: string; lat: number; lng: number; driverId: string }) => {
+      if (data.deliveryId && data.lat && data.lng) {
+        setPositions(prev => ({ ...prev, [data.deliveryId]: [data.lat, data.lng] }));
+      }
+    });
+
+    socketRef.current = socket;
+    return () => { socket.disconnect(); };
+  }, [token]);
+
+  // Fallback simulated GPS for deliveries without real socket data
   useEffect(() => {
     if (!deliveries) return;
-    
     const interval = setInterval(() => {
-      setSimulatedPositions(prev => {
+      setPositions(prev => {
         const next = { ...prev };
         deliveries.forEach((d: any) => {
-          // Apenas simula leve desvio de GPS nas entregas ativas para sensação viva
+          if (!d.id) return;
+          if (prev[d.id]) return;
           if (d.status === 'IN_TRANSIT' || d.status === 'ASSIGNED') {
-            const current = next[d.id] || [d.latitude || center[0], d.longitude || center[1]];
+            const current = [d.latitude || center[0], d.longitude || center[1]] as [number, number];
             next[d.id] = [
               current[0] + (Math.random() - 0.5) * 0.0006,
               current[1] + (Math.random() - 0.5) * 0.0006
@@ -91,7 +132,6 @@ const MapView = () => {
         return next;
       });
     }, 2500);
-
     return () => clearInterval(interval);
   }, [deliveries, center]);
 
@@ -140,7 +180,7 @@ const MapView = () => {
         
         {/* Marcadores de Entregas Operacionais Vivas */}
         {filteredDeliveries.map((delivery) => {
-          const pos = simulatedPositions[delivery.id] || [delivery.latitude || center[0], delivery.longitude || center[1]];
+          const pos = positions[delivery.id] || [delivery.latitude || center[0], delivery.longitude || center[1]];
           
           const isLive = delivery.status === 'IN_TRANSIT' || delivery.status === 'LOADING';
           const isUpcoming = delivery.status === 'ASSIGNED';
@@ -214,6 +254,28 @@ const MapView = () => {
             </React.Fragment>
           );
         })}
+
+        {/* Job Sites */}
+        {(jobSites || []).map((site: any) => (
+          <Marker
+            key={`jobsite-${site.id}`}
+            position={[site.latitude, site.longitude]}
+            icon={L.divIcon({
+              className: '',
+              html: `<div style="background:${site.color || '#8B5CF6'};width:32px;height:32px;border-radius:10px;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:14px;">🏗</div>`,
+              iconSize: [32, 32],
+              iconAnchor: [16, 16],
+            })}
+          >
+            <Popup>
+              <div className="p-1.5 min-w-[120px]">
+                <p className="text-sm font-bold text-slate-900">{site.name}</p>
+                {site.address && <p className="text-xs text-slate-500 mt-0.5">{site.address}</p>}
+                <p className="text-[10px] text-slate-400 mt-1">{site._count?.deliveries || 0} entregas</p>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
       </MapContainer>
 
       {/* Camada 1: Controles de Overlays Visuais (Esquerda) */}
@@ -331,8 +393,12 @@ const MapView = () => {
 
       {/* Rodapé de Fixação Espacial */}
       <div className="absolute bottom-4 left-4 z-[1000] bg-slate-900/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-xl text-[9px] font-mono flex items-center gap-2 pointer-events-none">
-        <Compass size={12} className="text-emerald-400 animate-spin" />
-        <span>Spatial Cluster Center Lock: [-23.5505, -46.6333]</span>
+        {socketConnected ? (
+          <Wifi size={12} className="text-emerald-400" />
+        ) : (
+          <WifiOff size={12} className="text-amber-400" />
+        )}
+        <span>{socketConnected ? 'Tempo Real Ativo' : 'GPS Simulado'}</span>
       </div>
     </div>
   );
