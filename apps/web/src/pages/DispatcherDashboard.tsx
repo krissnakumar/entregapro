@@ -22,10 +22,13 @@ import {
   UploadCloud,
   FileCheck,
   AlertCircle,
-  Menu
+  Menu,
+  Fuel,
+  Wrench
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
+import { FuelMaintenanceModule } from '../components/FuelMaintenanceModule';
 
 // ============================================================================
 // COMPONENTE ISOLADO DE EDIÇÃO DE REMARKS PARA GARANTIR ESTABILIDADE DE FOCO
@@ -94,7 +97,7 @@ const DispatcherDashboard = () => {
 
   // Auto-hide navigation control
   const [isNavOpen, setIsNavOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'console' | 'verification' | 'gps'>('console');
+  const [activeTab, setActiveTab] = useState<'console' | 'verification' | 'gps' | 'fuel'>('console');
   
   const [deliveries, setDeliveries] = useState<any[]>(INITIAL_TODAYS_DELIVERIES);
   const [notifications, setNotifications] = useState<any[]>(INITIAL_NOTIFICATIONS);
@@ -207,6 +210,7 @@ const DispatcherDashboard = () => {
   const navItems = [
     { id: 'console', label: 'Console ao Vivo', icon: Activity, desc: 'Lista atualizada via Admin' },
     { id: 'gps', label: 'Em Movimento', icon: Navigation, desc: 'Rastreamento contínuo' },
+    { id: 'fuel', label: 'Combustível & Manutenção', icon: Fuel, desc: 'Registrar abastecimentos e revisões' },
   ];
 
   // Cálculo de volume/peso total da viagem em tempo real
@@ -562,6 +566,10 @@ const DispatcherDashboard = () => {
                   📌 A otimização de rotas e o mapeamento de notas são gerenciados exclusivamente pelo motor logístico da central Admin.
                 </div>
               </div>
+            )}
+
+            {activeTab === 'fuel' && (
+              <FuelMaintenanceModule />
             )}
 
           </div>
