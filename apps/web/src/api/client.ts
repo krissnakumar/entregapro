@@ -1,6 +1,13 @@
 import { useAuthStore } from '../store/useAuthStore';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+function getBaseUrl() {
+  const configured = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  if (configured) return configured;
+  if (import.meta.env.PROD) return '/api';
+  return 'http://localhost:3001';
+}
+
+const BASE_URL = getBaseUrl();
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   let token = null;

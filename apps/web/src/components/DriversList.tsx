@@ -141,7 +141,7 @@ const DriversList = () => {
           toast.success('Alocação de veículo atualizada.');
         },
         onError: (err: any) => {
-          toast.toast.error(`Erro ao alocar veículo: ${err.message}`);
+          toast.error(`Erro ao alocar veículo: ${err.message}`);
         }
       }
     );
