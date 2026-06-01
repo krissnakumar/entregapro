@@ -5,7 +5,11 @@
   "scripts": {
     "dev:api": "pnpm --filter api start:dev",
     "dev:web": "pnpm --filter web dev",
-    "build": "pnpm -r build"
+    "build": "pnpm -r build",
+    "api:prisma:generate": "pnpm --filter api run prisma:generate",
+    "api:prisma:migrate:deploy": "pnpm --filter api run prisma:migrate:deploy",
+    "api:build": "pnpm --filter api run build",
+    "api:start:prod": "pnpm --filter api run start:prod"
   },
   "devDependencies": {
     "typescript": "^5.0.0"
