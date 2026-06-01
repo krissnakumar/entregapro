@@ -23,6 +23,8 @@ import MapView from '../components/MapView';
 import { DispatchCommandCenter } from '../components/dispatch/DispatchCommandCenter';
 import RoutePlanner from './RoutePlanner';
 import { MaintenancePage } from './MaintenancePage';
+import { MaterialsPage } from './MaterialsPage';
+import { LoadCapacityPage } from './LoadCapacityPage';
 
 const AdminDashboard = () => {
   return (
@@ -51,8 +53,8 @@ const AdminDashboard = () => {
         <Route path="loading" element={<LoadingVerificationScreen />} />
         <Route path="billing" element={<ExcelBillingImportScreen />} />
         <Route path="pod" element={<InvoicesPage />} />
-        <Route path="materials" element={<div className="p-8 text-center text-slate-500"><p className="text-lg font-semibold">Módulo de Materiais</p><p className="text-sm mt-1">Em breve</p></div>} />
-        <Route path="capacity" element={<div className="p-8 text-center text-slate-500"><p className="text-lg font-semibold">Capacidade de Carga</p><p className="text-sm mt-1">Em breve</p></div>} />
+        <Route path="materials" element={<MaterialsPage />} />
+        <Route path="capacity" element={<LoadCapacityPage />} />
         <Route path="jobsites" element={<JobSitesPage />} />
       </Routes>
     </AppLayout>
