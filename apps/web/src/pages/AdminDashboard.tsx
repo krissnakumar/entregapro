@@ -21,6 +21,7 @@ import DispatchBoard from '../components/DispatchBoard';
 import OrdersList from '../components/OrdersList';
 import MapView from '../components/MapView';
 import { DispatchCommandCenter } from '../components/dispatch/DispatchCommandCenter';
+import RoutePlanner from './RoutePlanner';
 
 const AdminDashboard = () => {
   return (
@@ -31,7 +32,7 @@ const AdminDashboard = () => {
         <Route path="orders" element={<OrdersList />} />
         <Route path="dispatch" element={<DispatchCommandCenter />} />
         <Route path="tracking" element={<MapView />} />
-        <Route path="routes" element={<MapView />} />
+        <Route path="routes" element={<RoutePlanner />} />
         <Route path="customers" element={<CustomersList />} />
         <Route path="drivers" element={<DriversList />} />
         <Route path="vehicles" element={<VehiclesList />} />
