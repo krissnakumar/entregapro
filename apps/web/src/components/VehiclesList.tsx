@@ -224,69 +224,68 @@ const VehiclesList = () => {
             const currentStatus = vehicle.status || 'active';
             const rawDate = vehicle.maintenanceDate;
             const safeDate = rawDate ? new Date(rawDate).toLocaleDateString('pt-BR') : '10/06/2026';
-
             return (
-              <div key={vehicle.id} className="relative bg-white hover:bg-slate-50/20 border border-slate-200 rounded-2xl p-5 transition-all hover:shadow-xs group flex flex-col justify-between min-h-[160px]">
+              <div key={vehicle.id} className="relative bg-white hover:bg-slate-50/20 border border-slate-200 rounded-xl p-3 transition-all hover:shadow-xs group flex flex-col justify-between space-y-2.5">
                 
                 {/* TOPO DO CARD */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2">
                     {vehicle.imageUrl ? (
-                      <img src={vehicle.imageUrl} alt={vehicle.vehicleNumber} className="w-10 h-10 rounded-xl object-cover border border-indigo-100 shrink-0" />
+                      <img src={vehicle.imageUrl} alt={vehicle.vehicleNumber} className="w-8 h-8 rounded-lg object-cover border border-indigo-100 shrink-0" />
                     ) : (
-                      <div className="w-10 h-10 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center shrink-0">
-                        <Truck size={20} />
+                      <div className="w-8 h-8 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg flex items-center justify-center shrink-0">
+                        <Truck size={16} />
                       </div>
                     )}
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-xs tracking-wide uppercase">
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-slate-900 text-xs tracking-wide uppercase leading-tight">
                         {vehicle.vehicleNumber || 'Sem Placa'}
                       </h4>
-                      <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                      <p className="text-[9px] text-slate-400 font-semibold truncate max-w-[130px] mt-0.5">
                         {vehicle.type || 'Basculante Frotista'}
                       </p>
                     </div>
                   </div>
 
                   {/* MENU DE AÇÕES TIPO DOTS */}
-                  <div className="relative">
+                  <div className="relative shrink-0">
                     <button 
                       onClick={() => setActiveMenuId(activeMenuId === vehicle.id ? null : vehicle.id)}
-                      className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-lg transition-all outline-none"
+                      className="p-1 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-md transition-all outline-none"
                     >
-                      <MoreVertical size={14} />
+                      <MoreVertical size={13} />
                     </button>
                     {activeMenuId === vehicle.id && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setActiveMenuId(null)} />
-                        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-36 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-md py-1 w-32 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
                           <button 
                             onClick={() => handleEditVehicle(vehicle)}
-                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-2"
+                            className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-slate-700 text-[11px] font-bold flex items-center gap-1.5"
                           >
-                            <Edit size={12} className="text-slate-400" />
+                            <Edit size={11} className="text-slate-400" />
                             <span>Editar</span>
                           </button>
                           <button 
                             onClick={() => handleOpenVault(vehicle)}
-                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-2"
+                            className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-slate-700 text-[11px] font-bold flex items-center gap-1.5"
                           >
-                            <FileCheck size={12} className="text-slate-400" />
+                            <FileCheck size={11} className="text-slate-400" />
                             <span>Documentos</span>
                           </button>
                           <button 
                             onClick={() => handleViewLogs(vehicle)}
-                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-2"
+                            className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-slate-700 text-[11px] font-bold flex items-center gap-1.5"
                           >
-                            <FileText size={12} className="text-slate-400" />
-                            <span>Ordem de Serv.</span>
+                            <FileText size={11} className="text-slate-400" />
+                            <span>Ordem Serv.</span>
                           </button>
                           <hr className="my-1 border-slate-100" />
                           <button 
                             onClick={() => handleDeleteVehicle(vehicle.id)}
-                            className="w-full text-left px-3 py-1.5 hover:bg-rose-50 hover:text-rose-600 text-rose-600 text-xs font-semibold flex items-center gap-2"
+                            className="w-full text-left px-2.5 py-1.5 hover:bg-rose-50 hover:text-rose-600 text-rose-600 text-[11px] font-bold flex items-center gap-1.5"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={11} />
                             <span>Excluir</span>
                           </button>
                         </div>
@@ -295,37 +294,30 @@ const VehiclesList = () => {
                   </div>
                 </div>
 
-                {/* DETALHES TÉCNICOS */}
-                <div className="mt-4 pt-3 border-t border-slate-100 space-y-2 text-xs flex-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400 font-medium">Capacidade:</span>
-                    <span className="text-slate-700 font-bold">{vehicle.capacity || 12} T/m³</span>
+                {/* DETALHES TÉCNICOS SLIM */}
+                <div className="flex items-center justify-between text-[11px] bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                  <div className="flex flex-col">
+                    <span className="text-slate-400 text-[9px] uppercase tracking-wider font-bold">Capac. & Fuel</span>
+                    <span className="text-slate-800 font-bold">{vehicle.capacity || 12}T • {vehicle.fuelType?.split(' ')[0] || 'Diesel'}</span>
                   </div>
-
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400 font-medium">Combustível:</span>
-                    <span className="text-slate-700 font-bold">{vehicle.fuelType || 'Diesel S10'}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400 font-medium">Maint. Programada:</span>
-                    <span className="text-slate-600 font-semibold">{safeDate}</span>
+                  <div className="flex flex-col items-end">
+                    <span className="text-slate-400 text-[9px] uppercase tracking-wider font-bold mb-0.5">Revisão</span>
+                    <span className="text-slate-600 font-bold text-[10px]">{safeDate}</span>
                   </div>
                 </div>
 
                 {/* STATUS TOGGLE FOOTER */}
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 shrink-0">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status operacional:</span>
-                  <div className="flex items-center gap-1 bg-slate-50 p-0.5 rounded-lg border border-slate-200">
+                <div className="flex items-center justify-between gap-2 shrink-0">
+                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200/60 w-full justify-between">
                     {(['active', 'maintenance', 'inactive'] as const).map((st) => (
                       <button
                         key={st}
                         onClick={() => handleStatusToggle(vehicle.id, st)}
                         className={cn(
-                          "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border border-transparent",
+                          "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border border-transparent flex-1 text-center",
                           currentStatus === st 
                             ? "bg-white text-slate-900 border-slate-200 shadow-2xs font-extrabold" 
-                            : "text-slate-400 hover:text-slate-600"
+                            : "text-slate-500 hover:text-slate-700"
                         )}
                       >
                         {st === 'active' ? 'Operante' : st === 'maintenance' ? 'Manut.' : 'Inativo'}

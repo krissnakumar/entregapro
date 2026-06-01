@@ -353,74 +353,72 @@ const DriversList = () => {
             const safeName = driver.name || 'Condutor Autorizado';
             const initials = safeName.split(' ').map(n => n[0]).filter(Boolean).join('').substring(0, 2).toUpperCase() || 'MT';
             const currentStatus = driver.status || 'disponível';
-
             return (
-              <div key={driver.id} className="relative bg-white hover:bg-slate-50/20 border border-slate-200 rounded-2xl p-5 transition-all hover:shadow-xs group flex flex-col justify-between min-h-[160px]">
+              <div key={driver.id} className="relative bg-white hover:bg-slate-50/20 border border-slate-200 rounded-xl p-3 transition-all hover:shadow-xs group flex flex-col justify-between space-y-2.5">
                 
                 {/* TOPO DO CARD */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2">
                     <div className="relative shrink-0">
                       {driver.avatarUrl ? (
-                        <img src={driver.avatarUrl} alt={safeName} className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                        <img src={driver.avatarUrl} alt={safeName} className="w-8 h-8 rounded-full object-cover border border-slate-200" />
                       ) : (
-                        <div className="w-10 h-10 bg-slate-100 border border-slate-200 text-slate-700 rounded-full flex items-center justify-center font-bold text-xs">
+                        <div className="w-8 h-8 bg-slate-100 border border-slate-200 text-slate-700 rounded-full flex items-center justify-center font-bold text-[10px]">
                           {initials}
                         </div>
                       )}
                       <span className={cn(
-                        "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white",
+                        "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white",
                         currentStatus === 'disponível' ? "bg-emerald-500" :
                         currentStatus === 'em_rota' ? "bg-indigo-500" : "bg-amber-500"
                       )} />
                     </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-xs group-hover:text-indigo-600 transition-colors">
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-slate-900 text-xs truncate max-w-[130px] group-hover:text-indigo-600 transition-colors leading-tight">
                         {safeName}
                       </h4>
-                      <p className="text-[10px] font-mono text-slate-400 mt-0.5 flex items-center gap-1.5">
-                        <span>ID: {driver.id.substring(0, 8)}...</span>
-                        <span>•</span>
-                        <span className="inline-flex items-center text-amber-500 font-semibold">
-                          <Star size={9} className="fill-current mr-0.5" />
+                      <p className="text-[9px] text-slate-400 font-mono mt-0.5 flex items-center gap-1">
+                        <span className="inline-flex items-center text-amber-500 font-bold mr-1">
+                          <Star size={8} className="fill-current mr-0.5" />
                           {(driver.rating || 5.0).toFixed(1)}
                         </span>
+                        <span>CNH {driver.cnhCategory || 'E'}</span>
                       </p>
                     </div>
                   </div>
 
                   {/* MENU DE AÇÕES TIPO DOTS */}
-                  <div className="relative">
+                  <div className="relative shrink-0">
                     <button 
                       onClick={() => setActiveMenuId(activeMenuId === driver.id ? null : driver.id)}
-                      className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-lg transition-all outline-none"
+                      className="p-1 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-md transition-all outline-none"
                     >
-                      <MoreVertical size={14} />
+                      <MoreVertical size={13} />
                     </button>
                     {activeMenuId === driver.id && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setActiveMenuId(null)} />
-                        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-36 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-md py-1 w-32 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
                           <button 
                             onClick={() => handleEditDriver(driver)}
-                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-2"
+                            className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-slate-700 text-[11px] font-bold flex items-center gap-1.5"
                           >
-                            <Edit size={12} className="text-slate-400" />
+                            <Edit size={11} className="text-slate-400" />
                             <span>Editar</span>
                           </button>
                           <button 
                             onClick={() => handleOpenVault(driver)}
-                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-2"
+                            className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-slate-700 text-[11px] font-bold flex items-center gap-1.5"
                           >
-                            <FileCheck size={12} className="text-slate-400" />
+                            <FileCheck size={11} className="text-slate-400" />
                             <span>Documentos</span>
                           </button>
                           <hr className="my-1 border-slate-100" />
                           <button 
                             onClick={() => handleDeleteDriver(driver.id)}
-                            className="w-full text-left px-3 py-1.5 hover:bg-rose-50 hover:text-rose-600 text-rose-600 text-xs font-semibold flex items-center gap-2"
+                            className="w-full text-left px-2.5 py-1.5 hover:bg-rose-50 hover:text-rose-600 text-rose-600 text-[11px] font-bold flex items-center gap-1.5"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={11} />
                             <span>Excluir</span>
                           </button>
                         </div>
@@ -429,10 +427,10 @@ const DriversList = () => {
                   </div>
                 </div>
 
-                {/* DETALHES DE ALOCAÇÃO & CONTATO */}
-                <div className="mt-4 pt-3 border-t border-slate-100 space-y-2 text-xs flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400 font-medium">Veículo Alocado:</span>
+                {/* INFO MEIO (VEÍCULO E VALIDADE) */}
+                <div className="flex items-center justify-between text-[11px] bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-slate-400 text-[9px] uppercase tracking-wider font-bold">Veículo</span>
                     <select
                       value={driver.currentVehicle?.id || ''}
                       onChange={(e) => {
@@ -440,38 +438,36 @@ const DriversList = () => {
                         handleUpdateVehicle(driver.id, val === '' ? null : val);
                       }}
                       disabled={updateDriverMutation.isPending}
-                      className="bg-transparent border-0 hover:text-indigo-600 focus:text-indigo-600 focus:ring-0 text-slate-700 text-xs font-semibold text-right outline-none cursor-pointer max-w-[140px] truncate"
+                      className="bg-transparent border-0 hover:text-indigo-600 focus:text-indigo-600 focus:ring-0 text-slate-800 text-[11px] font-bold outline-none cursor-pointer p-0 w-28 truncate"
                     >
                       <option value="">Nenhum</option>
                       {getAvailableVehicles(driver.currentVehicle?.id).map((v) => (
                         <option key={v.id} value={v.id}>
-                          {v.vehicleNumber} ({v.type})
+                          {v.vehicleNumber}
                         </option>
                       ))}
                     </select>
                   </div>
-
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400 font-medium">CNH Cat. {driver.cnhCategory || 'E'}:</span>
-                    <span className={cn("px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase", cnhMeta.color)}>
-                      {cnhMeta.label}
+                  <div className="flex flex-col items-end shrink-0">
+                    <span className="text-slate-400 text-[9px] uppercase tracking-wider font-bold mb-0.5">CNH</span>
+                    <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase", cnhMeta.color)}>
+                      {cnhMeta.label.replace('Validade: ', '')}
                     </span>
                   </div>
                 </div>
 
-                {/* STATUS TOGGLE FOOTER */}
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 shrink-0">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status operacional:</span>
-                  <div className="flex items-center gap-1 bg-slate-50 p-0.5 rounded-lg border border-slate-200">
+                {/* STATUS OPERATION SELECTOR */}
+                <div className="flex items-center justify-between gap-2 shrink-0">
+                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200/60 w-full justify-between">
                     {(['disponível', 'em_rota', 'em_descanso'] as const).map((st) => (
                       <button
                         key={st}
                         onClick={() => handleUpdateStatus(driver.id, st)}
                         className={cn(
-                          "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border border-transparent",
+                          "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border border-transparent flex-1 text-center",
                           currentStatus === st 
                             ? "bg-white text-slate-900 border-slate-200 shadow-2xs font-extrabold" 
-                            : "text-slate-400 hover:text-slate-600"
+                            : "text-slate-500 hover:text-slate-700"
                         )}
                       >
                         {st === 'disponível' ? 'Livre' : st === 'em_rota' ? 'Rota' : 'Pausa'}
