@@ -2,8 +2,8 @@ import { useAuthStore } from '../store/useAuthStore';
 
 function getBaseUrl() {
   const configured = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
-  if (configured) return configured;
   if (import.meta.env.PROD) return '/api';
+  if (configured) return configured;
   return 'http://localhost:3001';
 }
 
