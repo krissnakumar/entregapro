@@ -10,7 +10,7 @@ const getSocketUrl = (): string => {
     return apiUrl.replace(/^http/, 'ws');
   }
 
-  return 'http://localhost:3000';
+  return 'http://localhost:3001';
 };
 
 let socket: Socket | null = null;
