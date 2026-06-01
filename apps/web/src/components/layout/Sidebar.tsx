@@ -12,7 +12,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onToggle, onMobileClose }: SidebarProps) {
   const location = useLocation();
-  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(() => navigation.map(g => g.title));
 
   const toggleGroup = (title: string) => {
     setExpandedGroups(prev =>
