@@ -16,6 +16,7 @@ interface Vehicle {
   capacity?: number;
   fuelType?: string;
   maintenanceDate?: string;
+  imageUrl?: string;
 }
 
 const INITIAL_VEHICLES: Vehicle[] = [];
@@ -230,9 +231,13 @@ const VehiclesList = () => {
                 {/* TOPO DO CARD */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center">
-                      <Truck size={20} />
-                    </div>
+                    {vehicle.imageUrl ? (
+                      <img src={vehicle.imageUrl} alt={vehicle.vehicleNumber} className="w-10 h-10 rounded-xl object-cover border border-indigo-100 shrink-0" />
+                    ) : (
+                      <div className="w-10 h-10 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center shrink-0">
+                        <Truck size={20} />
+                      </div>
+                    )}
                     <div>
                       <h4 className="font-bold text-slate-900 text-xs tracking-wide uppercase">
                         {vehicle.vehicleNumber || 'Sem Placa'}

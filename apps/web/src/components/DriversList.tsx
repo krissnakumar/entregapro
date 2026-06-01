@@ -16,6 +16,7 @@ interface Driver {
   cnhCategory?: 'C' | 'D' | 'E';
   cnhExpiration?: string;
   tripsCount?: number;
+  avatarUrl?: string;
   currentVehicle?: {
     id?: string;
     vehicleNumber: string;
@@ -42,6 +43,7 @@ const DriversList = () => {
     cnhCategory: 'E' as const,
     cnhExpiration: '',
     vehicleId: '',
+    avatarUrl: '',
   });
 
   // Cofre de documentos ativo
@@ -114,6 +116,7 @@ const DriversList = () => {
       cnhCategory: driver.cnhCategory || 'E',
       cnhExpiration: driver.cnhExpiration ? new Date(driver.cnhExpiration).toISOString().split('T')[0] : '',
       vehicleId: driver.currentVehicle?.id || '',
+      avatarUrl: driver.avatarUrl || '',
     });
     setIsModalOpen(true);
     setActiveMenuId(null);
@@ -207,6 +210,7 @@ const DriversList = () => {
       cnhCategory: newDriver.cnhCategory,
       cnhExpiration: newDriver.cnhExpiration ? new Date(newDriver.cnhExpiration).toISOString() : null,
       vehicleId: newDriver.vehicleId || null,
+      avatarUrl: newDriver.avatarUrl || null,
     };
 
     if (editingDriver) {
@@ -217,7 +221,7 @@ const DriversList = () => {
             toast.success('Cadastro atualizado com sucesso.');
             setIsModalOpen(false);
             setEditingDriver(null);
-            setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '' });
+            setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '', avatarUrl: '' });
           },
           onError: (err: any) => {
             toast.error(err.message || 'Falha ao atualizar o condutor.');
@@ -231,7 +235,7 @@ const DriversList = () => {
           onSuccess: () => {
             toast.success('Motorista averbado com sucesso.');
             setIsModalOpen(false);
-            setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '' });
+            setNewDriver({ name: '', phone: '', cnhNumber: '', cnhCategory: 'E', cnhExpiration: '', vehicleId: '', avatarUrl: '' });
           },
           onError: () => {
             toast.error('Falha ao averbar motorista.');
@@ -357,9 +361,13 @@ const DriversList = () => {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="relative shrink-0">
-                      <div className="w-10 h-10 bg-slate-100 border border-slate-200 text-slate-700 rounded-full flex items-center justify-center font-bold text-xs">
-                        {initials}
-                      </div>
+                      {driver.avatarUrl ? (
+                        <img src={driver.avatarUrl} alt={safeName} className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                      ) : (
+                        <div className="w-10 h-10 bg-slate-100 border border-slate-200 text-slate-700 rounded-full flex items-center justify-center font-bold text-xs">
+                          {initials}
+                        </div>
+                      )}
                       <span className={cn(
                         "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white",
                         currentStatus === 'disponível' ? "bg-emerald-500" :
@@ -510,6 +518,53 @@ const DriversList = () => {
             </div>
 
             <form onSubmit={handleSubmitDriver} className="p-6 space-y-4 bg-white flex-1 overflow-y-auto">
+              
+              <div className="space-y-1.5 mb-3">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Foto de Perfil do Condutor</label>
+                <div className="flex items-center gap-3">
+                  {newDriver.avatarUrl ? (
+                    <img src={newDriver.avatarUrl} alt="Preview" className="w-12 h-12 rounded-full object-cover border border-slate-200 animate-in fade-in" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 font-bold text-[10px] uppercase">
+                      Foto
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setNewDriver(prev => ({ ...prev, avatarUrl: reader.result as string }));
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="hidden"
+                      id="driver-avatar-upload"
+                    />
+                    <label
+                      htmlFor="driver-avatar-upload"
+                      className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold transition-all cursor-pointer inline-block outline-none"
+                    >
+                      Selecionar Foto
+                    </label>
+                    {newDriver.avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setNewDriver(prev => ({ ...prev, avatarUrl: '' }))}
+                        className="ml-2 text-xs font-bold text-rose-600 hover:text-rose-700 outline-none"
+                      >
+                        Remover
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-1">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Nome Completo do Condutor *</label>
                 <input

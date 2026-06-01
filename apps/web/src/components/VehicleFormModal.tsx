@@ -21,6 +21,7 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated, vehicleToEdit }: 
     fuelType: 'Diesel S10',
     activeStatus: true,
     maintenanceDue: '',
+    imageUrl: '',
   });
 
   useEffect(() => {
@@ -32,6 +33,7 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated, vehicleToEdit }: 
         fuelType: vehicleToEdit.fuelType || 'Diesel S10',
         activeStatus: vehicleToEdit.status === 'active' || vehicleToEdit.activeStatus || false,
         maintenanceDue: vehicleToEdit.lastMaintenance ? new Date(vehicleToEdit.lastMaintenance).toISOString().split('T')[0] : '',
+        imageUrl: vehicleToEdit.imageUrl || '',
       });
     } else {
       setFormData({
@@ -41,6 +43,7 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated, vehicleToEdit }: 
         fuelType: 'Diesel S10',
         activeStatus: true,
         maintenanceDue: '',
+        imageUrl: '',
       });
     }
   }, [vehicleToEdit, isOpen]);
@@ -92,6 +95,7 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated, vehicleToEdit }: 
       fuelType: formData.fuelType,
       activeStatus: formData.activeStatus,
       lastMaintenance: formData.maintenanceDue ? new Date(formData.maintenanceDue).toISOString() : undefined,
+      imageUrl: formData.imageUrl || null,
     };
 
     if (vehicleToEdit) {
@@ -175,6 +179,52 @@ const VehicleFormModal = ({ isOpen, onClose, onVehicleCreated, vehicleToEdit }: 
               </div>
             </div>
           )}
+
+          <div className="space-y-1.5 mb-3">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Foto ou Imagem do Veículo</label>
+            <div className="flex items-center gap-3">
+              {formData.imageUrl ? (
+                <img src={formData.imageUrl} alt="Preview" className="w-12 h-12 rounded-xl object-cover border border-slate-200 animate-in fade-in" />
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 font-bold text-[10px] uppercase">
+                  Foto
+                </div>
+              )}
+              <div className="flex-1">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setFormData(prev => ({ ...prev, imageUrl: reader.result as string }));
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="hidden"
+                  id="vehicle-image-upload"
+                />
+                <label
+                  htmlFor="vehicle-image-upload"
+                  className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold transition-all cursor-pointer inline-block outline-none"
+                >
+                  Selecionar Imagem
+                </label>
+                {formData.imageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, imageUrl: '' }))}
+                    className="ml-2 text-xs font-bold text-rose-600 hover:text-rose-700 outline-none"
+                  >
+                    Remover
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
 
           <div className="space-y-1">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Identificação / Placa *</label>
