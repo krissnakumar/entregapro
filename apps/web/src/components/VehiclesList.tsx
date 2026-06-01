@@ -314,13 +314,28 @@ const VehiclesList = () => {
                         key={st}
                         onClick={() => handleStatusToggle(vehicle.id, st)}
                         className={cn(
-                          "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border border-transparent flex-1 text-center",
+                          "px-2 py-1.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border border-transparent flex-1 flex items-center justify-center gap-1",
                           currentStatus === st 
                             ? "bg-white text-slate-900 border-slate-200 shadow-2xs font-extrabold" 
                             : "text-slate-500 hover:text-slate-700"
                         )}
                       >
-                        {st === 'active' ? 'Operante' : st === 'maintenance' ? 'Manut.' : 'Inativo'}
+                        {st === 'active' ? (
+                          <>
+                            <CheckCircle2 size={10} className={currentStatus === st ? "text-emerald-500" : "text-slate-400"} />
+                            <span>Operante</span>
+                          </>
+                        ) : st === 'maintenance' ? (
+                          <>
+                            <Wrench size={10} className={currentStatus === st ? "text-amber-500" : "text-slate-400"} />
+                            <span>Manut.</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle size={10} className={currentStatus === st ? "text-rose-500" : "text-slate-400"} />
+                            <span>Inativo</span>
+                          </>
+                        )}
                       </button>
                     ))}
                   </div>

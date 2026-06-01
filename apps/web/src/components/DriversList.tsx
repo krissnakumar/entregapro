@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
-import { Search, Plus, MapPin, Truck, Star, Phone, ShieldCheck, AlertTriangle, UserCheck, X, Award, CheckCircle2, Filter, FileCheck, Edit, Trash2, MoreVertical, Calendar } from 'lucide-react';
+import { Search, Plus, MapPin, Truck, Star, Phone, ShieldCheck, AlertTriangle, UserCheck, X, Award, CheckCircle2, Filter, FileCheck, Edit, Trash2, MoreVertical, Calendar, Coffee, Navigation } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { DocumentVaultModal } from './DocumentVaultModal';
 import { toast } from 'sonner';
@@ -464,13 +464,28 @@ const DriversList = () => {
                         key={st}
                         onClick={() => handleUpdateStatus(driver.id, st)}
                         className={cn(
-                          "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border border-transparent flex-1 text-center",
+                          "px-2 py-1.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border border-transparent flex-1 flex items-center justify-center gap-1",
                           currentStatus === st 
                             ? "bg-white text-slate-900 border-slate-200 shadow-2xs font-extrabold" 
                             : "text-slate-500 hover:text-slate-700"
                         )}
                       >
-                        {st === 'disponível' ? 'Livre' : st === 'em_rota' ? 'Rota' : 'Pausa'}
+                        {st === 'disponível' ? (
+                          <>
+                            <CheckCircle2 size={10} className={currentStatus === st ? "text-emerald-500" : "text-slate-400"} />
+                            <span>Livre</span>
+                          </>
+                        ) : st === 'em_rota' ? (
+                          <>
+                            <Navigation size={10} className={cn("rotate-45", currentStatus === st ? "text-indigo-500" : "text-slate-400")} />
+                            <span>Rota</span>
+                          </>
+                        ) : (
+                          <>
+                            <Coffee size={10} className={currentStatus === st ? "text-amber-500" : "text-slate-400"} />
+                            <span>Pausa</span>
+                          </>
+                        )}
                       </button>
                     ))}
                   </div>
