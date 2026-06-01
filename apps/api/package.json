@@ -24,6 +24,8 @@
     "prisma:db:push": "prisma db push",
     "prisma:studio": "prisma studio",
     "prisma:seed": "prisma db seed",
+    "prisma:seed:direct": "sh -c 'DATABASE_URL=\"$DIRECT_URL\" prisma db seed'",
+    "prisma:migrate:deploy:direct": "sh -c 'DATABASE_URL=\"$DIRECT_URL\" prisma migrate deploy'",
     "admin:reset": "node reset_admin.js"
   },
   "dependencies": {

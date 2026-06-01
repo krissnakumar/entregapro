@@ -8,7 +8,9 @@
     "build": "pnpm -r build",
     "api:prisma:generate": "pnpm --filter api run prisma:generate",
     "api:prisma:migrate:deploy": "pnpm --filter api run prisma:migrate:deploy",
+    "api:prisma:migrate:deploy:direct": "pnpm --filter api run prisma:migrate:deploy:direct",
     "api:prisma:seed": "pnpm --filter api run prisma:seed",
+    "api:prisma:seed:direct": "pnpm --filter api run prisma:seed:direct",
     "api:admin:reset": "pnpm --filter api run admin:reset",
     "api:build": "pnpm --filter api run build",
     "api:start:prod": "pnpm --filter api run start:prod"
