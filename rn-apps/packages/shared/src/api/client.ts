@@ -36,6 +36,12 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
     // Handle specific error codes
     if (response.status === 401 || response.status === 403) {
+      try {
+        const { useAuthStore } = require('../store/authStore');
+        useAuthStore.getState().logout();
+      } catch (err) {
+        // Silently catch require errors if store is not yet fully loaded
+      }
       throw new AuthError(errorMessage, {
         status: response.status,
         code: errorData.code,

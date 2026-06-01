@@ -30,7 +30,7 @@ const getEnvironment = (): Environment => {
 // Environment configurations
 const CONFIGS: Record<Environment, EnvironmentConfig> = {
   development: {
-    API_URL: __DEV__ ? getDevApiUrl() : 'http://localhost:3000',
+    API_URL: Constants.expoConfig?.extra?.apiUrl || (__DEV__ ? getDevApiUrl() : 'http://localhost:3001'),
     LOG_LEVEL: 'debug',
     ENABLE_ANALYTICS: false,
     ENABLE_SENTRY: false,
@@ -39,7 +39,7 @@ const CONFIGS: Record<Environment, EnvironmentConfig> = {
     MAX_RETRY_ATTEMPTS: 3,
   },
   staging: {
-    API_URL: 'https://staging-api.entregapro.com.br',
+    API_URL: Constants.expoConfig?.extra?.apiUrl || 'https://staging-api.entregapro.com.br',
     LOG_LEVEL: 'info',
     ENABLE_ANALYTICS: true,
     ENABLE_SENTRY: true,
@@ -49,7 +49,7 @@ const CONFIGS: Record<Environment, EnvironmentConfig> = {
     MAX_RETRY_ATTEMPTS: 5,
   },
   production: {
-    API_URL: 'https://api.entregapro.com.br',
+    API_URL: Constants.expoConfig?.extra?.apiUrl || 'https://entregapro-api.onrender.com',
     LOG_LEVEL: 'warn',
     ENABLE_ANALYTICS: true,
     ENABLE_SENTRY: true,
@@ -64,9 +64,9 @@ function getDevApiUrl(): string {
   const hostUri = Constants.expoConfig?.hostUri;
   if (hostUri) {
     const ip = hostUri.split(':')[0];
-    return `http://${ip}:3000`;
+    return `http://${ip}:3001`;
   }
-  return 'http://localhost:3000';
+  return 'http://localhost:3001';
 }
 
 // Get current environment config

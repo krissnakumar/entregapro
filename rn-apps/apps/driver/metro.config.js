@@ -38,7 +38,13 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     const fs = require('fs');
     return {
       type: 'sourceFile',
-      filePath: fs.realpathSync(path.resolve(projectRoot, 'node_modules', moduleName)),
+      filePath: fs.realpathSync(require.resolve(moduleName)),
+    };
+  }
+  if (moduleName === '@tanstack/react-query' || moduleName.startsWith('@tanstack/react-query/')) {
+    return {
+      type: 'sourceFile',
+      filePath: require.resolve(moduleName),
     };
   }
   return context.resolveRequest(context, moduleName, platform);

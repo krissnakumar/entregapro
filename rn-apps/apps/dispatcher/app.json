@@ -25,7 +25,7 @@
     },
     "extra": {
       "environment": "production",
-      "apiUrl": "https://api.entregapro.com.br"
+      "apiUrl": "https://entregapro-api.onrender.com"
     },
     "plugins": [
       "expo-secure-store"

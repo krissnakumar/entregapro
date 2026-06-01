@@ -40,6 +40,12 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       filePath: path.resolve(projectRoot, 'node_modules', moduleName),
     };
   }
+  if (moduleName === '@tanstack/react-query' || moduleName.startsWith('@tanstack/react-query/')) {
+    return {
+      type: 'sourceFile',
+      filePath: require.resolve(moduleName),
+    };
+  }
   return context.resolveRequest(context, moduleName, platform);
 };
 
