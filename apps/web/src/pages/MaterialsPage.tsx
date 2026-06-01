@@ -5,7 +5,7 @@ import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import {
   Layers, Package, RefreshCw, BarChart3, Database, ShieldAlert,
-  Clock, CheckCircle2, ChevronRight, FileSpreadsheet, Beaker, Flame, Thermometer
+  Clock, CheckCircle2, ChevronRight, FileSpreadsheet, Beaker, Flame, Thermometer, Search
 } from 'lucide-react';
 
 interface MaterialStock {
