@@ -6,6 +6,7 @@ import DriversList from '../components/DriversList';
 import VehiclesList from '../components/VehiclesList';
 import UserManagement from '../components/UserManagement';
 import { ReportsPage } from './Reports';
+import { RolesPage } from './RolesPage';
 import DeliveriesManagement from './DeliveriesManagement';
 import ProfilePage from './Profile';
 import SettingsPage from './Settings';
@@ -37,7 +38,7 @@ const AdminDashboard = () => {
         <Route path="deliveries" element={<DeliveriesManagement />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="users" element={<UserManagement />} />
-        <Route path="roles" element={<UserManagement />} />
+        <Route path="roles" element={<RolesPage />} />
         <Route path="invoices" element={<InvoicesPage />} />
         <Route path="nfe" element={<NfePage />} />
         <Route path="plan" element={<PlanPage />} />
