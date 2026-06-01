@@ -1,6 +1,6 @@
 import { useAuthStore } from '../../store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
-import { NotificationsDropdown } from '../NotificationsDropdown';
+import NotificationsDropdown from '../NotificationsDropdown';
 import { LogOut, Menu, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { Breadcrumbs } from './Breadcrumbs';

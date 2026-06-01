@@ -5,7 +5,7 @@ import CustomersList from '../components/CustomersList';
 import DriversList from '../components/DriversList';
 import VehiclesList from '../components/VehiclesList';
 import UserManagement from '../components/UserManagement';
-import ReportsPage from './Reports';
+import { ReportsPage } from './Reports';
 import DeliveriesManagement from './DeliveriesManagement';
 import ProfilePage from './Profile';
 import SettingsPage from './Settings';
