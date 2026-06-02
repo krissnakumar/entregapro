@@ -187,11 +187,11 @@ export class InvoicesService implements OnModuleInit {
   }
 
   async importExcel(rows: any[], organizationId: string) {
-    const validatedRows = [];
-    const createdDeliveries = [];
+    const validatedRows: any[] = [];
+    const createdDeliveries: any[] = [];
 
     for (const row of rows) {
-      const errors = [];
+      const errors: string[] = [];
 
       // Validation System logic
       if (!row.invoiceNumber) errors.push("Missing Invoice Number");

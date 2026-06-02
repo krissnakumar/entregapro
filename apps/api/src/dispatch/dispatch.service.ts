@@ -367,7 +367,7 @@ export class DispatchService {
       where: { organizationId },
       include: { vehicle: { select: { id: true, vehicleNumber: true } } },
     });
-    const vehicleIdToCap = new Map(
+    const vehicleIdToCap = new Map<string, any>(
       driverCapacities.map((vc) => [vc.vehicleId, vc]),
     );
 

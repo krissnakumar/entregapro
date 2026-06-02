@@ -50,7 +50,7 @@ export class InvoicesController {
     @UploadedFiles() files: Express.Multer.File[],
     @Body() createInvoiceDto: CreateInvoiceDto,
   ) {
-    const results = [];
+    const results: any[] = [];
     for (const file of files) {
       const result = await this.invoicesService.processInvoice(
         file,

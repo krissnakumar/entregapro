@@ -62,7 +62,7 @@ export class AssignmentService {
     // Step 5: Sort by score and save top recommendations
     recommendations.sort((a, b) => a.score - b.score);
 
-    const saved = [];
+    const saved: any[] = [];
     for (const rec of recommendations.slice(0, drivers.length * 2)) {
       const driver = drivers.find((d) => d.id === rec.driverId);
       const route = await this.prisma.route.create({
@@ -366,7 +366,7 @@ export class AssignmentService {
 
   private nearestNeighbor(points: any[], startLat: number, startLng: number) {
     if (points.length <= 1) return points;
-    const result = [];
+    const result: any[] = [];
     const unvisited = [...points];
     let lat = startLat;
     let lng = startLng;

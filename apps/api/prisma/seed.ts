@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Permission } from '@prisma/client';
 import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
@@ -68,7 +68,7 @@ async function main() {
     { key: 'MANAGE_FLEET', description: 'Gerenciar frota' },
   ];
 
-  const permissions = [];
+  const permissions: Permission[] = [];
   for (const p of permissionsData) {
     permissions.push(await prisma.permission.create({ data: p }));
   }

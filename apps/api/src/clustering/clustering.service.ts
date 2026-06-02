@@ -82,7 +82,7 @@ export class ClusteringService {
       clusters.push(cluster);
     }
 
-    const saved = [];
+    const saved: any[] = [];
     for (const c of clusters) {
       const savedCluster = await this.prisma.routeCluster.create({
         data: {

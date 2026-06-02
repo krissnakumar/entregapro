@@ -73,7 +73,7 @@ export class ReportsService {
   }
 
   async getWeeklyStats(organizationId: string) {
-    const stats = [];
+    const stats: any[] = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
