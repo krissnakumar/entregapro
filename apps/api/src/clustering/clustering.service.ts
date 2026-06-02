@@ -48,8 +48,8 @@ export class ClusteringService {
         invoiceIds: [inv.id],
         totalWeight: inv.weight || 0,
         totalVolume: inv.volume || 0,
-        avgLat: inv.addressLat!,
-        avgLng: inv.addressLng!,
+        avgLat: inv.addressLat ?? 0,
+        avgLng: inv.addressLng ?? 0,
         priority: inv.priority || 0,
       };
       assigned.add(inv.id);
@@ -59,8 +59,8 @@ export class ClusteringService {
         const dist = this.haversine(
           cluster.avgLat,
           cluster.avgLng,
-          other.addressLat!,
-          other.addressLng!,
+          other.addressLat ?? 0,
+          other.addressLng ?? 0,
         );
         if (dist <= this.CLUSTER_RADIUS_KM) {
           cluster.invoiceIds.push(other.id);
@@ -68,11 +68,11 @@ export class ClusteringService {
           cluster.totalVolume += other.volume || 0;
           cluster.avgLat =
             (cluster.avgLat * (cluster.invoiceIds.length - 1) +
-              other.addressLat!) /
+              (other.addressLat ?? 0)) /
             cluster.invoiceIds.length;
           cluster.avgLng =
             (cluster.avgLng * (cluster.invoiceIds.length - 1) +
-              other.addressLng!) /
+              (other.addressLng ?? 0)) /
             cluster.invoiceIds.length;
           cluster.priority = Math.max(cluster.priority, other.priority || 0);
           assigned.add(other.id);
