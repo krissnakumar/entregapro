@@ -2,7 +2,10 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "skipLibCheck": true,
     "paths": {
+      "react": ["./node_modules/@types/react", "./node_modules/react"],
+      "react-native": ["./node_modules/react-native"],
       "@rn-apps/shared": ["../../packages/shared/src"],
       "@rn-apps/shared/*": ["../../packages/shared/src/*"]
     }

@@ -12,7 +12,7 @@ export default function TrackingActivator({
   useLocationTracking({
     driverId,
     deliveryId,
-    updateInterval: 10000,
+    movingInterval: 10000,
   });
   return null;
 }
