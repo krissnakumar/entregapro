@@ -5,11 +5,34 @@ import { PrismaService } from "../prisma/prisma.service";
 export class CustomersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(organizationId: string) {
-    return this.prisma.customer.findMany({
-      where: { organizationId, deletedAt: null },
-      orderBy: { name: "asc" },
-    });
+  async findAll(organizationId: string, options?: { take?: number; skip?: number }) {
+    const take = options?.take ?? 50;
+    const skip = options?.skip ?? 0;
+    const where = { organizationId, deletedAt: null };
+
+    const [data, total] = await Promise.all([
+      this.prisma.customer.findMany({
+        where,
+        take,
+        skip,
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          whatsapp: true,
+          address: true,
+          latitude: true,
+          longitude: true,
+          notes: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.customer.count({ where }),
+    ]);
+
+    return { data, total, take, skip };
   }
 
   async findOne(id: string, organizationId: string) {

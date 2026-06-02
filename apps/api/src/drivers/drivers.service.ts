@@ -8,19 +8,33 @@ export class DriversService {
 
   constructor(private prisma: PrismaService) {}
 
-  async findAll(organizationId: string) {
-    return this.prisma.driver.findMany({
-      where: { organizationId, deletedAt: null },
-      include: {
-        user: {
-          select: {
-            name: true,
-            email: true,
-          },
+  async findAll(organizationId: string, options?: { take?: number; skip?: number }) {
+    const take = options?.take ?? 50;
+    const skip = options?.skip ?? 0;
+    const where = { organizationId, deletedAt: null };
+
+    const [data, total] = await Promise.all([
+      this.prisma.driver.findMany({
+        where,
+        take,
+        skip,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          phone: true,
+          licenseNumber: true,
+          availabilityStatus: true,
+          isOnline: true,
+          lastSeen: true,
+          createdAt: true,
+          user: { select: { name: true, email: true } },
+          vehicle: { select: { id: true, vehicleNumber: true, type: true } },
         },
-        vehicle: true,
-      },
-    });
+      }),
+      this.prisma.driver.count({ where }),
+    ]);
+
+    return { data, total, take, skip };
   }
 
   async findOne(id: string, organizationId: string) {

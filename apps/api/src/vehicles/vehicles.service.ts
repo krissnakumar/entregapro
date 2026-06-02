@@ -5,11 +5,32 @@ import { PrismaService } from "../prisma/prisma.service";
 export class VehiclesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(organizationId: string) {
-    return this.prisma.vehicle.findMany({
-      where: { organizationId, deletedAt: null },
-      orderBy: { vehicleNumber: "asc" },
-    });
+  async findAll(organizationId: string, options?: { take?: number; skip?: number }) {
+    const take = options?.take ?? 50;
+    const skip = options?.skip ?? 0;
+    const where = { organizationId, deletedAt: null };
+
+    const [data, total] = await Promise.all([
+      this.prisma.vehicle.findMany({
+        where,
+        take,
+        skip,
+        orderBy: { vehicleNumber: "asc" },
+        select: {
+          id: true,
+          vehicleNumber: true,
+          type: true,
+          capacity: true,
+          fuelType: true,
+          activeStatus: true,
+          maintenanceDue: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.vehicle.count({ where }),
+    ]);
+
+    return { data, total, take, skip };
   }
 
   async findOne(id: string, organizationId: string) {

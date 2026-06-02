@@ -21,7 +21,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Package, Truck, User, Clock, Search, Filter, ShieldCheck, MapPin, AlertCircle, Sparkles, Zap } from 'lucide-react';
+import { Package, Truck, User, Clock, Search, MapPin, AlertCircle, Zap } from 'lucide-react';
 import { OrderStatus } from '@entregapro/shared-types';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -52,13 +52,14 @@ const SortableDeliveryCard = ({ delivery }: { delivery: DeliveryCardProps }) => 
     zIndex: isDragging ? 100 : 1,
   };
 
-  const handleTriggerSmartAssign = (e: React.MouseEvent) => {
+  const handleTriggerSmartAssign = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Simulate instantaneous multi-factor optimization assignment
-    toast.success(`Smart Assign Engine triggered for #${delivery.id.split('-')[0]}`, {
-      description: "Resolved hardware weight fit (98%) and driver eligibility SLA rules matrix.",
-      icon: <Sparkles className="text-primary" size={16} />
-    });
+    try {
+      await api.post(`/deliveries/${delivery.id}/smart-assign`, {});
+      toast.success(`Entrega #${delivery.id.split('-')[0]} atribuída com sucesso`);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao atribuir entrega');
+    }
   };
 
   const isPending = delivery.status === 'PENDING';
@@ -99,27 +100,7 @@ const SortableDeliveryCard = ({ delivery }: { delivery: DeliveryCardProps }) => 
         <p className="text-[10px] font-medium truncate">{delivery.customerAddress}</p>
       </div>
       
-      {/* Module 3: Factor Multi-Heuristic Display Indicators */}
-      <div className="mt-3 pt-2 border-t border-slate-100 grid grid-cols-2 gap-1.5 bg-slate-50/50 p-1.5 rounded-lg">
-        <div>
-          <div className="flex justify-between items-center text-[8px] font-black text-slate-400 uppercase tracking-wider mb-0.5">
-            <span>Truck Factor</span>
-            <span className="text-emerald-600">98% Fit</span>
-          </div>
-          <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
-            <div className="w-[98%] h-full bg-emerald-500 rounded-full" />
-          </div>
-        </div>
-        <div>
-          <div className="flex justify-between items-center text-[8px] font-black text-slate-400 uppercase tracking-wider mb-0.5">
-            <span>Driver Factor</span>
-            <span className="text-blue-600">95% Fit</span>
-          </div>
-          <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
-            <div className="w-[95%] h-full bg-blue-500 rounded-full" />
-          </div>
-        </div>
-      </div>
+
 
       {isPending ? (
         <div className="mt-2.5">

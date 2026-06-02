@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Patch, Delete, UseGuards, Req } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Patch, Delete, UseGuards, Req, Query, ParseIntPipe, DefaultValuePipe } from "@nestjs/common";
 import { DriversService } from "./drivers.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -14,25 +14,32 @@ export class DriversController {
 
   @Get()
   @RequirePermissions("MONITOR_OPERATIONS")
-  async findAll(@Req() req: any) {
-    const drivers = await this.driversService.findAll(req.user.organizationId);
-    return drivers.map((d) => ({
-      id: d.id,
-      name: d.user.name,
-      phone: d.phone,
-      status: d.availabilityStatus ? "disponível" : "em_descanso",
-      rating: 4.8,
-      cnhNumber: d.licenseNumber,
-      cnhCategory: "E",
-      cnhExpiration: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000 * 2).toISOString().split("T")[0],
-      currentVehicle: d.vehicle
-        ? {
-            id: d.vehicle.id,
-            vehicleNumber: d.vehicle.vehicleNumber,
-            type: d.vehicle.type,
-          }
-        : null,
-    }));
+  async findAll(
+    @Req() req: any,
+    @Query("take", new DefaultValuePipe(50), ParseIntPipe) take: number,
+    @Query("skip", new DefaultValuePipe(0), ParseIntPipe) skip: number,
+  ) {
+    const result = await this.driversService.findAll(req.user.organizationId, { take, skip });
+    return {
+      ...result,
+      data: result.data.map((d) => ({
+        id: d.id,
+        name: d.user.name,
+        email: d.user.email,
+        phone: d.phone,
+        status: d.availabilityStatus ? "disponível" : "em_descanso",
+        isOnline: d.isOnline,
+        lastSeen: d.lastSeen,
+        cnhNumber: d.licenseNumber,
+        currentVehicle: d.vehicle
+          ? {
+              id: d.vehicle.id,
+              vehicleNumber: d.vehicle.vehicleNumber,
+              type: d.vehicle.type,
+            }
+          : null,
+      })),
+    };
   }
 
   @Get(":id")

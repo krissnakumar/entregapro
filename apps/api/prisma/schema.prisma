@@ -77,6 +77,24 @@ model Organization {
   systemSettings     SystemSetting[]
   subscription       Subscription?
   jobSites           JobSite[]
+  routes             Route[]
+  routeStops         RouteStop[]
+  driverShifts       DriverShift[]
+  driverPerformances DriverPerformance[]
+  customerDeliveryPreferences CustomerDeliveryPreference[]
+  deliveryExceptions DeliveryException[]
+  routeCosts         RouteCost[]
+  dispatchDecisions  DispatchDecision[]
+  assignmentRecommendations AssignmentRecommendation[]
+  vehicleCapacities  VehicleCapacity[]
+  deliveryTrackingTokens DeliveryTrackingToken[]
+  deliveryEvents      DeliveryEvent[]
+  deliveryVoiceNotes  DeliveryVoiceNote[]
+  deliveryInstructions DeliveryInstruction[]
+  deliveryAvailabilityResponses DeliveryAvailabilityResponse[]
+  proofsOfDelivery    ProofOfDelivery[]
+  routeClusters       RouteCluster[]
+  driverWorkloadMetrics DriverWorkloadMetric[]
 }
 
 model User {
@@ -106,6 +124,10 @@ model User {
   dispatchedOrders Order[]           @relation("DispatcherOrders")
   auditLogs      AuditLogEntry[]
   loadingVerifications LoadingVerification[]
+  dispatchDecisions DispatchDecision[]
+
+  @@index([organizationId])
+  @@index([email])
 }
 
 model Role {
@@ -160,6 +182,10 @@ model Customer {
 
   organization Organization @relation(fields: [organizationId], references: [id])
   deliveries   Delivery[]
+  deliveryPreferences CustomerDeliveryPreference[]
+
+  @@index([organizationId])
+  @@index([phone])
 }
 
 model Vehicle {
@@ -181,6 +207,11 @@ model Vehicle {
   driver         Driver?
   fuelLogs       FuelLog[]
   maintenanceLogs MaintenanceLog[]
+  routes         Route[]
+  vehicleCapacities VehicleCapacity[]
+
+  @@index([organizationId])
+  @@index([vehicleNumber])
 }
 
 model Driver {
@@ -206,6 +237,14 @@ model Driver {
   deliveries   Delivery[]   @relation("MainDriver")
   helperFor    Delivery[]   @relation("HelperCrew")
   fuelLogs     FuelLog[]
+  routes       Route[]
+  driverShifts DriverShift[]
+  driverPerformance DriverPerformance?
+  voiceNotes   DeliveryVoiceNote[]
+  workloadMetrics DriverWorkloadMetric[]
+
+  @@index([organizationId])
+  @@index([availabilityStatus])
 }
 
 model Order {
@@ -222,6 +261,9 @@ model Order {
   organization Organization @relation(fields: [organizationId], references: [id])
   deliveries   Delivery[]
   dispatcher   User?        @relation("DispatcherOrders", fields: [dispatcherId], references: [id])
+
+  @@index([organizationId])
+  @@index([status])
 }
 
 model Delivery {
@@ -266,6 +308,12 @@ model Delivery {
   loadingVerification LoadingVerification?
   jobSiteId           String?
   jobSite             JobSite?            @relation(fields: [jobSiteId], references: [id])
+  trackingTokens      DeliveryTrackingToken[]
+  events              DeliveryEvent[]
+  voiceNotes          DeliveryVoiceNote[]
+  instructions        DeliveryInstruction[]
+  availabilityResponses DeliveryAvailabilityResponse[]
+  proofOfDelivery     ProofOfDelivery?
 
   total_km            Float?
   estimated_driving_time_minutes Int?
@@ -286,6 +334,12 @@ model Delivery {
   createdBy           String?
 
   organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([driverId])
+  @@index([organizationId, status])
+  @@index([organizationId, scheduledTime])
 }
 
 model DeliveryTracking {
@@ -298,6 +352,9 @@ model DeliveryTracking {
   heading      Float?
   speed        Float?
   delivery     Delivery @relation(fields: [deliveryId], references: [id])
+
+  @@index([deliveryId])
+  @@index([timestamp])
 }
 
 model DeliveryStatusLog {
@@ -309,6 +366,9 @@ model DeliveryStatusLog {
   changed_by String?
   changedBy  User?       @relation("StatusChanges", fields: [changed_by], references: [id])
   delivery   Delivery    @relation(fields: [deliveryId], references: [id])
+
+  @@index([deliveryId])
+  @@index([changedAt])
 }
 
 model Notification {
@@ -322,6 +382,9 @@ model Notification {
 
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([userId, isRead])
 }
 
 model Zone {
@@ -337,6 +400,8 @@ model Zone {
   deletedAt      DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
 }
 
 model ActivityLog {
@@ -353,6 +418,9 @@ model ActivityLog {
 
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User?        @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([createdAt])
 }
 
 model AuditLogEntry {
@@ -370,6 +438,9 @@ model AuditLogEntry {
 
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User?        @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([entity, entityId])
 }
 
 model JobSite {
@@ -392,6 +463,8 @@ model JobSite {
 
   organization Organization @relation(fields: [organizationId], references: [id])
   deliveries    Delivery[]
+
+  @@index([organizationId])
 }
 
 model Geofence {
@@ -406,6 +479,8 @@ model Geofence {
   deletedAt      DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
 }
 
 model LocationPing {
@@ -420,6 +495,9 @@ model LocationPing {
   organizationId String
 
   organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([driverId, timestamp])
 }
 
 model WhatsappMessage {
@@ -433,6 +511,9 @@ model WhatsappMessage {
   organizationId String
 
   organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([deliveryId])
 }
 
 model Plan {
@@ -543,6 +624,22 @@ model Invoice {
   cancellationDate     DateTime?
   nfeStatus            String?   @default("PENDING")
 
+  // Delivery logistics fields
+  weight              Float?
+  volume              Float?
+  itemCount           Int?
+  fragile             Boolean   @default(false)
+  priority            Int       @default(0)
+  deliveryDeadline    DateTime?
+  customerRequestedStartTime DateTime?
+  customerRequestedEndTime   DateTime?
+  unloadRequired      Boolean   @default(false)
+  helperRequired      Boolean   @default(false)
+  deliveryNotes       String?
+  addressLat          Float?
+  addressLng          Float?
+  zoneId              String?
+
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   organizationId  String
@@ -551,8 +648,18 @@ model Invoice {
   items           InvoiceItem[]
   deliveryId      String?
   delivery        Delivery?      @relation(fields: [deliveryId], references: [id])
+  routeStops      RouteStop[]
+  exceptions      DeliveryException[]
+  dispatchDecisions DispatchDecision[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([deliveryId])
+  @@index([status])
+  @@index([zoneId])
+  @@index([priority])
+  @@index([weight])
 }
 
 model InvoiceItem {
@@ -577,6 +684,241 @@ model InvoiceItem {
   cofinsValor    Float?
 
   invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+// ─── Dispatch & Route Optimization Models ─────────────────────────────────
+
+model Route {
+  id             String   @id @default(uuid())
+  name           String?
+  status         String   @default("SUGGESTED")
+  driverId       String?
+  driver         Driver?  @relation(fields: [driverId], references: [id])
+  vehicleId      String?
+  vehicle        Vehicle? @relation(fields: [vehicleId], references: [id])
+  totalDistance  Float?
+  totalDuration  Int?
+  totalCost      Float?
+  totalWeight    Float?
+  totalVolume    Float?
+  stopCount      Int?
+  capacityUtilization Float?
+  riskScore      Float?
+  optimizedAt    DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organizationId String
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  stops        RouteStop[]
+  assignments  AssignmentRecommendation[]
+  routeCosts   RouteCost[]
+  voiceNotes   DeliveryVoiceNote[]
+
+  @@index([organizationId])
+  @@index([driverId])
+  @@index([status])
+}
+
+model RouteStop {
+  id             String   @id @default(uuid())
+  routeId        String
+  route          Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  invoiceId      String
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id])
+  stopSequence   Int
+  estimatedArrival   DateTime?
+  estimatedDeparture DateTime?
+  actualArrival     DateTime?
+  actualDeparture   DateTime?
+  status         String   @default("PENDING")
+  notes          String?
+  createdAt      DateTime @default(now())
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  voiceNotes   DeliveryVoiceNote[]
+
+  @@index([routeId])
+  @@index([invoiceId])
+  @@index([organizationId])
+}
+
+model DriverShift {
+  id             String   @id @default(uuid())
+  driverId       String
+  driver         Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  dayOfWeek      Int
+  startTime      String
+  endTime        String
+  isAvailable    Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([driverId])
+  @@index([organizationId])
+}
+
+model DriverPerformance {
+  id                  String   @id @default(uuid())
+  driverId            String   @unique
+  driver              Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  onTimeRate          Float    @default(1.0)
+  failedDeliveryRate  Float    @default(0.0)
+  averageRating       Float    @default(5.0)
+  totalDeliveries     Int      @default(0)
+  completedDeliveries Int      @default(0)
+  failedDeliveries    Int      @default(0)
+  score               Float    @default(5.0)
+  updatedAt           DateTime @updatedAt
+  createdAt           DateTime @default(now())
+  organizationId      String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([driverId])
+  @@index([organizationId])
+}
+
+model CustomerDeliveryPreference {
+  id               String   @id @default(uuid())
+  customerId       String
+  customer         Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  preferredTimeStart String?
+  preferredTimeEnd   String?
+  avoidLunch       Boolean  @default(false)
+  callBeforeDelivery Boolean @default(false)
+  needsHelper      Boolean  @default(false)
+  needsUnloading   Boolean  @default(false)
+  accessRestriction String?
+  buildingRules    String?
+  gateInstruction  String?
+  contactPreference String?
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  organizationId   String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([customerId])
+  @@index([organizationId])
+}
+
+model DeliveryException {
+  id             String   @id @default(uuid())
+  invoiceId      String
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  type           String
+  reason         String?
+  description    String?
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([invoiceId])
+  @@index([organizationId])
+  @@index([type])
+}
+
+model RouteCost {
+  id             String   @id @default(uuid())
+  routeId        String
+  route          Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  fuelCost       Float?
+  tollCost       Float?
+  driverCost     Float?
+  maintenanceCost Float?
+  totalCost      Float?
+  estimatedAt    DateTime @default(now())
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([routeId])
+  @@index([organizationId])
+}
+
+model DispatchDecision {
+  id             String   @id @default(uuid())
+  invoiceId      String
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id])
+  action         String
+  previousValue  String?
+  newValue       String?
+  reason         String?
+  dispatcherId   String
+  dispatcher     User     @relation(fields: [dispatcherId], references: [id])
+  createdAt      DateTime @default(now())
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([invoiceId])
+  @@index([organizationId])
+  @@index([dispatcherId])
+}
+
+model AssignmentRecommendation {
+  id              String  @id @default(uuid())
+  routeId         String
+  route           Route   @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  rank            Int
+  driverId        String
+  vehicleId       String
+  totalDistance   Float?
+  totalDuration   Int?
+  totalCost       Float?
+  capacityUtilization Float?
+  riskScore       Float?
+  score           Float?
+  reason          String?
+  warnings        Json?
+  acceptedAt      DateTime?
+  rejectedAt      DateTime?
+  createdAt       DateTime @default(now())
+  organizationId  String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([routeId])
+  @@index([organizationId])
+  @@index([rank])
+}
+
+model VehicleCapacity {
+  id             String   @id @default(uuid())
+  vehicleId      String
+  vehicle        Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  maxWeight      Float?
+  maxVolume      Float?
+  maxItems       Int?
+  maxStops       Int?
+  operatingCostPerKm Float?
+  allowedZones   Json?
+  roadRestriction String?
+  insuranceValidUntil DateTime?
+  documentValidUntil  DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([vehicleId])
+  @@index([organizationId])
 }
 
 model FuelLog {
@@ -600,6 +942,9 @@ model FuelLog {
   organizationId  String
 
   organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([vehicleId, fillDate])
 }
 
 model MaintenanceLog {
@@ -620,6 +965,9 @@ model MaintenanceLog {
   organizationId  String
 
   organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([vehicleId, serviceDate])
 }
 
 model LoadingVerification {
@@ -646,6 +994,8 @@ model LoadingVerification {
   organizationId            String
 
   organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
 }
 
 model AnalyticsSnapshot {
@@ -665,6 +1015,8 @@ model AnalyticsSnapshot {
   organizationId        String
 
   organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, timestamp])
 }
 
 model SystemSetting {
@@ -676,6 +1028,184 @@ model SystemSetting {
   organizationId String
 
   organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+}
+
+// ─── Customer Tracking & Proof of Delivery ──────────────────────────────
+
+model DeliveryTrackingToken {
+  id           String   @id @default(uuid())
+  token        String   @unique
+  deliveryId   String
+  delivery     Delivery @relation(fields: [deliveryId], references: [id])
+  expiresAt    DateTime?
+  createdAt    DateTime @default(now())
+  lastAccessed DateTime?
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([token])
+  @@index([deliveryId])
+  @@index([organizationId])
+}
+
+model DeliveryEvent {
+  id             String   @id @default(uuid())
+  deliveryId     String
+  delivery       Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  type           String
+  description    String?
+  metadata       Json?
+  latitude       Float?
+  longitude      Float?
+  photoUrl       String?
+  signatureUrl   String?
+  createdAt      DateTime @default(now())
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([deliveryId, createdAt])
+  @@index([organizationId])
+  @@index([type])
+}
+
+model DeliveryVoiceNote {
+  id             String   @id @default(uuid())
+  deliveryId     String
+  delivery       Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  driverId       String
+  driver         Driver   @relation(fields: [driverId], references: [id])
+  routeId        String?
+  route          Route?   @relation(fields: [routeId], references: [id])
+  stopId         String?
+  stop           RouteStop? @relation(fields: [stopId], references: [id])
+  audioUrl       String
+  durationSec    Int?
+  mimeType       String   @default("audio/m4a")
+  createdAt      DateTime @default(now())
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([deliveryId])
+  @@index([driverId])
+  @@index([organizationId])
+}
+
+model DeliveryInstruction {
+  id               String   @id @default(uuid())
+  deliveryId       String
+  delivery         Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  gateCode         String?
+  buildingAccess   String?
+  apartmentNumber  String?
+  contactPerson    String?
+  loadingNotes     String?
+  preferredEntrance String?
+  notes            String?
+  source           String   @default("customer")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  organizationId   String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([deliveryId])
+  @@index([organizationId])
+}
+
+model DeliveryAvailabilityResponse {
+  id             String   @id @default(uuid())
+  deliveryId     String
+  delivery       Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  token          String?
+  customerName   String?
+  customerPhone  String?
+  isAvailable    Boolean
+  responseTime   DateTime @default(now())
+  notes          String?
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([deliveryId])
+  @@index([organizationId])
+}
+
+model ProofOfDelivery {
+  id             String   @id @default(uuid())
+  deliveryId     String   @unique
+  delivery       Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  photoUrl       String?
+  signatureUrl   String?
+  latitude       Float?
+  longitude      Float?
+  capturedAt     DateTime
+  driverNote     String?
+  recipientName  String?
+  recipientDoc   String?
+  createdAt      DateTime @default(now())
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([deliveryId])
+  @@index([organizationId])
+}
+
+model DriverWorkloadMetric {
+  id               String   @id @default(uuid())
+  driverId         String
+  driver           Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  date             DateTime
+  totalDeliveries  Int      @default(0)
+  completedDeliveries Int  @default(0)
+  totalWeight      Float    @default(0)
+  totalVolume      Float    @default(0)
+  totalDistanceKm  Float    @default(0)
+  totalDurationMin Int      @default(0)
+  currentLoad      Int      @default(0)
+  estimatedEndTime DateTime?
+  workloadScore    Float    @default(0)
+  warnings         Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  organizationId   String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([driverId, date])
+  @@index([driverId])
+  @@index([organizationId])
+  @@index([date])
+}
+
+model RouteCluster {
+  id             String   @id @default(uuid())
+  name           String?
+  organizationId String
+  invoiceIds     Json
+  totalWeight    Float?
+  totalVolume    Float?
+  deliveryCount  Int?
+  avgLatitude    Float?
+  avgLongitude   Float?
+  zone           String?
+  neighborhood   String?
+  citySector     String?
+  priority       Int      @default(0)
+  suggestedDriverId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([zone])
+  @@index([neighborhood])
 }
 
 model spatial_ref_sys {

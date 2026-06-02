@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Req } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Req, Query, ParseIntPipe, DefaultValuePipe } from "@nestjs/common";
 import { VehiclesService } from "./vehicles.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -23,12 +23,19 @@ export class VehiclesController {
 
   @Get()
   @RequirePermissions("MONITOR_OPERATIONS")
-  async findAll(@Req() req: any) {
-    const vehicles = await this.vehiclesService.findAll(req.user.organizationId);
-    return vehicles.map((v) => ({
-      ...v,
-      status: v.activeStatus ? "active" : "maintenance",
-    }));
+  async findAll(
+    @Req() req: any,
+    @Query("take", new DefaultValuePipe(50), ParseIntPipe) take: number,
+    @Query("skip", new DefaultValuePipe(0), ParseIntPipe) skip: number,
+  ) {
+    const result = await this.vehiclesService.findAll(req.user.organizationId, { take, skip });
+    return {
+      ...result,
+      data: result.data.map((v) => ({
+        ...v,
+        status: v.activeStatus ? "active" : "maintenance",
+      })),
+    };
   }
 
   @Get(":id")

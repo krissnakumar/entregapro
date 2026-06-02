@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -16,17 +17,25 @@ export default function ProfileScreen() {
   const { user, logout } = useAuthStore();
 
   const handleLogout = () => {
-    Alert.alert('Encerrar Sessão', 'Deseja realmente sair do terminal?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Sair',
-        style: 'destructive',
-        onPress: () => {
-          logout();
-          navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+    if (Platform.OS === 'web') {
+      const confirmLogout = window.confirm('Deseja realmente sair do terminal?');
+      if (confirmLogout) {
+        logout();
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+      }
+    } else {
+      Alert.alert('Encerrar Sessão', 'Deseja realmente sair do terminal?', [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: () => {
+            logout();
+            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+          },
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   return (
@@ -74,7 +83,16 @@ export default function ProfileScreen() {
       </View>
 
       {/* Sync Button */}
-      <TouchableOpacity style={styles.syncBtn} onPress={() => Alert.alert('Sincronizado', 'Banco de dados local SQLite otimizado.')}>
+      <TouchableOpacity
+        style={styles.syncBtn}
+        onPress={() => {
+          if (Platform.OS === 'web') {
+            window.alert('Banco de dados local SQLite otimizado.');
+          } else {
+            Alert.alert('Sincronizado', 'Banco de dados local SQLite otimizado.');
+          }
+        }}
+      >
         <Text style={styles.syncBtnText}>Sincronizar Cargas</Text>
       </TouchableOpacity>
 

@@ -22,7 +22,11 @@ export default function AdminLoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Atenção', 'Informe email e senha administrativos.');
+      if (Platform.OS === 'web') {
+        window.alert('Informe email e senha administrativos.');
+      } else {
+        Alert.alert('Atenção', 'Informe email e senha administrativos.');
+      }
       return;
     }
     setLoading(true);
@@ -33,7 +37,11 @@ export default function AdminLoginScreen() {
       });
       setAuth(response.user, response.access_token);
     } catch (error: any) {
-      Alert.alert('Erro de Autenticação', error.message || 'Credenciais inválidas.');
+      if (Platform.OS === 'web') {
+        window.alert(error.message || 'Credenciais inválidas.');
+      } else {
+        Alert.alert('Erro de Autenticação', error.message || 'Credenciais inválidas.');
+      }
     } finally {
       setLoading(false);
     }

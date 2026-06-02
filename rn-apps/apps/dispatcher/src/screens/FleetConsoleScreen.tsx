@@ -41,10 +41,17 @@ export default function FleetConsoleScreen() {
   const displayNotifications = (storeNotifications.length > 0 ? storeNotifications : notifications) || [];
 
   const handleLogout = () => {
-    Alert.alert('Encerrar Sessão', 'Deseja sair do console?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => logout() },
-    ]);
+    if (Platform.OS === 'web') {
+      const confirmLogout = window.confirm('Deseja sair do console?');
+      if (confirmLogout) {
+        logout();
+      }
+    } else {
+      Alert.alert('Encerrar Sessão', 'Deseja sair do console?', [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Sair', style: 'destructive', onPress: () => logout() },
+      ]);
+    }
   };
 
   const trips = orders || [];
@@ -258,7 +265,11 @@ export default function FleetConsoleScreen() {
                 style={styles.modalMarkAllBtn}
                 onPress={() => {
                   markAllRead.mutate();
-                  Alert.alert('Sucesso', 'Todas as notificações marcadas como lidas.');
+                  if (Platform.OS === 'web') {
+                    window.alert('Todas as notificações marcadas como lidas.');
+                  } else {
+                    Alert.alert('Sucesso', 'Todas as notificações marcadas como lidas.');
+                  }
                 }}
               >
                 <Text style={styles.modalMarkAllText}>Marcar todas como lidas</Text>

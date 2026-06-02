@@ -1,628 +1,579 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
-import { 
-  Truck, 
-  MapPin, 
-  CheckCircle, 
-  Clock, 
-  Phone, 
-  MessageSquare,
-  Navigation,
-  LogOut,
-  User as UserIcon,
-  ChevronRight,
-  ClipboardList,
-  Users,
-  Camera,
-  Layers,
-  AlertCircle,
-  FileCheck,
-  ShieldCheck
+import {
+  Truck, MapPin, CheckCircle, Clock, Phone, MessageSquare,
+  Navigation, LogOut, User as UserIcon, ChevronRight, Camera,
+  AlertCircle, ThumbsUp, ThumbsDown, X, Mic, Loader2,
+  Home, List, Flag,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
-import SignaturePad from '../components/SignaturePad';
-import PhotoCapture from '../components/PhotoCapture';
 
-// Tipagem aprimorada para o aplicativo de cabine do condutor
-interface DriverTask {
-  id: string;
-  deliveryNumber: string;
-  status: 'ASSIGNED' | 'LOADING' | 'IN_TRANSIT' | 'DELIVERED' | 'DELAYED';
-  customer: {
-    name: string;
-    phone: string;
-    whatsapp: string;
-  };
-  deliveryAddress: string;
-  destinationCity: string;
-  materialType: string;
-  quantity: string;
-  weight: string;
-  scheduledTime: string;
-  notes?: string;
-  podSignature?: string;
-  podPhoto?: string;
-}
+type Screen = 'home' | 'stops' | 'delivery' | 'problem' | 'voice';
+
+const PROBLEM_OPTIONS = [
+  { value: 'absent', label: 'Cliente ausente', icon: UserIcon },
+  { value: 'wrong_address', label: 'Endereço errado', icon: MapPin },
+  { value: 'closed', label: 'Comércio fechado', icon: X },
+  { value: 'access_denied', label: 'Acesso negado', icon: AlertCircle },
+  { value: 'refused', label: 'Cliente recusou', icon: ThumbsDown },
+  { value: 'vehicle_issue', label: 'Problema no veículo', icon: Truck },
+  { value: 'damaged', label: 'Produto danificado', icon: AlertCircle },
+  { value: 'other', label: 'Outro', icon: Flag },
+];
 
 const DriverDashboard = () => {
   const { user, logout } = useAuthStore();
   const queryClient = useQueryClient();
-  
-  // Estado local gerenciando as tarefas interativas do motorista
-  const [activeTab, setActiveTab] = useState<'tasks' | 'profile' | 'detail'>('tasks');
-  const [selectedDelivery, setSelectedDelivery] = useState<DriverTask | null>(null);
-  
-  // Controle dos modais de POD
-  const [showSignature, setShowSignature] = useState(false);
+  const [screen, setScreen] = useState<Screen>('home');
+  const [selectedDeliveryId, setSelectedDeliveryId] = useState<string | null>(null);
+  const [selectedProblem, setSelectedProblem] = useState<string>('');
   const [showPhoto, setShowPhoto] = useState(false);
-  const [podPayloadData, setPodPayloadData] = useState<{ signature?: string; photo?: string }>({});
+  const [showSignature, setShowSignature] = useState(false);
+  const [recordingVoice, setRecordingVoice] = useState(false);
 
-  // Busca entregas atribuídas ao motorista da API real
-  const { data: driverDeliveries, isLoading, refetch: refetchDeliveries } = useQuery({
-    queryKey: ['driver-cab-deliveries'],
-    queryFn: () => api.get<any[]>('/deliveries?driver=true').catch(() => []),
+  const { data: deliveries, isLoading, refetch } = useQuery({
+    queryKey: ['driver-deliveries'],
+    queryFn: () => api.get<any[]>('/deliveries?take=50'),
+    refetchInterval: 15000,
   });
 
-  // Deriva a lista de tarefas diretamente da resposta da API
-  const tasksList: DriverTask[] = useMemo(() => {
-    if (driverDeliveries && driverDeliveries.length > 0) {
-      return driverDeliveries.map((d: any, idx: number) => ({
-        id: d.id || `TSK-${String(idx + 1).padStart(4, '0')}`,
-        deliveryNumber: d.deliveryNumber || d.invoiceNumber || `NFE-${String(Math.random()).slice(2, 8)}`,
-        status: d.status || 'ASSIGNED',
-        customer: {
-          name: d.customer?.name || d.customerName || 'Cliente',
-          phone: d.customer?.phone || '11999999999',
-          whatsapp: d.customer?.phone || d.customer?.whatsapp || '11999999999',
-        },
-        deliveryAddress: d.deliveryAddress || d.address || '',
-        destinationCity: d.destinationCity || '',
-        materialType: d.materialType || 'Geral',
-        quantity: d.quantity || d.materialQuantity || '',
-        weight: d.totalWeight || d.weight || '',
-        scheduledTime: d.scheduledTime || d.deliveryDeadline || 'Hoje',
-        notes: d.notes || '',
-      }));
-    }
-    return [];
-  }, [driverDeliveries]);
+  const myDeliveries = useMemo(() => {
+    if (!deliveries) return [];
+    return deliveries.filter((d: any) =>
+      ['PENDING', 'ASSIGNED', 'LOADED', 'IN_TRANSIT', 'ARRIVED'].includes(d.status)
+    );
+  }, [deliveries]);
 
-  // Identifica a entrega prioritária atual
-  const activeDelivery = tasksList.find(d => ['ASSIGNED', 'LOADING', 'IN_TRANSIT'].includes(d.status));
+  const completedCount = deliveries?.filter((d: any) => d.status === 'DELIVERED').length || 0;
+  const totalCount = deliveries?.length || 0;
+  const remaining = totalCount - completedCount;
+  const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
-  // Simula mutação de alteração de status
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, newStatus }: { id: string; newStatus: DriverTask['status'] }) => {
-      // Simula delay de rede
-      await new Promise(r => setTimeout(r, 400));
-      return { id, newStatus };
+  const currentDelivery = selectedDeliveryId
+    ? myDeliveries.find((d: any) => d.id === selectedDeliveryId)
+    : myDeliveries[0];
+
+  const updateStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      return api.patch(`/deliveries/${id}/status`, { status });
     },
-    onSuccess: (data) => {
-      refetchDeliveries();
-      if (selectedDelivery?.id === data.id) {
-        setSelectedDelivery(prev => prev ? { ...prev, status: data.newStatus } : null);
-      }
-      toast.success('Telemetria atualizada', {
-        description: `O manifesto ${data.id} mudou para o estágio: ${data.newStatus}.`
-      });
-    }
-  });
-
-  // Simula o envio de comprovante de entrega (POD)
-  const submitPodMutation = useMutation({
-    mutationFn: async ({ id }: { id: string; data: any }) => {
-      await new Promise(r => setTimeout(r, 600));
-      return id;
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['driver-deliveries'] });
+      toast.success('Status atualizado!');
+      setSelectedDeliveryId(null);
+      setScreen('home');
     },
-    onSuccess: (id) => {
-      refetchDeliveries();
-      toast.success('Sucesso na Operação!', {
-        description: 'Canhoto digital e lacres sincronizados com a SEFAZ e rede PostGIS.'
-      });
-      setActiveTab('tasks');
-      setSelectedDelivery(null);
-      setPodPayloadData({});
-    }
+    onError: (err: any) => toast.error(err.message || 'Erro ao atualizar status'),
   });
 
-  const handleLogout = () => {
-    logout();
-    toast.success('Sessão encerrada no terminal da frota.');
+  const submitPod = useMutation({
+    mutationFn: async (data: { deliveryId: string; photoUrl?: string; signatureUrl?: string; driverNote?: string }) => {
+      return api.post('/proof-of-delivery', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['driver-deliveries'] });
+      toast.success('Comprovante registrado!');
+      setShowPhoto(false);
+      setShowSignature(false);
+      setScreen('home');
+    },
+    onError: (err: any) => toast.error(err.message || 'Erro ao registrar comprovante'),
+  });
+
+  const submitProblem = useMutation({
+    mutationFn: async (data: { deliveryId: string; type: string; description?: string }) => {
+      return api.post('/delivery-events', {
+        deliveryId: data.deliveryId,
+        type: `problem_${data.type}`,
+        description: data.description || PROBLEM_OPTIONS.find(p => p.value === data.type)?.label || data.type,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Problema registrado!');
+      setSelectedProblem('');
+      setScreen('home');
+    },
+    onError: (err: any) => toast.error(err.message || 'Erro ao registrar problema'),
+  });
+
+  const submitVoiceNote = useMutation({
+    mutationFn: async (data: { deliveryId: string; audioUrl: string; durationSec?: number }) => {
+      return api.post('/voice-notes', data);
+    },
+    onSuccess: () => {
+      toast.success('Nota de voz salva!');
+      setRecordingVoice(false);
+      setScreen('home');
+    },
+    onError: (err: any) => toast.error(err.message || 'Erro ao salvar nota de voz'),
+  });
+
+  const handleNavigate = (lat: number, lng: number) => {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
   };
 
-  const handlePodSubmission = (deliveryId: string) => {
-    if (!podPayloadData.signature || !podPayloadData.photo) {
-      toast.error('Ação Incompleta', {
-        description: 'É obrigatório capturar a assinatura digital e a foto física do lacre/pátio.'
-      });
-      return;
-    }
-    
-    // Captura coordenadas reais ou injeta dummy
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        submitPodMutation.mutate({
-          id: deliveryId,
-          data: {
-            signatureUrl: podPayloadData.signature,
-            photoUrl: podPayloadData.photo,
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude
+  const handleCall = (phone: string) => {
+    window.open(`tel:${phone}`, '_blank');
+  };
+
+  const handleWhatsApp = (phone: string) => {
+    const clean = phone.replace(/\D/g, '');
+    window.open(`https://wa.me/${clean}`, '_blank');
+  };
+
+  if (screen === 'delivery' && currentDelivery) {
+    return (
+      <DeliveryScreen
+        delivery={currentDelivery}
+        onBack={() => { setScreen('home'); setSelectedDeliveryId(null); }}
+        onDelivered={() => updateStatus.mutate({ id: currentDelivery.id, status: 'DELIVERED' })}
+        onProblem={() => setScreen('problem')}
+        onPhoto={() => setShowPhoto(true)}
+        onCall={() => handleCall(currentDelivery.customer?.phone || '')}
+        onWhatsApp={() => handleWhatsApp(currentDelivery.customer?.phone || '')}
+        onNavigate={() => handleNavigate(currentDelivery.latitude, currentDelivery.longitude)}
+        onVoiceNote={() => { setSelectedDeliveryId(currentDelivery.id); setScreen('voice'); }}
+        showPhoto={showPhoto}
+        onPhotoCapture={() => {
+          submitPod.mutate({ deliveryId: currentDelivery.id, photoUrl: 'captured.jpg' });
+          setShowPhoto(false);
+        }}
+        showSignature={showSignature}
+        onSignatureCapture={() => {
+          submitPod.mutate({ deliveryId: currentDelivery.id, signatureUrl: 'signed.png' });
+          setShowSignature(false);
+        }}
+        isUpdating={updateStatus.isPending}
+      />
+    );
+  }
+
+  if (screen === 'problem') {
+    return (
+      <ProblemScreen
+        onSelect={(value) => {
+          setSelectedProblem(value);
+          if (currentDelivery) {
+            submitProblem.mutate({ deliveryId: currentDelivery.id, type: value });
           }
-        });
-      }, () => {
-        // Fallback imediato
-        submitPodMutation.mutate({ id: deliveryId, data: podPayloadData });
-      });
-    } else {
-      submitPodMutation.mutate({ id: deliveryId, data: podPayloadData });
-    }
-  };
-
-  const openMapsLink = (address: string) => {
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`, '_blank');
-  };
-
-  const openMessaging = (type: 'call' | 'whatsapp', phoneString: string) => {
-    const cleanPhone = phoneString.replace(/\D/g, '');
-    if (type === 'call') {
-      window.open(`tel:${cleanPhone}`);
-    } else {
-      window.open(`https://wa.me/55${cleanPhone}`, '_blank');
-    }
-  };
-
-  const getStatusLabel = (status: DriverTask['status']) => {
-    switch (status) {
-      case 'ASSIGNED': return { text: 'Planejado', bg: 'bg-blue-50 text-blue-700 border-blue-200' };
-      case 'LOADING': return { text: 'Em Carregamento', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
-      case 'IN_TRANSIT': return { text: 'Em Trânsito', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200 animate-pulse' };
-      case 'DELIVERED': return { text: 'Concluído (POD)', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-      case 'DELAYED': return { text: 'Retido na Via', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
-      default: return { text: status, bg: 'bg-slate-50 text-slate-700 border-slate-200' };
-    }
-  };
-
-  // ==========================================
-  // TELA 1: DETALHES DO MANIFESTO E POD
-  // ==========================================
-  if (activeTab === 'detail' && selectedDelivery) {
-    const d = selectedDelivery;
-    const badge = getStatusLabel(d.status);
-
-    return (
-      <div className="flex flex-col h-screen bg-white max-w-md mx-auto relative font-sans animate-in slide-in-from-right duration-300 select-none">
-        
-        {/* Barra Superior */}
-        <header className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 sticky top-0 z-10 backdrop-blur-md">
-          <button 
-            onClick={() => setActiveTab('tasks')} 
-            className="p-2 -ml-2 hover:bg-slate-200 text-slate-700 rounded-full transition-colors flex items-center gap-1 text-xs font-bold"
-          >
-            <ChevronRight size={20} className="rotate-180" /> Voltar
-          </button>
-          <div className="text-center">
-            <span className="text-[9px] font-mono text-slate-400 block">{d.id}</span>
-            <h2 className="font-black text-xs uppercase tracking-widest text-slate-800">Ordem de Despacho</h2>
-          </div>
-          <span className={cn("px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border", badge.bg)}>
-            {badge.text}
-          </span>
-        </header>
-
-        {/* Corpo de Informações Operacionais */}
-        <main className="flex-1 overflow-y-auto p-6 space-y-6 pb-36 custom-scrollbar">
-          
-          {/* Identificação do Destinatário */}
-          <section className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[9px] font-black bg-slate-900 text-white px-2.5 py-0.5 rounded uppercase tracking-widest">
-                Cliente Final
-              </span>
-              <span className="text-xs font-mono font-bold text-indigo-600">{d.deliveryNumber}</span>
-            </div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">
-              {d.customer.name}
-            </h1>
-            <div 
-              onClick={() => openMapsLink(d.deliveryAddress)}
-              className="p-3 bg-slate-50 hover:bg-indigo-50/50 border border-slate-100 rounded-2xl flex items-start gap-2 cursor-pointer transition-all group"
-            >
-              <MapPin size={16} className="text-indigo-600 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
-              <div>
-                <p className="text-xs font-bold text-slate-800 leading-tight">{d.deliveryAddress}</p>
-                <span className="text-[10px] text-indigo-600 font-medium block mt-0.5">Toque para traçar rota no GPS →</span>
-              </div>
-            </div>
-          </section>
-
-          {/* Dados Físicos da Carga */}
-          <section className="bg-slate-50 rounded-2xl p-4 grid grid-cols-2 gap-4 border border-slate-100">
-            <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5 flex items-center gap-1">
-                <Layers size={10} className="text-indigo-500" /> Especificação
-              </p>
-              <p className="text-xs font-bold text-slate-800 line-clamp-2">{d.materialType}</p>
-            </div>
-            <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5 flex items-center gap-1">
-                <Truck size={10} className="text-indigo-500" /> Volumes / Peso
-              </p>
-              <p className="text-xs font-black text-slate-900">{d.quantity}</p>
-              <span className="text-[10px] font-mono text-slate-500 block">{d.weight}</span>
-            </div>
-          </section>
-
-          {/* Diretivas de Doca e Observações */}
-          {d.notes && (
-            <section className="p-4 bg-amber-50/60 border border-amber-200/60 rounded-2xl flex gap-2.5">
-              <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="text-[9px] font-black uppercase text-amber-800 tracking-widest block">Diretriz do Manifesto</span>
-                <p className="text-xs text-amber-900 font-medium mt-0.5 leading-relaxed">{d.notes}</p>
-              </div>
-            </section>
-          )}
-
-          {/* Ações de Comunicação Direta */}
-          <section className="space-y-2 pt-2 border-t border-slate-100">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Comunicação e Suporte</span>
-            <div className="grid grid-cols-2 gap-3">
-              <button 
-                onClick={() => openMessaging('call', d.customer.phone)}
-                className="p-3 bg-white border border-slate-200 hover:border-slate-300 rounded-xl font-bold text-xs text-slate-700 flex items-center justify-center gap-2 shadow-2xs transition-all"
-              >
-                <Phone size={14} className="text-indigo-600" /> Ligação Direta
-              </button>
-              <button 
-                onClick={() => openMessaging('whatsapp', d.customer.whatsapp)}
-                className="p-3 bg-white border border-slate-200 hover:border-slate-300 rounded-xl font-bold text-xs text-slate-700 flex items-center justify-center gap-2 shadow-2xs transition-all"
-              >
-                <MessageSquare size={14} className="text-emerald-600" /> Enviar Mensagem
-              </button>
-            </div>
-          </section>
-
-          {/* Seção de Comprovação de Entrega (POD) */}
-          <section className="space-y-3 pt-2 border-t border-slate-100">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
-                Comprovantes (Canhoto / Lacre)
-              </span>
-              <span className="text-[9px] font-mono text-emerald-600 font-bold flex items-center gap-0.5">
-                <ShieldCheck size={10} /> Validação SEFAZ
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <button 
-                onClick={() => setShowSignature(true)}
-                className={cn(
-                  "flex flex-col items-center justify-center p-5 border-2 border-dashed rounded-2xl transition-all gap-2 group",
-                  podPayloadData.signature 
-                    ? "bg-emerald-50 border-emerald-500 text-emerald-700" 
-                    : "bg-slate-50 border-slate-200 text-slate-500 hover:border-indigo-400"
-                )}
-              >
-                <div className={cn(
-                  "w-10 h-10 rounded-xl shadow-2xs flex items-center justify-center transition-transform group-hover:scale-105", 
-                  podPayloadData.signature ? "bg-emerald-600 text-white" : "bg-white text-slate-400 border"
-                )}>
-                  {podPayloadData.signature ? <CheckCircle size={18} /> : <FileCheck size={18} className="text-indigo-600" />}
-                </div>
-                <div className="text-center">
-                  <span className="text-[10px] font-black uppercase block tracking-tight">
-                    {podPayloadData.signature ? 'Canhoto Assinado' : 'Coletar Canhoto'}
-                  </span>
-                  <span className="text-[8px] text-slate-400 block">Assinatura na Tela</span>
-                </div>
-              </button>
-
-              <button 
-                onClick={() => setShowPhoto(true)}
-                className={cn(
-                  "flex flex-col items-center justify-center p-5 border-2 border-dashed rounded-2xl transition-all gap-2 group",
-                  podPayloadData.photo 
-                    ? "bg-emerald-50 border-emerald-500 text-emerald-700" 
-                    : "bg-slate-50 border-slate-200 text-slate-500 hover:border-indigo-400"
-                )}
-              >
-                <div className={cn(
-                  "w-10 h-10 rounded-xl shadow-2xs flex items-center justify-center transition-transform group-hover:scale-105", 
-                  podPayloadData.photo ? "bg-emerald-600 text-white" : "bg-white text-slate-400 border"
-                )}>
-                  {podPayloadData.photo ? <CheckCircle size={18} /> : <Camera size={18} className="text-indigo-600" />}
-                </div>
-                <div className="text-center">
-                  <span className="text-[10px] font-black uppercase block tracking-tight">
-                    {podPayloadData.photo ? 'Foto Registrada' : 'Foto do Lacre'}
-                  </span>
-                  <span className="text-[8px] text-slate-400 block">Câmera Principal</span>
-                </div>
-              </button>
-            </div>
-          </section>
-
-        </main>
-
-        {/* Modais de Captura Injetados */}
-        {showSignature && (
-          <SignaturePad 
-            onSave={(dataUrl) => { 
-              setPodPayloadData(prev => ({ ...prev, signature: dataUrl })); 
-              setShowSignature(false); 
-              toast.success('Assinatura digital anexada ao manifesto.');
-            }} 
-            onClose={() => setShowSignature(false)} 
-          />
-        )}
-
-        {showPhoto && (
-          <PhotoCapture 
-            onCapture={(dataUrl) => { 
-              setPodPayloadData(prev => ({ ...prev, photo: dataUrl })); 
-              setShowPhoto(false); 
-              toast.success('Registro fotográfico salvo e com hash assinado.');
-            }} 
-            onClose={() => setShowPhoto(false)} 
-          />
-        )}
-
-        {/* Rodapé Dinâmico de Ações de Frota */}
-        <footer className="p-4 bg-white border-t border-slate-100 fixed bottom-0 left-0 right-0 max-w-md mx-auto z-20 shadow-lg">
-          {d.status === 'DELIVERED' ? (
-            <div className="py-3 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs font-bold text-slate-500">
-              ✓ Manifesto encerrado e transmitido ao centralizador
-            </div>
-          ) : d.status === 'IN_TRANSIT' ? (
-            <button 
-              onClick={() => handlePodSubmission(d.id)}
-              disabled={submitPodMutation.isPending}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-emerald-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              <CheckCircle size={18} />
-              {submitPodMutation.isPending ? 'Sincronizando PostGIS...' : 'Finalizar Entrega (POD)'}
-            </button>
-          ) : (
-            <button 
-              onClick={() => updateStatusMutation.mutate({ id: d.id, newStatus: 'IN_TRANSIT' })}
-              disabled={updateStatusMutation.isPending}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-indigo-600/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-              <Truck size={18} />
-              {updateStatusMutation.isPending ? 'Acionando...' : 'Iniciar Viagem Rodoviária'}
-            </button>
-          )}
-        </footer>
-      </div>
+        }}
+        onBack={() => setScreen('delivery')}
+        selected={selectedProblem}
+      />
     );
   }
 
-  // ==========================================
-  // TELA 2: PERFIL & SINCRONISMO
-  // ==========================================
-  if (activeTab === 'profile') {
+  if (screen === 'voice') {
+    return <VoiceNoteScreen deliveryId={selectedDeliveryId || ''} onSave={(audioUrl, duration) => {
+      submitVoiceNote.mutate({ deliveryId: selectedDeliveryId!, audioUrl, durationSec: duration });
+    }} onBack={() => setScreen('delivery')} />;
+  }
+
+  if (screen === 'stops') {
     return (
-      <div className="flex flex-col h-screen bg-slate-50 max-w-md mx-auto border-x shadow-2xl relative font-sans select-none animate-in fade-in duration-200">
-        <header className="p-6 bg-slate-900 text-white flex items-center justify-between">
-          <h2 className="font-black text-sm uppercase tracking-widest">Ajustes da Cabine</h2>
-          <button onClick={handleLogout} className="text-xs font-bold text-rose-400 hover:underline">
-            Desconectar
-          </button>
-        </header>
-        
-        <main className="flex-1 p-6 space-y-6">
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 flex items-center gap-4">
-            <div className="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-black text-xl">
-              {user?.name?.charAt(0) || 'M'}
-            </div>
-            <div>
-              <p className="font-bold text-slate-900 text-sm">{user?.name || 'Motorista Oficial'}</p>
-              <span className="text-[10px] text-slate-400 font-mono block">CNH Categoria E — Frota Ativa</span>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-100 divide-y divide-slate-50 text-xs font-bold text-slate-700">
-            <div className="p-4 flex justify-between items-center">
-              <span>Modo Otimizado Offline</span>
-              <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded">Ativo</span>
-            </div>
-            <div className="p-4 flex justify-between items-center">
-              <span>Canais de Roteamento OSRM</span>
-              <span className="text-slate-400 font-mono">v4.1.2</span>
-            </div>
-            <div className="p-4 flex justify-between items-center">
-              <span>Sincronização Automática</span>
-              <span className="text-indigo-600">A cada 5 min</span>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => {
-              toast.success('Sincronizando cargas com o servidor...');
-              refetchDeliveries();
-            }}
-            className="w-full p-4 bg-white border border-slate-200 rounded-xl font-black text-xs text-slate-700 uppercase tracking-widest hover:bg-slate-50 transition-colors shadow-2xs"
-          >
-            Sincronizar Cargas
-          </button>
-        </main>
-
-        {/* Barra Inferior Fixa */}
-        <footer className="bg-white border-t p-4 fixed bottom-0 left-0 right-0 max-w-md mx-auto z-20 flex justify-around">
-          <button onClick={() => setActiveTab('tasks')} className="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-700 transition-colors">
-            <div className="p-2"><ClipboardList size={20} /></div>
-            <span className="text-[9px] font-black uppercase tracking-widest">Manifestos</span>
-          </button>
-          <button onClick={() => setActiveTab('profile')} className="flex flex-col items-center gap-1 text-indigo-600">
-            <div className="bg-indigo-50 p-2 rounded-xl"><UserIcon size={20} /></div>
-            <span className="text-[9px] font-black uppercase tracking-widest">Sistema</span>
-          </button>
-        </footer>
-      </div>
+      <StopListScreen
+        deliveries={myDeliveries}
+        onSelect={(id) => { setSelectedDeliveryId(id); setScreen('delivery'); }}
+        onBack={() => setScreen('home')}
+      />
     );
   }
 
-  // ==========================================
-  // TELA PRINCIPAL: MANIFESTOS DO DIA
-  // ==========================================
   return (
-    <div className="flex flex-col h-screen bg-slate-50 max-w-md mx-auto border-x shadow-2xl relative overflow-hidden font-sans select-none">
-      
-      {/* Header com Status em Destaque */}
-      <header className="bg-slate-900 p-6 pt-8 text-white shrink-0 rounded-b-[2.5rem] shadow-xl relative z-10">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center font-black text-xl border border-white/10 shadow-md">
-              {user?.name?.charAt(0) || 'M'}
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-lg mx-auto px-4 py-4 space-y-4 pb-32">
+        {/* Header */}
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-bold text-lg">
+                {user?.name?.charAt(0) || 'M'}
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-900">{user?.name || 'Motorista'}</p>
+                <p className="text-xs text-slate-400">Veículo: {user?.vehicleNumber || 'ABC-1234'}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Condutor Operacional</p>
-              <h2 className="text-base font-black tracking-tight truncate max-w-[180px]">{user?.name || 'Motorista Titular'}</h2>
+            <button onClick={logout} className="p-2 bg-slate-100 rounded-xl text-slate-400 cursor-pointer">
+              <LogOut size={18} />
+            </button>
+          </div>
+
+          {/* Route Progress */}
+          <div className="bg-slate-50 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Rota de Hoje</p>
+              <p className="text-xs font-bold text-indigo-600">{completedCount} de {totalCount}</p>
+            </div>
+            <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+              <div className="bg-indigo-600 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(progress, 100)}%` }} />
+            </div>
+            <div className="flex justify-between mt-2 text-[10px] text-slate-400">
+              <span>{remaining} restantes</span>
+              <span>{Math.round(progress)}%</span>
             </div>
           </div>
-          <button 
-            onClick={handleLogout} 
-            className="p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors text-slate-400 border border-white/5"
-            title="Encerrar Expediente"
-          >
-            <LogOut size={16} />
-          </button>
+
+          {/* Quick Stats */}
+          <div className="grid grid-cols-3 gap-3 mt-4">
+            <div className="bg-amber-50 rounded-xl p-3 text-center">
+              <p className="text-2xl font-black text-amber-600">{myDeliveries.length}</p>
+              <p className="text-[9px] font-bold text-amber-700 uppercase">Ativas</p>
+            </div>
+            <div className="bg-emerald-50 rounded-xl p-3 text-center">
+              <p className="text-2xl font-black text-emerald-600">{completedCount}</p>
+              <p className="text-[9px] font-bold text-emerald-700 uppercase">Feitas</p>
+            </div>
+            <div className="bg-slate-100 rounded-xl p-3 text-center">
+              <p className="text-2xl font-black text-slate-600">{remaining}</p>
+              <p className="text-[9px] font-bold text-slate-700 uppercase">Restam</p>
+            </div>
+          </div>
         </div>
 
-        {/* Card do Manifesto Ativo de Destaque */}
-        {activeDelivery ? (
-          <div className="bg-white rounded-2xl p-5 text-slate-900 shadow-xl animate-in zoom-in-95 duration-300 border border-slate-100/40">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[9px] font-black bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-0.5 rounded uppercase tracking-widest">
-                Próximo Destino
-              </span>
-              <span className="text-[10px] font-mono font-bold text-slate-400">{activeDelivery.deliveryNumber}</span>
-            </div>
-            <h3 className="text-lg font-black tracking-tight truncate text-slate-900">
-              {activeDelivery.customer.name}
-            </h3>
-            <p className="text-xs text-slate-500 font-medium truncate mb-4 flex items-center gap-1 mt-0.5">
-              <MapPin size={12} className="text-indigo-600 shrink-0" /> {activeDelivery.deliveryAddress}
+        {/* Next Stop Card */}
+        {currentDelivery && (
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
+            <p className="text-[9px] font-bold text-indigo-600 uppercase tracking-wider mb-1">Próxima Parada</p>
+            <h2 className="text-lg font-bold text-slate-900 mb-1">{currentDelivery.customer?.name || 'Cliente'}</h2>
+            <p className="text-sm text-slate-500 mb-3 flex items-center gap-1">
+              <MapPin size={14} />
+              {currentDelivery.deliveryAddress || currentDelivery.customer?.address || 'Endereço'}
             </p>
-            
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <button 
-                onClick={() => openMapsLink(activeDelivery.deliveryAddress)}
-                className="bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all shadow-sm"
-              >
-                <Navigation size={14} className="text-indigo-400" /> Rota GPS
-              </button>
-              <button 
-                onClick={() => { setSelectedDelivery(activeDelivery); setActiveTab('detail'); }}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md shadow-indigo-600/20 transition-all"
-              >
-                Abrir Manifesto
-              </button>
+
+            <div className="flex items-center gap-4 mb-4 text-sm text-slate-600">
+              <span className="flex items-center gap-1">
+                <Navigation size={14} className="text-blue-500" />
+                {currentDelivery.total_km ? `${currentDelivery.total_km.toFixed(1)} km` : '~5 km'}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock size={14} className="text-amber-500" />
+                {currentDelivery.eta_minutes ? `${currentDelivery.eta_minutes} min` : 'Em breve'}
+              </span>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <button 
-                onClick={() => openMessaging('call', activeDelivery.customer.phone)}
-                className="bg-slate-50 hover:bg-slate-100 text-slate-700 py-2 rounded-lg font-bold text-[9px] uppercase tracking-widest flex items-center justify-center gap-1 border transition-colors"
-              >
-                <Phone size={12} className="text-indigo-600" /> Telefonar
+              <button onClick={() => handleNavigate(currentDelivery.latitude, currentDelivery.longitude)}
+                className="p-3 bg-blue-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer">
+                <Navigation size={16} /> Navegar
               </button>
-              <button 
-                onClick={() => openMessaging('whatsapp', activeDelivery.customer.whatsapp)}
-                className="bg-slate-50 hover:bg-slate-100 text-slate-700 py-2 rounded-lg font-bold text-[9px] uppercase tracking-widest flex items-center justify-center gap-1 border transition-colors"
-              >
-                <MessageSquare size={12} className="text-emerald-600" /> WhatsApp
+              <button onClick={() => handleCall(currentDelivery.customer?.phone || '')}
+                className="p-3 bg-emerald-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer">
+                <Phone size={16} /> Ligar
+              </button>
+              <button onClick={() => handleWhatsApp(currentDelivery.customer?.phone || '')}
+                className="p-3 bg-green-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer">
+                <MessageSquare size={16} /> WhatsApp
+              </button>
+              <button onClick={() => { setSelectedDeliveryId(currentDelivery.id); setScreen('delivery'); }}
+                className="p-3 bg-indigo-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer">
+                <CheckCircle size={16} /> Cheguei
               </button>
             </div>
-          </div>
-        ) : (
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-center italic opacity-70">
-            <p className="text-xs font-medium">Nenhum trajeto imediato pendente de execução.</p>
           </div>
         )}
-      </header>
 
-      {/* Listagem Completa do Cronograma */}
-      <main className="flex-1 overflow-y-auto p-5 pb-32 custom-scrollbar">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Pautas de Embarque do Dia</h4>
-            <span className="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
-              {tasksList.length} Ordens
-            </span>
-          </div>
+        {/* Action Buttons */}
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={() => setScreen('stops')}
+            className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3 cursor-pointer">
+            <div className="p-2 bg-indigo-50 rounded-xl"><List size={20} className="text-indigo-600" /></div>
+            <span className="text-sm font-semibold text-slate-900">Ver Paradas</span>
+          </button>
+          <button onClick={() => { if (currentDelivery) { setSelectedDeliveryId(currentDelivery.id); setScreen('problem'); } }}
+            className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3 cursor-pointer">
+            <div className="p-2 bg-rose-50 rounded-xl"><AlertCircle size={20} className="text-rose-600" /></div>
+            <span className="text-sm font-semibold text-slate-900">Reportar</span>
+          </button>
+        </div>
 
-          {tasksList.length > 0 ? (
-            <div className="space-y-3">
-              {tasksList.map((task) => {
-                const badge = getStatusLabel(task.status);
-                const isCompleted = task.status === 'DELIVERED';
-
-                return (
-                  <div 
-                    key={task.id} 
-                    onClick={() => { setSelectedDelivery(task); setActiveTab('detail'); }}
-                    className={cn(
-                      "bg-white p-4 rounded-2xl shadow-2xs border border-slate-100 flex items-center gap-3 cursor-pointer transition-all hover:border-slate-200 group",
-                      isCompleted && "opacity-75 bg-slate-50/50"
-                    )}
-                  >
-                    <div className={cn(
-                      "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border transition-transform group-hover:scale-105",
-                      isCompleted ? "bg-emerald-50 border-emerald-100 text-emerald-600" : "bg-indigo-50 border-indigo-100 text-indigo-600"
-                    )}>
-                      {isCompleted ? <CheckCircle size={20} /> : <Truck size={20} />}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <h5 className="font-black text-slate-900 text-xs truncate">{task.customer.name}</h5>
-                        <span className="text-[9px] font-mono text-slate-400 shrink-0">{task.weight}</span>
-                      </div>
-                      
-                      <p className="text-[10px] text-slate-500 truncate mt-0.5 flex items-center gap-1">
-                        <MapPin size={10} className="text-slate-400 shrink-0" /> {task.destinationCity}
-                      </p>
-
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-50">
-                        <span className={cn("text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border", badge.bg)}>
-                          {badge.text}
-                        </span>
-                        <span className="text-[9px] font-bold text-slate-400 flex items-center gap-0.5">
-                          {task.scheduledTime} →
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+        {/* Active Deliveries List */}
+        <div className="space-y-2">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">Suas Entregas</h3>
+          {isLoading ? (
+            <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-slate-300" /></div>
+          ) : myDeliveries.length === 0 ? (
+            <div className="text-center py-8 text-slate-400 text-sm">
+              <Truck size={32} className="mx-auto mb-2 text-slate-200" />
+              Nenhuma entrega ativa
             </div>
           ) : (
-            <div className="py-16 flex flex-col items-center justify-center opacity-40 text-center">
-              <ClipboardList size={36} className="mb-2 text-slate-400" />
-              <p className="text-xs font-bold text-slate-600">Nenhum manifesto agendado para esta placa.</p>
-            </div>
+            myDeliveries.map((d: any) => (
+              <button key={d.id} onClick={() => { setSelectedDeliveryId(d.id); setScreen('delivery'); }}
+                className="w-full text-left bg-white rounded-2xl border border-slate-100 p-4 hover:border-indigo-200 transition-all cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    'w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xs',
+                    d.status === 'PENDING' ? 'bg-slate-400' :
+                    d.status === 'ASSIGNED' ? 'bg-blue-500' :
+                    d.status === 'IN_TRANSIT' ? 'bg-amber-500' :
+                    d.status === 'DELIVERED' ? 'bg-emerald-500' : 'bg-slate-400'
+                  )}>
+                    {d.deliveryNumber?.slice(-4) || 'N/A'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 truncate">{d.customer?.name || 'Cliente'}</p>
+                    <p className="text-xs text-slate-400 truncate">{d.deliveryAddress || d.customer?.address}</p>
+                  </div>
+                  <ChevronRight size={16} className="text-slate-300" />
+                </div>
+              </button>
+            ))
           )}
         </div>
-      </main>
-
-      {/* Navigation Footer Interativo */}
-      <footer className="bg-white border-t border-slate-100 p-4 fixed bottom-0 left-0 right-0 max-w-md mx-auto z-20 flex justify-around shadow-lg">
-        <button onClick={() => setActiveTab('tasks')} className="flex flex-col items-center gap-1 text-indigo-600">
-          <div className="bg-indigo-50 p-2 rounded-xl"><ClipboardList size={20} /></div>
-          <span className="text-[9px] font-black uppercase tracking-widest">Manifestos</span>
-        </button>
-        <button onClick={() => setActiveTab('profile')} className="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-700 transition-colors">
-          <div className="p-2"><UserIcon size={20} /></div>
-          <span className="text-[9px] font-black uppercase tracking-widest">Ajustes</span>
-        </button>
-      </footer>
+      </div>
     </div>
   );
 };
+
+function DeliveryScreen({
+  delivery, onBack, onDelivered, onProblem, onPhoto, onCall, onWhatsApp,
+  onNavigate, onVoiceNote, showPhoto, onPhotoCapture, showSignature, onSignatureCapture, isUpdating,
+}: {
+  delivery: any; onBack: () => void; onDelivered: () => void; onProblem: () => void;
+  onPhoto: () => void; onCall: () => void; onWhatsApp: () => void; onNavigate: () => void;
+  onVoiceNote: () => void; showPhoto: boolean; onPhotoCapture: () => void;
+  showSignature: boolean; onSignatureCapture: () => void; isUpdating: boolean;
+}) {
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-lg mx-auto px-4 py-4 space-y-4 pb-32">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer">
+          <ChevronRight size={16} className="rotate-180" /> Voltar
+        </button>
+
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <MapPin size={16} className="text-indigo-600" />
+            <span className="text-[9px] font-bold text-indigo-600 uppercase tracking-wider">Entrega</span>
+          </div>
+          <h2 className="text-lg font-bold text-slate-900 mb-1">{delivery.customer?.name || 'Cliente'}</h2>
+          <p className="text-sm text-slate-500 mb-1">{delivery.deliveryAddress || delivery.customer?.address}</p>
+          <p className="text-sm text-slate-500 mb-4">{delivery.customer?.phone}</p>
+
+          {delivery.notes && (
+            <div className="bg-amber-50 rounded-xl p-3 mb-4">
+              <p className="text-[10px] font-bold text-amber-700 uppercase mb-1">Observações</p>
+              <p className="text-sm text-amber-900">{delivery.notes}</p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={onDelivered} disabled={isUpdating}
+                className="p-4 bg-emerald-600 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer">
+                {isUpdating ? <Loader2 size={16} className="animate-spin" /> : <ThumbsUp size={18} />}
+                Entregue
+              </button>
+              <button onClick={onProblem}
+                className="p-4 bg-rose-600 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 cursor-pointer">
+                <AlertCircle size={18} /> Problema
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={onPhoto}
+                className="p-3 bg-slate-100 rounded-xl text-sm font-semibold text-slate-700 flex items-center justify-center gap-2 cursor-pointer">
+                <Camera size={16} /> Foto
+              </button>
+              <button onClick={onVoiceNote}
+                className="p-3 bg-slate-100 rounded-xl text-sm font-semibold text-slate-700 flex items-center justify-center gap-2 cursor-pointer">
+                <Mic size={16} /> Voz
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <button onClick={onCall}
+                className="p-3 bg-blue-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1 cursor-pointer">
+                <Phone size={14} /> Ligar
+              </button>
+              <button onClick={onWhatsApp}
+                className="p-3 bg-green-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1 cursor-pointer">
+                <MessageSquare size={14} /> Zap
+              </button>
+              <button onClick={onNavigate}
+                className="p-3 bg-indigo-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1 cursor-pointer">
+                <Navigation size={14} /> Ir
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {showPhoto && (
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 text-center">
+            <Camera size={40} className="mx-auto mb-3 text-slate-300" />
+            <p className="text-sm font-semibold text-slate-900 mb-4">Tirar foto do comprovante</p>
+            <button onClick={onPhotoCapture}
+              className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold cursor-pointer">
+              Capturar Foto
+            </button>
+          </div>
+        )}
+
+        {showSignature && (
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 text-center">
+            <p className="text-sm font-semibold text-slate-900 mb-4">Coletar assinatura</p>
+            <button onClick={onSignatureCapture}
+              className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold cursor-pointer">
+              Assinar
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProblemScreen({ onSelect, onBack, selected }: { onSelect: (value: string) => void; onBack: () => void; selected: string }) {
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer">
+          <ChevronRight size={16} className="rotate-180" /> Voltar
+        </button>
+
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
+          <h2 className="text-lg font-bold text-slate-900 mb-1">Problema na Entrega</h2>
+          <p className="text-sm text-slate-500 mb-4">Selecione o motivo:</p>
+
+          <div className="grid grid-cols-2 gap-2">
+            {PROBLEM_OPTIONS.map(opt => {
+              const Icon = opt.icon;
+              const isSelected = selected === opt.value;
+              return (
+                <button key={opt.value} onClick={() => onSelect(opt.value)}
+                  className={cn(
+                    'p-4 rounded-2xl border-2 text-center flex flex-col items-center gap-2 cursor-pointer transition-all',
+                    isSelected ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-white hover:border-slate-200'
+                  )}>
+                  <Icon size={24} className={isSelected ? 'text-indigo-600' : 'text-slate-400'} />
+                  <span className={cn('text-xs font-semibold', isSelected ? 'text-indigo-700' : 'text-slate-700')}>
+                    {opt.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 p-4 bg-amber-50 rounded-2xl">
+            <p className="text-xs text-amber-800 font-medium">O despachante será notificado automaticamente.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StopListScreen({ deliveries, onSelect, onBack }: { deliveries: any[]; onSelect: (id: string) => void; onBack: () => void }) {
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer">
+          <ChevronRight size={16} className="rotate-180" /> Voltar
+        </button>
+
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
+          <h2 className="text-lg font-bold text-slate-900 mb-1">Paradas da Rota</h2>
+          <p className="text-sm text-slate-500 mb-4">{deliveries.length} paradas</p>
+
+          <div className="space-y-2">
+            {deliveries.map((d: any, idx: number) => (
+              <button key={d.id} onClick={() => onSelect(d.id)}
+                className="w-full text-left flex items-center gap-3 p-3 bg-slate-50 rounded-xl hover:bg-indigo-50 transition-all cursor-pointer">
+                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold shrink-0">
+                  {idx + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 truncate">{d.customer?.name || 'Cliente'}</p>
+                  <p className="text-xs text-slate-400 truncate">{d.deliveryAddress || d.customer?.address}</p>
+                </div>
+                <span className={cn(
+                  'text-[9px] font-bold px-2 py-1 rounded-lg',
+                  d.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700' :
+                  d.status === 'IN_TRANSIT' ? 'bg-blue-100 text-blue-700' :
+                  'bg-slate-100 text-slate-600'
+                )}>
+                  {d.status === 'DELIVERED' ? 'Feito' : d.status === 'IN_TRANSIT' ? 'Rota' : 'Pendente'}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VoiceNoteScreen({ deliveryId, onSave, onBack }: { deliveryId: string; onSave: (url: string, duration: number) => void; onBack: () => void }) {
+  const [recording, setRecording] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [audioUrl, setAudioUrl] = useState('');
+
+  const startRecording = () => {
+    setRecording(true);
+    setDuration(0);
+    const interval = setInterval(() => {
+      setDuration(prev => {
+        if (prev >= 120) { clearInterval(interval); setRecording(false); return prev; }
+        return prev + 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  };
+
+  const stopRecording = () => {
+    setRecording(false);
+    setAudioUrl('recorded_audio.m4a');
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer">
+          <ChevronRight size={16} className="rotate-180" /> Voltar
+        </button>
+
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 text-center">
+          <div className={cn(
+            'w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 transition-all',
+            recording ? 'bg-rose-100 animate-pulse' : 'bg-slate-100'
+          )}>
+            <Mic size={36} className={recording ? 'text-rose-600' : 'text-slate-400'} />
+          </div>
+
+          <h2 className="text-lg font-bold text-slate-900 mb-1">Nota de Voz</h2>
+          <p className="text-sm text-slate-500 mb-4">Grave um áudio de até 120 segundos</p>
+
+          {recording && (
+            <p className="text-3xl font-mono font-black text-rose-600 mb-4">
+              {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
+            </p>
+          )}
+
+          {!audioUrl ? (
+            <button onClick={recording ? stopRecording : startRecording}
+              className={cn(
+                'px-8 py-4 rounded-2xl font-bold text-white text-sm cursor-pointer',
+                recording ? 'bg-rose-600 hover:bg-rose-700' : 'bg-indigo-600 hover:bg-indigo-700'
+              )}>
+              {recording ? 'Parar Gravação' : 'Gravar Nota de Voz'}
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <div className="bg-emerald-50 rounded-xl p-3 text-emerald-700 text-sm font-medium">
+                Áudio gravado! ({duration}s)
+              </div>
+              <button onClick={() => onSave(audioUrl, duration)}
+                className="w-full p-4 bg-indigo-600 text-white rounded-2xl font-bold cursor-pointer">
+                Salvar Nota de Voz
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default DriverDashboard;

@@ -48,13 +48,15 @@ export class TrackingGateway
     @InjectQueue("location-tracking") private trackingQueue: Queue,
   ) {}
 
+  private lastGhostCleanup = 0;
+
   /**
    * Periodic heartbeat to detect and clean up stale/ghost connections.
-   * Runs every 30 seconds — checks if the socket for each active driver
-   * is still connected on the server side. If not, removes the ghost entry.
+   * Runs every 30 seconds — only writes to DB when ghost connections are found.
    */
   afterInit() {
     ghostInterval = setInterval(() => {
+      let foundGhost = false;
       for (const [driverId, socketId] of this.activeDrivers.entries()) {
         const socket = this.server.sockets.sockets.get(socketId);
         if (!socket || !socket.connected) {
@@ -65,13 +67,17 @@ export class TrackingGateway
           this.server
             .to("dispatchers")
             .emit("driverStatusChanged", { driverId, status: "offline" });
+          foundGhost = true;
           this.prisma.driver
             .update({
               where: { id: driverId },
               data: { isOnline: false, lastSeen: new Date() },
             })
-            .catch((err) => this.logger.error(`Failed to persist ghost cleanup: ${err.message}`));
+            .catch((err: Error) => this.logger.error(`Ghost cleanup DB failed: ${err.message}`));
         }
+      }
+      if (!foundGhost) {
+        this.logger.debug('Ghost cleanup: no ghosts found, skipping DB write');
       }
     }, 30_000);
   }
@@ -79,21 +85,13 @@ export class TrackingGateway
   handleConnection(client: Socket) {
     this.logger.log(`Client connected: ${client.id}`);
 
-    // Auto-join user room from JWT token
-    const token = client.handshake?.auth?.token;
-    if (token) {
-      try {
-        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-        const userId = payload.sub || payload.userId;
-        if (userId) {
-          client.join(`user_${userId}`);
-          const sockets = this.userSockets.get(userId) || new Set();
-          sockets.add(client.id);
-          this.userSockets.set(userId, sockets);
-        }
-      } catch {
-        // Token parsing is best-effort for room joining
-      }
+    // Extract user info from the authenticated socket (set by WsJwtGuard)
+    const userId = (client as any).data?.user?.sub || (client as any).data?.user?.userId;
+    if (userId) {
+      client.join(`user_${userId}`);
+      const sockets = this.userSockets.get(userId) || new Set();
+      sockets.add(client.id);
+      this.userSockets.set(userId, sockets);
     }
 
     // Handle socket errors
@@ -124,12 +122,10 @@ export class TrackingGateway
         this.server
           .to("dispatchers")
           .emit("driverStatusChanged", { driverId, status: "offline" });
-        this.prisma.driver
-          .update({
-            where: { id: driverId },
-            data: { isOnline: false, lastSeen: new Date() },
-          })
-          .catch((err) => this.logger.error(`Failed to persist disconnect: ${err.message}`));
+        await this.prisma.driver.update({
+          where: { id: driverId },
+          data: { isOnline: false, lastSeen: new Date() },
+        }).catch((err: Error) => this.logger.error(`Failed to persist disconnect: ${err.message}`));
         break;
       }
     }
@@ -160,20 +156,17 @@ export class TrackingGateway
     },
     @ConnectedSocket() client: Socket,
   ) {
-    const token = client.handshake?.auth?.token;
-    let organizationId: string | undefined;
-    if (token) {
-      try {
-        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-        organizationId = payload.organizationId;
-      } catch { /* ignore */ }
-    }
+    const user = (client as any).data?.user;
+    const organizationId = user?.organizationId;
 
     // 1. Live status management
     const existingSocketId = this.activeDrivers.get(data.driverId);
 
+    const dbUpdate = existingSocketId !== client.id
+      ? { isOnline: true, lastSeen: new Date() }
+      : { lastSeen: new Date() };
+
     if (existingSocketId !== client.id) {
-      // Driver reconnected with a new socket (e.g., after network drop or page refresh)
       const isNewlyOnline = !existingSocketId;
       this.activeDrivers.set(data.driverId, client.id);
 
@@ -183,23 +176,13 @@ export class TrackingGateway
           status: "online",
         });
       }
-
-      // Sync online status to DB (fire-and-forget)
-      this.prisma.driver
-        .update({
-          where: { id: data.driverId },
-          data: { isOnline: true, lastSeen: new Date() },
-        })
-        .catch((err) => this.logger.error(`Failed to persist online status: ${err.message}`));
-    } else {
-      // Same socket — just update lastSeen periodically
-      this.prisma.driver
-        .update({
-          where: { id: data.driverId },
-          data: { lastSeen: new Date() },
-        })
-        .catch((err) => this.logger.error(`Failed to persist lastSeen: ${err.message}`));
     }
+
+    // Batch DB write: fire but log errors, don't block the flow
+    this.prisma.driver.update({
+      where: { id: data.driverId },
+      data: dbUpdate,
+    }).catch((err: Error) => this.logger.error(`Failed to persist driver status: ${err.message}`));
 
     // 2. Offload to background queue for persistence and heavy processing
     await this.trackingQueue.add("process-location", { ...data, organizationId });
@@ -208,14 +191,16 @@ export class TrackingGateway
     this.server.to(`delivery_${data.deliveryId}`).emit("locationUpdated", data);
     this.server.to("dispatchers").emit("driverLocationUpdated", data);
 
-    // 4. Geofence checking
-    const alerts = await this.geoService.checkGeofenceAlert(data.driverId, data.lat, data.lng);
-    if (alerts.length > 0) {
-      this.server.to("dispatchers").emit("geofenceAlert", {
-        driverId: data.driverId,
-        alerts,
-        timestamp: new Date(),
-      });
+    // 4. Geofence checking (only if we have coordinates)
+    if (data.lat && data.lng) {
+      const alerts = await this.geoService.checkGeofenceAlert(data.driverId, data.lat, data.lng);
+      if (alerts.length > 0) {
+        this.server.to("dispatchers").emit("geofenceAlert", {
+          driverId: data.driverId,
+          alerts,
+          timestamp: new Date(),
+        });
+      }
     }
   }
 

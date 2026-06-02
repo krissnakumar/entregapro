@@ -11,36 +11,73 @@ const ACTIVE_DELIVERY_STATUSES: OrderStatus[] = [
 
 @Injectable()
 export class DeliveriesService {
+  private readonly logger = new Logger(DeliveriesService.name);
+
   constructor(
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
   ) {}
 
-  async findAll(organizationId: string) {
-    return this.prisma.delivery.findMany({
-      where: { organizationId, deletedAt: null },
-      include: {
-        customer: true,
-        driver: { include: { user: true } },
-        vehicle: true,
-        dispatcher: { select: { id: true, name: true } },
-      },
-    });
+  async findAll(
+    organizationId: string,
+    options?: { take?: number; skip?: number; status?: OrderStatus },
+  ) {
+    const take = options?.take ?? 50;
+    const skip = options?.skip ?? 0;
+    const where: any = { organizationId, deletedAt: null };
+    if (options?.status) where.status = options.status;
+
+    const [data, total] = await Promise.all([
+      this.prisma.delivery.findMany({
+        where,
+        take,
+        skip,
+        orderBy: { scheduledTime: "desc" },
+        select: {
+          id: true,
+          deliveryNumber: true,
+          materialType: true,
+          quantity: true,
+          deliveryAddress: true,
+          latitude: true,
+          longitude: true,
+          scheduledTime: true,
+          status: true,
+          completedAt: true,
+          createdAt: true,
+          customer: { select: { id: true, name: true, address: true, phone: true } },
+          driver: { select: { id: true, user: { select: { name: true } } } },
+          vehicle: { select: { id: true, vehicleNumber: true, type: true } },
+        },
+      }),
+      this.prisma.delivery.count({ where }),
+    ]);
+
+    return { data, total, take, skip };
   }
 
   async findForDriver(userId: string, organizationId: string) {
     const driver = await this.prisma.driver.findFirst({
       where: { userId, organizationId, deletedAt: null },
+      select: { id: true },
     });
 
     if (!driver) return [];
 
     return this.prisma.delivery.findMany({
       where: { driverId: driver.id, organizationId, deletedAt: null },
-      include: {
-        customer: true,
-        driver: { include: { user: true } },
-        vehicle: true,
+      select: {
+        id: true,
+        deliveryNumber: true,
+        materialType: true,
+        quantity: true,
+        deliveryAddress: true,
+        latitude: true,
+        longitude: true,
+        scheduledTime: true,
+        status: true,
+        completedAt: true,
+        customer: { select: { id: true, name: true, phone: true, address: true } },
       },
       orderBy: { scheduledTime: "asc" },
     });
@@ -49,12 +86,33 @@ export class DeliveriesService {
   async findOne(id: string, organizationId: string) {
     const delivery = await this.prisma.delivery.findFirst({
       where: { id, organizationId, deletedAt: null },
-      include: {
-        customer: true,
-        driver: { include: { user: true } },
-        vehicle: true,
-        statusLogs: true,
+      select: {
+        id: true,
+        deliveryNumber: true,
+        materialType: true,
+        quantity: true,
+        deliveryAddress: true,
+        latitude: true,
+        longitude: true,
+        scheduledTime: true,
+        status: true,
+        completedAt: true,
+        createdAt: true,
+        total_km: true,
+        estimated_driving_time_minutes: true,
+        toll_cost: true,
+        estimated_profit: true,
+        delivery_margin_percentage: true,
+        proof_image_url: true,
+        signature_url: true,
+        customer: { select: { id: true, name: true, address: true, phone: true, whatsapp: true } },
+        driver: { select: { id: true, phone: true, user: { select: { name: true } } } },
+        vehicle: { select: { id: true, vehicleNumber: true, type: true } },
         dispatcher: { select: { id: true, name: true } },
+        statusLogs: {
+          select: { id: true, status: true, changedAt: true, notes: true },
+          orderBy: { changedAt: "desc" },
+        },
       },
     });
     if (!delivery) throw new NotFoundException(`Delivery ${id} not found`);
@@ -73,7 +131,7 @@ export class DeliveriesService {
       userId?: string;
     },
   ) {
-    const updateData: any = { status };
+    const updateData: Record<string, unknown> = { status };
 
     if (status === OrderStatus.LOADED)
       updateData.loading_started_at = new Date();
@@ -85,19 +143,27 @@ export class DeliveriesService {
     if (data?.lat) updateData.pod_latitude = data.lat;
     if (data?.lng) updateData.pod_longitude = data.lng;
 
-    const delivery = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.delivery.findFirst({
         where: { id, organizationId, deletedAt: null },
-        select: { id: true },
+        select: {
+          id: true,
+          deliveryNumber: true,
+          customer: { select: { name: true, phone: true, whatsapp: true } },
+          driver: { select: { user: { select: { name: true } } } },
+        },
       });
       if (!existing) throw new NotFoundException(`Delivery ${id} not found`);
 
       const updated = await tx.delivery.update({
         where: { id },
         data: updateData,
-        include: {
-          customer: true,
-          driver: { include: { user: true } },
+        select: {
+          id: true,
+          deliveryNumber: true,
+          status: true,
+          customer: { select: { id: true, name: true, phone: true, whatsapp: true } },
+          driver: { select: { id: true, user: { select: { name: true } } } },
         },
       });
 
@@ -110,28 +176,27 @@ export class DeliveriesService {
         },
       });
 
-      return updated;
+      return { updated, customer: existing.customer, driver: existing.driver };
     });
 
-    // Trigger WhatsApp Notifications
-    const phone = delivery.customer?.whatsapp || delivery.customer?.phone;
-    if (phone) {
-      if (status === OrderStatus.IN_TRANSIT && delivery.driver) {
-        const trackingUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/tracking/${delivery.id}`;
+    const phone = result.customer?.whatsapp || result.customer?.phone;
+    if (phone && result.driver) {
+      if (status === OrderStatus.IN_TRANSIT && result.driver) {
+        const trackingUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/tracking/${id}`;
         await this.notificationsService.notifyCustomerDriverDeparted(
           phone,
-          delivery.driver.user.name,
+          result.driver.user.name,
           trackingUrl,
         );
       } else if (status === OrderStatus.DELIVERED) {
         await this.notificationsService.notifyCustomerDelivered(
           phone,
-          delivery.deliveryNumber,
+          result.updated.deliveryNumber,
         );
       }
     }
 
-    return delivery;
+    return result.updated;
   }
 
   async uploadProof(id: string, organizationId: string, proof_image_url: string) {
@@ -146,6 +211,35 @@ export class DeliveriesService {
     });
     if (res.count === 0) throw new NotFoundException(`Delivery ${id} not found`);
     return this.findOne(id, organizationId);
+  }
+
+  async findForPublicTracking(id: string) {
+    const delivery = await this.prisma.delivery.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        deliveryNumber: true,
+        status: true,
+        materialType: true,
+        quantity: true,
+        deliveryAddress: true,
+        latitude: true,
+        longitude: true,
+        scheduledTime: true,
+        completedAt: true,
+        eta_minutes: true,
+        proof_image_url: true,
+        signature_url: true,
+        customer: { select: { name: true, phone: true, address: true } },
+        driver: { select: { id: true, phone: true, user: { select: { name: true } }, vehicle: { select: { vehicleNumber: true, type: true } } } },
+        invoices: { select: { nfeNumber: true, accessKey: true, totalAmount: true } },
+        statusLogs: {
+          select: { status: true, changedAt: true, notes: true },
+          orderBy: { changedAt: "asc" },
+        },
+      },
+    });
+    return delivery;
   }
 
   async assignResources(
@@ -251,48 +345,45 @@ export class DeliveriesService {
     return updated;
   }
 
-  private haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-    const R = 6371;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLng = ((lng2 - lng1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLng / 2) *
-        Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
-
   async calculateCosts(deliveryId: string, organizationId: string) {
     const delivery = await this.prisma.delivery.findFirst({
       where: { id: deliveryId, organizationId, deletedAt: null },
-      include: { vehicle: true, driver: true, customer: true },
+      select: {
+        id: true,
+        latitude: true,
+        longitude: true,
+        vehicle: { select: { fuelType: true } },
+      },
     });
     if (!delivery) throw new NotFoundException(`Delivery ${deliveryId} not found`);
 
-    const originLat = -23.5505;
-    const originLng = -46.6333;
-    const destLat = delivery.latitude ?? originLat;
-    const destLng = delivery.longitude ?? originLng;
+    // Use PostGIS for distance calculation
+    const destLat = delivery.latitude;
+    const destLng = delivery.longitude;
 
-    const total_km = parseFloat(this.haversineDistance(originLat, originLng, destLat, destLng).toFixed(1));
+    let total_km = 0;
+    if (destLat && destLng) {
+      const result: Array<{ distance: number }> = await this.prisma.$queryRaw`
+        SELECT ST_DistanceSphere(
+          ST_MakePoint(${destLng}, ${destLat}),
+          ST_MakePoint(-46.6333, -23.5505)
+        ) / 1000 as distance
+      `;
+      total_km = parseFloat((result[0]?.distance ?? 0).toFixed(1));
+    }
+
     const estimated_driving_time_minutes = Math.round(total_km * 1.2 + 15);
     const toll_cost = parseFloat((total_km > 50 ? 15 + (total_km - 50) * 0.1 : 5).toFixed(2));
     const traffic_delay_minutes = total_km > 100 ? Math.round(total_km * 0.05) : 0;
 
-    // Auto Fuel Calculation
-    const efficiency = delivery.vehicle?.fuelType === "Diesel" ? 4.5 : 6.0; // km per liter
+    const efficiency = delivery.vehicle?.fuelType === "Diesel" ? 4.5 : 6.0;
     const expected_fuel_liters = parseFloat((total_km / efficiency).toFixed(1));
     const expected_fuel_cost = parseFloat((expected_fuel_liters * 1.15).toFixed(2));
 
-    // Automated expense breakdowns
     const driver_cost = parseFloat((estimated_driving_time_minutes * 0.45).toFixed(2));
     const assistant_cost = parseFloat((estimated_driving_time_minutes * 0.25).toFixed(2));
     const maintenance_cost = parseFloat((total_km * 0.12).toFixed(2));
 
-    // Profitability Engine calculations
     const baseline_revenue = total_km * 4.5 + 150;
     const total_cost = expected_fuel_cost + driver_cost + assistant_cost + maintenance_cost + toll_cost;
     const estimated_profit = parseFloat((baseline_revenue - total_cost).toFixed(2));
@@ -313,40 +404,66 @@ export class DeliveriesService {
         estimated_profit,
         delivery_margin_percentage,
       },
-      include: {
-        customer: true,
-        vehicle: true,
-        driver: { include: { user: true } },
+      select: {
+        id: true,
+        total_km: true,
+        estimated_driving_time_minutes: true,
+        toll_cost: true,
+        estimated_profit: true,
+        delivery_margin_percentage: true,
       },
     });
   }
 
   async smartAssign(deliveryId: string, organizationId: string) {
-    // Determine optimum vehicle and driver using factor weighting algorithms
-    const vehicle = await this.prisma.vehicle.findFirst({
-      where: { activeStatus: true, organizationId, deletedAt: null },
+    // Find the driver with fewest active deliveries (best available)
+    const delivery = await this.prisma.delivery.findFirst({
+      where: { id: deliveryId, organizationId, deletedAt: null },
+      select: { id: true, latitude: true, longitude: true, materialType: true },
     });
-    const driver = await this.prisma.driver.findFirst({
-      where: { availabilityStatus: true, organizationId, deletedAt: null },
+    if (!delivery) throw new NotFoundException(`Delivery ${deliveryId} not found`);
+
+    const availableDrivers = await this.prisma.driver.findMany({
+      where: { availabilityStatus: true, isOnline: true, organizationId, deletedAt: null },
+      select: {
+        id: true,
+        liveLatitude: true,
+        liveLongitude: true,
+        vehicleId: true,
+        vehicle: { select: { id: true, type: true, capacity: true, activeStatus: true } },
+        _count: { select: { deliveries: { where: { status: { in: ACTIVE_DELIVERY_STATUSES } } } } },
+      },
     });
 
-    if (!vehicle || !driver) {
-      // Fallback assignment to pre-seeded default driver/vehicle if strictly filtered ones aren't available
-      const anyVehicle = await this.prisma.vehicle.findFirst({ where: { organizationId, deletedAt: null } });
-      const anyDriver = await this.prisma.driver.findFirst({ where: { organizationId, deletedAt: null } });
-      if (!anyVehicle || !anyDriver) {
-        throw new NotFoundException("Logistics Fleet pool empty. Please register vehicles and drivers.");
-      }
+    if (availableDrivers.length === 0) {
+      // Fallback: try any available driver
+      const anyDriver = await this.prisma.driver.findFirst({
+        where: { organizationId, deletedAt: null },
+        select: { id: true, vehicleId: true },
+      });
+      if (!anyDriver) throw new NotFoundException("No drivers available. Register a driver first.");
       await this.assignResources(deliveryId, organizationId, {
-        vehicleId: anyVehicle.id,
         driverId: anyDriver.id,
+        vehicleId: anyDriver.vehicleId ?? undefined,
       });
       return this.calculateCosts(deliveryId, organizationId);
     }
 
+    // Score drivers: least active deliveries first, then closest by location
+    const scored = availableDrivers
+      .map((d) => ({
+        id: d.id,
+        vehicleId: d.vehicleId,
+        activeCount: d._count.deliveries,
+        score: d._count.deliveries * 100
+          - (d.liveLatitude && d.liveLatitude ? 1 : 0), // Prefer drivers with known location
+      }))
+      .sort((a, b) => a.score - b.score);
+
+    const best = scored[0];
     await this.assignResources(deliveryId, organizationId, {
-      vehicleId: vehicle.id,
-      driverId: driver.id,
+      driverId: best.id,
+      vehicleId: best.vehicleId ?? undefined,
     });
 
     return this.calculateCosts(deliveryId, organizationId);

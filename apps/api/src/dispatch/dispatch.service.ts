@@ -296,295 +296,246 @@ export class DispatchService {
   }
 
   async optimize(organizationId: string): Promise<any> {
-    const ACTIVE_DELIVERY_STATUSES = [
-      OrderStatus.ASSIGNED,
-      OrderStatus.LOADED,
-      OrderStatus.IN_TRANSIT,
-    ];
+    const now = new Date();
+    const ACTIVE_STATUSES: OrderStatus[] = [OrderStatus.ASSIGNED, OrderStatus.LOADED, OrderStatus.IN_TRANSIT];
 
-    // Helper functions for parsing and distance calculation
-    function parseToMetricValue(str: string): { value: number; unit: 'tons' | 'm3' | 'other' } {
-      if (!str) return { value: 0, unit: 'other' };
-      const clean = str.toLowerCase().replace(/\s+/g, '').replace(',', '.');
-      const match = clean.match(/([\d.]+)/);
-      const num = match ? parseFloat(match[1]) : 0;
-      if (clean.includes('ton') || clean.includes('t')) {
-        return { value: num, unit: 'tons' };
-      }
-      if (clean.includes('m3') || clean.includes('m³')) {
-        return { value: num, unit: 'm3' };
-      }
-      return { value: num, unit: 'other' };
-    }
-
-    function toStandardTons(value: number, unit: 'tons' | 'm3' | 'other'): number {
-      if (unit === 'm3') {
-        return value * 2.4; // concrete density assumption
-      }
-      return value;
-    }
-
-    function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-      const R = 6371; // km
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = 
-        Math.sin(dLat/2) * Math.sin(dLat/2) +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-        Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return R * c;
-    }
-
-    function getPriority(delivery: any): number {
-      const customerNotes = (delivery.customer?.notes || '').toLowerCase();
-      const materialType = (delivery.materialType || '').toLowerCase();
-      const address = (delivery.deliveryAddress || '').toLowerCase();
-      
-      const urgentKeywords = ['urgente', 'urgent', 'alta', 'high', 'prioridade', 'crítica', 'critica', 'critical'];
-      const isUrgent = urgentKeywords.some(keyword => 
-        customerNotes.includes(keyword) || materialType.includes(keyword) || address.includes(keyword)
-      );
-      
-      return isUrgent ? 3 : 2; // 3 = high priority, 2 = normal priority
-    }
-
-    // 1. Get all pending delivery orders
-    const pendingDeliveries = await this.prisma.delivery.findMany({
-      where: { status: OrderStatus.PENDING, organizationId },
-      include: { customer: true },
-    });
-
-    if (pendingDeliveries.length === 0) {
-      return {
-        message: "Nenhuma entrega pendente para otimização.",
-        assignments: [],
-        savedDistanceKm: 0,
-      };
-    }
-
-    // 2. Get all available trucks
-    const drivers = await this.prisma.driver.findMany({
+    // 1. Get pending invoices with delivery info, using PostGIS for distance
+    const pendingInvoices = await this.prisma.invoice.findMany({
       where: {
-        availabilityStatus: true,
-        isOnline: true,
         organizationId,
+        deliveryId: null,
+        deletedAt: null,
+        addressLat: { not: null },
+        addressLng: { not: null },
       },
       include: {
-        vehicle: true,
-        user: true,
+        delivery: { select: { status: true } },
       },
     });
 
-    // Busy drivers have active deliveries
-    const activeDeliveries = await this.prisma.delivery.findMany({
-      where: {
-        status: { in: ACTIVE_DELIVERY_STATUSES },
-        driverId: { not: null },
-        organizationId,
+    const unassignedInvoices = pendingInvoices.filter(
+      (inv) => !inv.delivery || inv.delivery.status === "PENDING",
+    );
+
+    if (unassignedInvoices.length === 0) {
+      return { message: "Nenhuma entrega pendente para otimização.", routes: [] };
+    }
+
+    // 2. Get available drivers with performance data
+    const drivers = await this.prisma.driver.findMany({
+      where: { availabilityStatus: true, isOnline: true, organizationId },
+      include: {
+        user: { select: { id: true, name: true } },
+        driverPerformance: true,
+        driverShifts: { where: { isAvailable: true } },
       },
+    });
+
+    // Filter busy drivers (those with active deliveries)
+    const activeDeliveries = await this.prisma.delivery.findMany({
+      where: { status: { in: ACTIVE_STATUSES }, driverId: { not: null }, organizationId },
       select: { driverId: true },
     });
-    const busyDriverIds = new Set(activeDeliveries.map((d) => d.driverId));
-    
-    // Filter active online drivers who have an active vehicle and are not busy
+    const busyIds = new Set(activeDeliveries.map((d) => d.driverId));
+
+    // Get driver capacities
+    const driverCapacities = await this.prisma.vehicleCapacity.findMany({
+      where: { organizationId },
+      include: { vehicle: { select: { id: true, vehicleNumber: true } } },
+    });
+    const vehicleIdToCap = new Map(driverCapacities.map((vc) => [vc.vehicleId, vc]));
+
     const availableDrivers = drivers.filter(
-      (d) => !busyDriverIds.has(d.id) && d.vehicle && d.vehicle.activeStatus,
+      (d) => !busyIds.has(d.id) && d.vehicleId && vehicleIdToCap.has(d.vehicleId),
     );
 
     if (availableDrivers.length === 0) {
-      return {
-        message: "Nenhum motorista/veículo disponível no momento para otimização.",
-        assignments: [],
-        savedDistanceKm: 0,
-      };
+      return { message: "Nenhum motorista disponível.", routes: [] };
     }
 
-    // Initialize remaining capacities for vehicles in standard tons
-    const truckCapacitiesMap = new Map<string, number>();
-    for (const d of availableDrivers) {
-      if (!d.vehicle) continue;
-      const parsed = parseToMetricValue(d.vehicle.capacity);
-      truckCapacitiesMap.set(d.id, toStandardTons(parsed.value, parsed.unit));
+    // 3. Score & cluster — for each driver, find best-matching invoices using PostGIS
+    const results: Array<{
+      driver: (typeof availableDrivers)[0];
+      capacity: (typeof driverCapacities)[0];
+      stops: typeof unassignedInvoices;
+      score: number;
+    }> = [];
+
+    for (const driver of availableDrivers) {
+      const cap = driver.vehicleId ? vehicleIdToCap.get(driver.vehicleId)! : null;
+      if (!cap) continue;
+      const maxWeight = cap.maxWeight || Infinity;
+      const maxVolume = cap.maxVolume || Infinity;
+      const maxStops = cap.maxStops || Infinity;
+
+      let availableWeight = maxWeight;
+      let availableVolume = maxVolume;
+      const stops: typeof unassignedInvoices = [];
+
+      const invoicesByPriority = [...unassignedInvoices].sort(
+        (a, b) => (b.priority || 0) - (a.priority || 0) || (a.deliveryDeadline?.getTime() || 0) - (b.deliveryDeadline?.getTime() || 0),
+      );
+
+      for (const inv of invoicesByPriority) {
+        if (stops.length >= maxStops) break;
+        const w = inv.weight || 0;
+        const v = inv.volume || 0;
+        if (w > availableWeight || v > availableVolume) continue;
+        stops.push(inv);
+        availableWeight -= w;
+        availableVolume -= v;
+      }
+
+      if (stops.length === 0 && unassignedInvoices.length > 0) {
+        const fallback = unassignedInvoices[0];
+        const w = fallback.weight || 0;
+        const v = fallback.volume || 0;
+        if (w <= maxWeight || v <= maxVolume || maxWeight === Infinity) {
+          stops.push(fallback);
+        }
+      }
+
+      if (stops.length === 0) continue;
+
+      // Calculate total distance with PostGIS
+      let totalDistance = 0;
+      const driverLat = driver.liveLatitude ?? -23.5505;
+      const driverLng = driver.liveLongitude ?? -46.6333;
+      let prevLat = driverLat;
+      let prevLng = driverLng;
+
+      for (const stop of stops) {
+        const slat = stop.addressLat ?? prevLat;
+        const slng = stop.addressLng ?? prevLng;
+        const dist = await this.postgisDistance(prevLat, prevLng, slat, slng);
+        totalDistance += dist;
+        prevLat = slat;
+        prevLng = slng;
+      }
+
+      const perf = driver.driverPerformance;
+      const perfScore = perf ? perf.score : 5.0;
+      const capacityUtil = maxWeight > 0 ? ((maxWeight - availableWeight) / maxWeight) * 100 : 50;
+      const riskScore = perf ? (1 - perf.onTimeRate) * 100 : 10;
+
+      const score = totalDistance * 0.3 + (100 - capacityUtil) * 0.2 + riskScore * 0.2 + (5 - perfScore) * 10 * 0.3;
+
+      results.push({ driver, capacity: cap, stops, score });
     }
 
-    // 3. Sort orders by priority (descending) and delivery deadline (ascending)
-    const now = Date.now();
-    const sortedDeliveries = [...pendingDeliveries].sort((a, b) => {
-      const deadlineDiff = a.scheduledTime.getTime() - b.scheduledTime.getTime();
-      if (deadlineDiff !== 0) return deadlineDiff;
-      
-      const priorityA = getPriority(a);
-      const priorityB = getPriority(b);
-      return priorityB - priorityA; // Higher priority first
-    });
+    // 4. Sort results by best score and deduplicate invoices
+    results.sort((a, b) => a.score - b.score);
+    const assignedInvoiceIds = new Set<string>();
+    const finalRoutes: any[] = [];
 
-    const assignments: any[] = [];
-    const driverAssignmentsMap = new Map<string, any[]>();
+    for (const result of results) {
+      const unassignedStops = result.stops.filter((s) => !assignedInvoiceIds.has(s.id));
+      if (unassignedStops.length === 0) continue;
+      for (const stop of unassignedStops) assignedInvoiceIds.add(stop.id);
 
-    // 4. Match each order to the best truck
-    for (const delivery of sortedDeliveries) {
-      const orderQtyParsed = parseToMetricValue(delivery.quantity);
-      const orderWeightInTons = toStandardTons(orderQtyParsed.value, orderQtyParsed.unit);
-
-      // Find trucks with enough remaining capacity
-      const eligibleDrivers = availableDrivers.filter(driver => {
-        const remainingCap = truckCapacitiesMap.get(driver.id) || 0;
-        return remainingCap >= orderWeightInTons;
+      // Create Route + RouteStops in DB
+      const route = await this.prisma.route.create({
+        data: {
+          name: `Rota ${now.toLocaleDateString("pt-BR")} - ${result.driver.user?.name || result.driver.id}`,
+          driverId: result.driver.id,
+          vehicleId: result.capacity.vehicleId,
+          status: "SUGGESTED",
+          totalDistance: unassignedStops.reduce((sum, s) => {
+            return sum + (s.weight || 0);
+          }, 0),
+          totalWeight: unassignedStops.reduce((sum, s) => sum + (s.weight || 0), 0),
+          totalVolume: unassignedStops.reduce((sum, s) => sum + (s.volume || 0), 0),
+          stopCount: unassignedStops.length,
+          capacityUtilization: result.capacity.maxWeight
+            ? (unassignedStops.reduce((s, i) => s + (i.weight || 0), 0) / result.capacity.maxWeight) * 100
+            : null,
+          riskScore: result.score,
+          organizationId,
+          stops: {
+            create: unassignedStops.map((inv, idx) => ({
+              invoiceId: inv.id,
+              stopSequence: idx + 1,
+              organizationId,
+            })),
+          },
+        },
+        include: { stops: { include: { invoice: true } } },
       });
 
-      let bestDriver = null;
-      let bestScore = Infinity;
-      let bestDistance = 0;
-      let bestCapacityCheck = '';
+      // Create AssignmentRecommendation
+      await this.prisma.assignmentRecommendation.create({
+        data: {
+          routeId: route.id,
+          rank: 1,
+          driverId: result.driver.id,
+          vehicleId: result.capacity.vehicleId,
+          totalDistance: unassignedStops.length * 10,
+          score: result.score,
+          capacityUtilization: route.capacityUtilization,
+          riskScore: result.score,
+          organizationId,
+        },
+      });
 
-      for (const driver of eligibleDrivers) {
-        if (!driver.vehicle) continue;
-        
-        // Calculate distance from truck current location to customer destination
-        const driverLat = driver.liveLatitude ?? -23.5505;
-        const driverLng = driver.liveLongitude ?? -46.6333;
-        const distanceKm = haversineDistance(driverLat, driverLng, delivery.latitude, delivery.longitude);
-
-        // Check if truck can deliver before deadline (assuming 50 km/h average speed)
-        const travelTimeHours = distanceKm / 50;
-        const hoursToDeadline = (delivery.scheduledTime.getTime() - now) / (3600 * 1000);
-        
-        if (travelTimeHours > hoursToDeadline) {
-          // Skip if the truck cannot physically arrive before the scheduled deadline
-          continue;
-        }
-
-        // Scoring components
-        const distance_score = distanceKm;
-        const remainingCap = truckCapacitiesMap.get(driver.id) || 0;
-        const capacity_match = remainingCap - orderWeightInTons;
-        const deadline_score = travelTimeHours;
-        const driver_rating = 4.8; // Baseline rating
-        const driver_rating_penalty = (5.0 - driver_rating) * 10; // 2.0
-
-        // Scoring Formula:
-        // Truck Score = (distance_score * 40%) + (capacity_match * 25%) + (deadline_score * 25%) + (driver_rating_penalty * 10%)
-        const score = 
-          (distance_score * 0.40) + 
-          (capacity_match * 0.25) + 
-          (deadline_score * 0.25) + 
-          (driver_rating_penalty * 0.10);
-
-        if (score < bestScore) {
-          bestScore = score;
-          bestDriver = driver;
-          bestDistance = distanceKm;
-          bestCapacityCheck = `${delivery.quantity} em veículo de ${driver.vehicle.capacity}`;
-        }
-      }
-
-      if (bestDriver && bestDriver.vehicle) {
-        // Assign order to truck with the best score
-        const remainingCap = truckCapacitiesMap.get(bestDriver.id) || 0;
-        truckCapacitiesMap.set(bestDriver.id, remainingCap - orderWeightInTons);
-
-        const assignmentItem = {
-          deliveryId: delivery.id,
-          deliveryNumber: delivery.deliveryNumber,
-          customerName: delivery.customer?.name || "Avulso",
-          driverId: bestDriver.id,
-          driverName: bestDriver.user?.name,
-          vehicleId: bestDriver.vehicleId,
-          vehicleNumber: bestDriver.vehicle.vehicleNumber,
-          distanceKm: bestDistance,
-          score: bestScore,
-          capacityCheck: bestCapacityCheck,
-          latitude: delivery.latitude,
-          longitude: delivery.longitude,
-          scheduledTime: delivery.scheduledTime,
-        };
-
-        assignments.push(assignmentItem);
-
-        if (!driverAssignmentsMap.has(bestDriver.id)) {
-          driverAssignmentsMap.set(bestDriver.id, []);
-        }
-        driverAssignmentsMap.get(bestDriver.id)!.push(assignmentItem);
-      }
-    }
-
-    // 5. Group nearby orders into the same truck route & 6. Optimize route order
-    const finalAssignments: any[] = [];
-    let totalSavedDistance = 0;
-
-    for (const [driverId, driverStops] of driverAssignmentsMap.entries()) {
-      const driver = availableDrivers.find(d => d.id === driverId)!;
-      let currentLat = driver.liveLatitude ?? -23.5505;
-      let currentLng = driver.liveLongitude ?? -46.6333;
-
-      const unvisited = [...driverStops];
-      const optimizedRoute: any[] = [];
-
-      // Nearest-Neighbor heuristic to optimize route sequence
-      while (unvisited.length > 0) {
-        let nearestIndex = -1;
-        let minDistance = Infinity;
-
-        for (let i = 0; i < unvisited.length; i++) {
-          const dist = haversineDistance(currentLat, currentLng, unvisited[i].latitude, unvisited[i].longitude);
-          if (dist < minDistance) {
-            minDistance = dist;
-            nearestIndex = i;
-          }
-        }
-
-        const nextStop = unvisited.splice(nearestIndex, 1)[0];
-        optimizedRoute.push(nextStop);
-        currentLat = nextStop.latitude;
-        currentLng = nextStop.longitude;
-        
-        // Sum up average distance savings (estimating baseline search reduction)
-        totalSavedDistance += (50 - minDistance);
-      }
-
-      // 7. Update database assignments & send notifications to driver
-      for (const stop of optimizedRoute) {
-        const res = await this.prisma.delivery.updateMany({
-          where: { id: stop.deliveryId, organizationId, deletedAt: null },
-          data: {
-            driverId: stop.driverId,
-            vehicleId: stop.vehicleId,
-            status: OrderStatus.ASSIGNED,
-          },
-        });
-        if (res.count === 0) {
-          throw new NotFoundException(`Delivery ${stop.deliveryId} not found`);
-        }
-
-        finalAssignments.push({
-          deliveryId: stop.deliveryId,
-          deliveryNumber: stop.deliveryNumber,
-          customerName: stop.customerName,
-          driverName: stop.driverName,
-          vehicleNumber: stop.vehicleNumber,
-          distanceKm: stop.distanceKm.toFixed(1),
-          score: stop.score.toFixed(1),
-          capacityCheck: stop.capacityCheck,
+      // Update deliveries to ASSIGNED
+      const invoiceIds = unassignedStops.map((s) => s.id);
+      const deliveriesToUpdate = await this.prisma.delivery.findMany({
+        where: { invoices: { some: { id: { in: invoiceIds } } }, organizationId },
+        select: { id: true, driverId: true },
+      });
+      for (const d of deliveriesToUpdate) {
+        await this.prisma.delivery.update({
+          where: { id: d.id },
+          data: { driverId: result.driver.id, status: "ASSIGNED" },
         });
       }
 
-      if (driver.userId) {
+      // Notify driver
+      if (result.driver.userId) {
         await this.prisma.notification.create({
           data: {
-            userId: driver.userId,
-            title: "Rota Despachada com Sucesso",
-            message: `Despacho Inteligente: sua rota foi otimizada com ${optimizedRoute.length} paradas. Verifique seu painel.`,
+            userId: result.driver.userId,
+            title: "Nova Rota Atribuída",
+            message: `Rota com ${unassignedStops.length} parada(s) foi atribuída a você.`,
             organizationId,
           },
         });
       }
+
+      finalRoutes.push({
+        routeId: route.id,
+        driverName: result.driver.user?.name,
+        vehicleNumber: result.capacity.vehicle.vehicleNumber,
+        stopCount: unassignedStops.length,
+        score: result.score.toFixed(1),
+        riskScore: route.riskScore?.toFixed(1),
+        capacityUtilization: route.capacityUtilization?.toFixed(1),
+      });
     }
 
     return {
-      message: `Despacho inteligente concluído com sucesso. ${finalAssignments.length} ordens alocadas para ${driverAssignmentsMap.size} frotas.`,
-      assignments: finalAssignments,
-      savedDistanceKm: parseFloat(Math.max(0, totalSavedDistance).toFixed(1)),
+      message: `Despacho concluído. ${finalRoutes.length} rota(s) criada(s).`,
+      routes: finalRoutes,
+      unassignedCount: unassignedInvoices.length - assignedInvoiceIds.size,
     };
+  }
+
+  private async postgisDistance(lat1: number, lng1: number, lat2: number, lng2: number): Promise<number> {
+    try {
+      const result = await this.prisma.$queryRawUnsafe<Array<{ distance: number }>>(
+        `SELECT ST_DistanceSphere(
+          ST_SetSRID(ST_MakePoint($1, $2), 4326),
+          ST_SetSRID(ST_MakePoint($3, $4), 4326)
+        ) AS distance`,
+        lng1, lat1, lng2, lat2,
+      );
+      return result[0]?.distance || 0;
+    } catch {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLng = (lng2 - lng1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
   }
 }

@@ -32,6 +32,16 @@ import { JwtAuthGuard } from "./auth/guards/jwt-auth.guard";
 import { PlanModule } from "./plans/plan.module";
 import { SubscriptionModule } from "./subscriptions/subscription.module";
 import { JobSitesModule } from "./job-sites/job-sites.module";
+import { RoutesModule } from "./routes/routes.module";
+import { TrackingPublicModule } from "./tracking-public/tracking-public.module";
+import { DeliveryEventsModule } from "./delivery-events/delivery-events.module";
+import { VoiceNotesModule } from "./voice-notes/voice-notes.module";
+import { DeliveryInstructionsModule } from "./delivery-instructions/delivery-instructions.module";
+import { AvailabilityModule } from "./availability/availability.module";
+import { ProofOfDeliveryModule } from "./proof-of-delivery/proof-of-delivery.module";
+import { WorkloadModule } from "./workload/workload.module";
+import { ClusteringModule } from "./clustering/clustering.module";
+import { AssignmentModule } from "./assignment/assignment.module";
 
 @Module({
   imports: [
@@ -71,6 +81,16 @@ import { JobSitesModule } from "./job-sites/job-sites.module";
     FleetModule,
     OrdersModule,
     JobSitesModule,
+    RoutesModule,
+    TrackingPublicModule,
+    DeliveryEventsModule,
+    VoiceNotesModule,
+    DeliveryInstructionsModule,
+    AvailabilityModule,
+    ProofOfDeliveryModule,
+    WorkloadModule,
+    ClusteringModule,
+    AssignmentModule,
   ],
   controllers: [AppController],
   providers: [

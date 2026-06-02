@@ -148,6 +148,87 @@ export class NotificationsService {
     );
   }
 
+  // --- ENHANCED NOTIFICATIONS ---
+
+  async notifyCustomerUnavailable(
+    deliveryNumber: string,
+    customerName: string,
+    customerPhone: string,
+    organizationId: string,
+  ) {
+    await this.alertDispatcher(
+      "Cliente Indisponível",
+      `Cliente ${customerName} (${customerPhone}) não estará disponível para entrega #${deliveryNumber}.`,
+      organizationId,
+    );
+  }
+
+  async notifyFailedDelivery(
+    deliveryNumber: string,
+    reason: string,
+    driverName: string,
+    organizationId: string,
+  ) {
+    await this.alertDispatcher(
+      "Falha na Entrega",
+      `Entrega #${deliveryNumber} falhou: ${reason}. Motorista: ${driverName}.`,
+      organizationId,
+    );
+  }
+
+  async notifyVehicleProblem(
+    vehicleNumber: string,
+    driverName: string,
+    problem: string,
+    organizationId: string,
+  ) {
+    await this.alertDispatcher(
+      "Problema no Veículo",
+      `Veículo ${vehicleNumber} (${driverName}): ${problem}.`,
+      organizationId,
+    );
+  }
+
+  async notifyRouteDelay(
+    routeName: string,
+    driverName: string,
+    delayMinutes: number,
+    organizationId: string,
+  ) {
+    await this.alertDispatcher(
+      "Atraso na Rota",
+      `Rota ${routeName} (${driverName}) está ${delayMinutes}min atrasada.`,
+      organizationId,
+    );
+  }
+
+  async notifyNewDriverAssignment(
+    driverUserId: string,
+    deliveryNumber: string,
+    organizationId: string,
+  ) {
+    await this.create(
+      driverUserId,
+      "Nova Entrega",
+      `Você foi designado para a entrega #${deliveryNumber}.`,
+      organizationId,
+    );
+  }
+
+  async notifyCustomerNearby(
+    phone: string,
+    driverName: string,
+    etaMinutes: number,
+    trackingUrl: string,
+    organizationId: string,
+  ) {
+    await this.sendWhatsAppMessage(phone, "driver_nearby", {
+      driverName,
+      etaMinutes,
+      trackingUrl,
+    }, organizationId);
+  }
+
   async alertDelayedTrip(deliveryNumber: string, expectedTime: Date) {
     const delivery = await this.prisma.delivery.findFirst({
       where: { deliveryNumber },

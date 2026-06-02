@@ -24,8 +24,8 @@
       "versionCode": 1
     },
     "extra": {
-      "environment": "production",
-      "apiUrl": "https://entregapro-api.onrender.com"
+      "environment": "development",
+      "apiUrl": "http://localhost:3001"
     },
     "plugins": [
       "expo-secure-store"

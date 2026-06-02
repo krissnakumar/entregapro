@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -44,10 +45,17 @@ export default function SettingsScreen() {
   const { logout } = useAuthStore();
 
   const handleLogout = () => {
-    Alert.alert('Encerrar Sessão', 'Deseja sair do painel administrativo?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => logout() },
-    ]);
+    if (Platform.OS === 'web') {
+      const confirmLogout = window.confirm('Deseja sair do painel administrativo?');
+      if (confirmLogout) {
+        logout();
+      }
+    } else {
+      Alert.alert('Encerrar Sessão', 'Deseja sair do painel administrativo?', [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Sair', style: 'destructive', onPress: () => logout() },
+      ]);
+    }
   };
 
   return (

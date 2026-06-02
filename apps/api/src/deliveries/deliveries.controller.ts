@@ -8,6 +8,9 @@ import {
   UseGuards,
   Request,
   Query,
+  ParseIntPipe,
+  DefaultValuePipe,
+  ValidationPipe,
 } from "@nestjs/common";
 import { DeliveriesService } from "./deliveries.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -25,11 +28,16 @@ export class DeliveriesController {
   @Get()
   @Roles(Role.ADMIN, Role.DISPATCHER, Role.DRIVER)
   @RequirePermissions("VIEW_ASSIGNED_TASKS", "MONITOR_OPERATIONS")
-  findAll(@Request() req: any) {
+  findAll(
+    @Request() req: any,
+    @Query("take", new DefaultValuePipe(50), ParseIntPipe) take: number,
+    @Query("skip", new DefaultValuePipe(0), ParseIntPipe) skip: number,
+    @Query("status") status?: OrderStatus,
+  ) {
     if (req.user.role === Role.DRIVER) {
       return this.deliveriesService.findForDriver(req.user.userId, req.user.organizationId);
     }
-    return this.deliveriesService.findAll(req.user.organizationId);
+    return this.deliveriesService.findAll(req.user.organizationId, { take, skip, status });
   }
 
   @Get(":id")

@@ -1,15 +1,20 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/useAuthStore';
 import { ThemeProvider } from './store/ThemeProvider';
 import { Toaster } from 'sonner';
-import Login from './pages/Login';
-import ForgotPassword from './pages/ForgotPassword';
-import PublicTracking from './pages/PublicTracking';
-import AdminDashboard from './pages/AdminDashboard';
-import DispatcherDashboard from './pages/DispatcherDashboard';
-import DriverDashboard from './pages/DriverDashboard';
 import { Role } from './types';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { PageLoader } from './components/LoadingSkeleton';
+
+const Login = lazy(() => import('./pages/Login'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const PublicTracking = lazy(() => import('./pages/PublicTracking'));
+const CustomerTracking = lazy(() => import('./pages/CustomerTracking'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const DispatcherDashboard = lazy(() => import('./pages/DispatcherDashboard'));
+const DriverDashboard = lazy(() => import('./pages/DriverDashboard'));
 
 const queryClient = new QueryClient();
 
@@ -48,15 +53,20 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/tracking/:id" element={<PublicTracking />} />
+      <Route path="/login" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><Login /></Suspense></ErrorBoundary>} />
+      <Route path="/forgot-password" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense></ErrorBoundary>} />
+      <Route path="/tracking/:id" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><PublicTracking /></Suspense></ErrorBoundary>} />
+      <Route path="/track/:token" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><CustomerTracking /></Suspense></ErrorBoundary>} />
       
       <Route
         path="/dashboard/*"
         element={
           <ProtectedRoute>
-            <DashboardRouter />
+            <ErrorBoundary>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardRouter />
+              </Suspense>
+            </ErrorBoundary>
           </ProtectedRoute>
         }
       />

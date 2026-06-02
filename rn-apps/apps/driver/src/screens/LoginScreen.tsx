@@ -22,7 +22,11 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Atenção', 'Preencha email e senha para continuar.');
+      if (Platform.OS === 'web') {
+        window.alert('Preencha email e senha para continuar.');
+      } else {
+        Alert.alert('Atenção', 'Preencha email e senha para continuar.');
+      }
       return;
     }
 
@@ -34,7 +38,11 @@ export default function LoginScreen() {
       });
       setAuth(response.user, response.access_token);
     } catch (error: any) {
-      Alert.alert('Erro de Autenticação', error.message || 'Credenciais inválidas.');
+      if (Platform.OS === 'web') {
+        window.alert(error.message || 'Credenciais inválidas.');
+      } else {
+        Alert.alert('Erro de Autenticação', error.message || 'Credenciais inválidas.');
+      }
     } finally {
       setLoading(false);
     }

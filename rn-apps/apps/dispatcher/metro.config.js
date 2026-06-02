@@ -12,7 +12,10 @@ const config = getDefaultConfig(projectRoot);
 config.resolver.unstable_enableSymlinks = true;
 
 // Watch all files within the workspace
-config.watchFolders = [workspaceRoot];
+config.watchFolders = [
+  workspaceRoot,
+  path.resolve(workspaceRoot, 'node_modules/.pnpm'),
+];
 
 // Let Metro know where to resolve packages
 config.resolver.nodeModulesPaths = [
@@ -37,7 +40,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === 'react' || moduleName === 'react-native') {
     return {
       type: 'sourceFile',
-      filePath: path.resolve(projectRoot, 'node_modules', moduleName),
+      filePath: require.resolve(moduleName),
     };
   }
   if (moduleName === '@tanstack/react-query' || moduleName.startsWith('@tanstack/react-query/')) {
