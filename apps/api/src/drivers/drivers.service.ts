@@ -8,7 +8,10 @@ export class DriversService {
 
   constructor(private prisma: PrismaService) {}
 
-  async findAll(organizationId: string, options?: { take?: number; skip?: number }) {
+  async findAll(
+    organizationId: string,
+    options?: { take?: number; skip?: number },
+  ) {
     const take = options?.take ?? 50;
     const skip = options?.skip ?? 0;
     const where = { organizationId, deletedAt: null };
@@ -141,7 +144,10 @@ export class DriversService {
         data: {
           licenseNumber: data.cnhNumber,
           phone: data.phone,
-          availabilityStatus: data.availabilityStatus !== undefined ? data.availabilityStatus : undefined,
+          availabilityStatus:
+            data.availabilityStatus !== undefined
+              ? data.availabilityStatus
+              : undefined,
           vehicleId: data.vehicleId !== undefined ? data.vehicleId : undefined,
         },
       });
@@ -173,7 +179,9 @@ export class DriversService {
         data: { active_status: false },
       });
     } catch (err) {
-      this.logger.warn(`Failed to deactivate user ${driver.userId}: ${err.message}`);
+      this.logger.warn(
+        `Failed to deactivate user ${driver.userId}: ${err.message}`,
+      );
     }
 
     return { success: true };

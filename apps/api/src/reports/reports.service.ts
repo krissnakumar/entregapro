@@ -124,7 +124,10 @@ export class ReportsService {
       (s, d: any) => s + (d.estimated_profit || 0) + this._totalCost(d),
       0,
     );
-    const totalCost = deliveries.reduce((s, d: any) => s + this._totalCost(d), 0);
+    const totalCost = deliveries.reduce(
+      (s, d: any) => s + this._totalCost(d),
+      0,
+    );
     const totalProfit = deliveries.reduce(
       (s, d: any) => s + (d.estimated_profit || 0),
       0,
@@ -137,13 +140,17 @@ export class ReportsService {
           ) / deliveries.length
         : 0;
 
-    const monthly: Record<string, { revenue: number; cost: number; profit: number; count: number }> = {};
+    const monthly: Record<
+      string,
+      { revenue: number; cost: number; profit: number; count: number }
+    > = {};
     for (const d of deliveries) {
       const month = new Date(d.createdAt).toLocaleDateString("pt-BR", {
         month: "short",
         year: "2-digit",
       });
-      if (!monthly[month]) monthly[month] = { revenue: 0, cost: 0, profit: 0, count: 0 };
+      if (!monthly[month])
+        monthly[month] = { revenue: 0, cost: 0, profit: 0, count: 0 };
       monthly[month].revenue += (d.estimated_profit || 0) + this._totalCost(d);
       monthly[month].cost += this._totalCost(d);
       monthly[month].profit += d.estimated_profit || 0;
@@ -190,10 +197,7 @@ export class ReportsService {
     const completedDeliveries = daily.filter(
       (d: any) => d.status === "DELIVERED",
     ).length;
-    const avgTime = await this._calcAvgDeliveryTime(
-      organizationId,
-      today,
-    );
+    const avgTime = await this._calcAvgDeliveryTime(organizationId, today);
 
     return {
       dailyCount: daily.length,
@@ -203,7 +207,8 @@ export class ReportsService {
         vehicles.length > 0
           ? Math.round(
               (vehicles.filter((v: any) => v.usageCount > 0).length /
-                vehicles.length) * 100,
+                vehicles.length) *
+                100,
             )
           : 0,
       completedToday: completedDeliveries,
@@ -233,9 +238,7 @@ export class ReportsService {
         },
       ],
       topDrivers: drivers
-        .sort(
-          (a: any, b: any) => b.completedDeliveries - a.completedDeliveries,
-        )
+        .sort((a: any, b: any) => b.completedDeliveries - a.completedDeliveries)
         .slice(0, 5),
     };
   }
@@ -293,9 +296,17 @@ export class ReportsService {
       doc.on("end", () => resolve(Buffer.concat(chunks)));
       doc.on("error", reject);
 
-      doc.fontSize(18).font("Helvetica-Bold").text("Relatório Executivo", { align: "center" });
+      doc
+        .fontSize(18)
+        .font("Helvetica-Bold")
+        .text("Relatório Executivo", { align: "center" });
       doc.moveDown();
-      doc.fontSize(9).fillColor("#666").text(`Gerado em ${new Date().toLocaleString("pt-BR")}`, { align: "center" });
+      doc
+        .fontSize(9)
+        .fillColor("#666")
+        .text(`Gerado em ${new Date().toLocaleString("pt-BR")}`, {
+          align: "center",
+        });
       doc.moveDown(1.5);
 
       doc.fontSize(11).fillColor("#333").font("Helvetica-Bold");
@@ -315,9 +326,15 @@ export class ReportsService {
         doc.text("Resumo Financeiro");
         doc.moveDown(0.5);
         doc.font("Helvetica").fontSize(10);
-        doc.text(`Receita Total: R$ ${Number(exec.financial.totalRevenue || 0).toLocaleString("pt-BR")}`);
-        doc.text(`Custo Total: R$ ${Number(exec.financial.totalCost || 0).toLocaleString("pt-BR")}`);
-        doc.text(`Lucro Total: R$ ${Number(exec.financial.totalProfit || 0).toLocaleString("pt-BR")}`);
+        doc.text(
+          `Receita Total: R$ ${Number(exec.financial.totalRevenue || 0).toLocaleString("pt-BR")}`,
+        );
+        doc.text(
+          `Custo Total: R$ ${Number(exec.financial.totalCost || 0).toLocaleString("pt-BR")}`,
+        );
+        doc.text(
+          `Lucro Total: R$ ${Number(exec.financial.totalProfit || 0).toLocaleString("pt-BR")}`,
+        );
         doc.text(`Margem Média: ${exec.financial.avgMargin}%`);
         doc.moveDown(1);
       }
@@ -353,10 +370,7 @@ export class ReportsService {
     );
   }
 
-  private async _calcAvgDeliveryTime(
-    organizationId: string,
-    _today: Date,
-  ) {
+  private async _calcAvgDeliveryTime(organizationId: string, _today: Date) {
     const completed = await this.prisma.delivery.findMany({
       where: {
         organizationId,
@@ -373,8 +387,7 @@ export class ReportsService {
     if (completed.length === 0) return "—";
 
     const totalMinutes = completed.reduce((sum: number, d: any) => {
-      const diff =
-        (d.completedAt.getTime() - d.startedAt.getTime()) / 60000;
+      const diff = (d.completedAt.getTime() - d.startedAt.getTime()) / 60000;
       return sum + diff;
     }, 0);
     const avg = Math.round(totalMinutes / completed.length);

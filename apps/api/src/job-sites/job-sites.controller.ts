@@ -1,6 +1,13 @@
 import {
-  Controller, Get, Post, Patch, Delete,
-  Body, Param, Req, UseGuards,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Req,
+  UseGuards,
 } from "@nestjs/common";
 import { JobSitesService } from "./job-sites.service";
 import { CreateJobSiteDto, UpdateJobSiteDto } from "./dto/create-job-site.dto";
@@ -33,7 +40,11 @@ export class JobSitesController {
 
   @Patch(":id")
   @Roles(Role.ADMIN)
-  update(@Param("id") id: string, @Body() dto: UpdateJobSiteDto, @Req() req: any) {
+  update(
+    @Param("id") id: string,
+    @Body() dto: UpdateJobSiteDto,
+    @Req() req: any,
+  ) {
     return this.jobSitesService.update(id, dto, req.user.organizationId);
   }
 

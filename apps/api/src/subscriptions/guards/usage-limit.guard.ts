@@ -1,9 +1,15 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from "@nestjs/common";
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+} from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { SubscriptionService } from "../subscription.service";
 
 export const CHECK_LIMIT_KEY = "checkLimit";
-export const CheckLimit = (metric: string) => Reflector.createDecorator<string>()(metric);
+export const CheckLimit = (metric: string) =>
+  Reflector.createDecorator<string>()(metric);
 
 @Injectable()
 export class UsageLimitGuard implements CanActivate {
@@ -23,7 +29,10 @@ export class UsageLimitGuard implements CanActivate {
     const user = request.user;
     if (!user?.organizationId) return true;
 
-    const result = await this.subscriptionService.checkUsageLimit(user.organizationId, metric);
+    const result = await this.subscriptionService.checkUsageLimit(
+      user.organizationId,
+      metric,
+    );
     if (!result.allowed) {
       throw new ForbiddenException(
         `Limite de ${metric} atingido (${result.current}/${result.limit}). Faça upgrade do seu plano.`,

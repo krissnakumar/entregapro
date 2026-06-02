@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Query, Req, UseGuards } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { DeliveryEventsService } from "./delivery-events.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -12,7 +21,10 @@ export class DeliveryEventsController {
   @Post()
   @Roles(Role.ADMIN, Role.DISPATCHER, Role.DRIVER)
   create(@Body() body: any, @Req() req: any) {
-    return this.service.create({ ...body, organizationId: req.user.organizationId });
+    return this.service.create({
+      ...body,
+      organizationId: req.user.organizationId,
+    });
   }
 
   @Get("delivery/:deliveryId")
@@ -40,6 +52,9 @@ export class DeliveryEventsController {
   @Get("recent")
   @Roles(Role.ADMIN, Role.DISPATCHER)
   findRecent(@Req() req: any, @Query("minutes") minutes?: string) {
-    return this.service.findRecent(req.user.organizationId, minutes ? parseInt(minutes) : 60);
+    return this.service.findRecent(
+      req.user.organizationId,
+      minutes ? parseInt(minutes) : 60,
+    );
   }
 }

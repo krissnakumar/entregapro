@@ -1,6 +1,14 @@
 import {
-  Controller, Post, Get, Param, UseGuards, UseInterceptors,
-  UploadedFile, Req, Body, BadRequestException,
+  Controller,
+  Post,
+  Get,
+  Param,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  Req,
+  Body,
+  BadRequestException,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { NfeService } from "./nfe.service";
@@ -30,9 +38,16 @@ export class NfeController {
   ) {
     if (!file) throw new BadRequestException("Arquivo XML obrigatório");
     if (!file.originalname.endsWith(".xml")) {
-      throw new BadRequestException("Formato inválido. Envie um arquivo XML da NF-e");
+      throw new BadRequestException(
+        "Formato inválido. Envie um arquivo XML da NF-e",
+      );
     }
-    return this.nfeService.importXml(file, req.user.organizationId, req.user.userId, deliveryId);
+    return this.nfeService.importXml(
+      file,
+      req.user.organizationId,
+      req.user.userId,
+      deliveryId,
+    );
   }
 
   @Get()
@@ -40,10 +55,19 @@ export class NfeController {
   @RequirePermissions("VIEW_INVOICES")
   async findAll(@Req() req: any) {
     return this.prisma.invoice.findMany({
-      where: { organizationId: req.user.organizationId, deletedAt: null, accessKey: { not: null } },
+      where: {
+        organizationId: req.user.organizationId,
+        deletedAt: null,
+        accessKey: { not: null },
+      },
       include: {
         items: true,
-        delivery: { select: { deliveryNumber: true, customer: { select: { name: true } } } },
+        delivery: {
+          select: {
+            deliveryNumber: true,
+            customer: { select: { name: true } },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -57,7 +81,9 @@ export class NfeController {
       where: { id, organizationId: req.user.organizationId, deletedAt: null },
       include: {
         items: true,
-        delivery: { include: { customer: true, driver: { include: { user: true } } } },
+        delivery: {
+          include: { customer: true, driver: { include: { user: true } } },
+        },
       },
     });
   }

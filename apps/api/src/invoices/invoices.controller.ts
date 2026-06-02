@@ -87,6 +87,9 @@ export class InvoicesController {
   @Roles(Role.ADMIN, Role.DISPATCHER)
   @RequirePermissions("MANAGE_INVOICES")
   importExcel(@Req() req: any, @Body("rows") rows: any[]) {
-    return this.invoicesService.importExcel(rows || [], req.user.organizationId);
+    return this.invoicesService.importExcel(
+      rows || [],
+      req.user.organizationId,
+    );
   }
 }

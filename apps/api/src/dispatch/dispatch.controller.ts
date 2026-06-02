@@ -52,7 +52,12 @@ export class DispatchController {
     @Body("driverId") driverId: string | null,
     @Req() req: any,
   ) {
-    return this.dispatchService.assignDriver(id, req.user.organizationId, driverId, req.user?.userId);
+    return this.dispatchService.assignDriver(
+      id,
+      req.user.organizationId,
+      driverId,
+      req.user?.userId,
+    );
   }
 
   @Post("optimize")

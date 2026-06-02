@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, OnModuleInit } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { InjectQueue } from "@nestjs/bullmq";
 import { Queue } from "bullmq";
@@ -40,7 +45,11 @@ export class InvoicesService implements OnModuleInit {
     }
   }
 
-  async processInvoice(file: Express.Multer.File, deliveryId: string | undefined, organizationId: string) {
+  async processInvoice(
+    file: Express.Multer.File,
+    deliveryId: string | undefined,
+    organizationId: string,
+  ) {
     const fileType = file.mimetype;
 
     // 1. Save file locally
@@ -73,7 +82,7 @@ export class InvoicesService implements OnModuleInit {
         deduplication: { id: invoice.id },
         // Keep completed/failed jobs briefly so dedup works across worker restarts
         removeOnComplete: { age: 3600 * 24 }, // 24 hours
-        removeOnFail: { age: 3600 * 24 },     // 24 hours
+        removeOnFail: { age: 3600 * 24 }, // 24 hours
       },
     );
 
@@ -183,29 +192,42 @@ export class InvoicesService implements OnModuleInit {
 
     for (const row of rows) {
       const errors = [];
-      
+
       // Validation System logic
       if (!row.invoiceNumber) errors.push("Missing Invoice Number");
       if (!row.customer) errors.push("Missing Customer Name");
       if (!row.destination) errors.push("Missing Destination Address");
-      if (!row.quantity || isNaN(parseFloat(row.quantity))) errors.push("Invalid Material Quantity");
-      if (row.truckType && !["Dump Truck", "Flatbed", "Mixer", "Box Truck"].includes(row.truckType)) {
+      if (!row.quantity || isNaN(parseFloat(row.quantity)))
+        errors.push("Invalid Material Quantity");
+      if (
+        row.truckType &&
+        !["Dump Truck", "Flatbed", "Mixer", "Box Truck"].includes(row.truckType)
+      ) {
         errors.push(`Unsupported truck requirement: ${row.truckType}`);
       }
 
       // Detect duplicate invoices
       if (row.invoiceNumber) {
         const existing = await this.prisma.invoice.findFirst({
-          where: { invoiceNumber: row.invoiceNumber, organizationId, deletedAt: null },
+          where: {
+            invoiceNumber: row.invoiceNumber,
+            organizationId,
+            deletedAt: null,
+          },
         });
-        if (existing) errors.push(`Duplicate invoice detected: ${row.invoiceNumber}`);
+        if (existing)
+          errors.push(`Duplicate invoice detected: ${row.invoiceNumber}`);
       }
 
       if (errors.length > 0) {
         validatedRows.push({ row, status: "ERROR", errors });
       } else {
         let customerObj = await this.prisma.customer.findFirst({
-          where: { name: { equals: row.customer, mode: "insensitive" }, organizationId, deletedAt: null },
+          where: {
+            name: { equals: row.customer, mode: "insensitive" },
+            organizationId,
+            deletedAt: null,
+          },
         });
         if (!customerObj) {
           customerObj = await this.prisma.customer.create({
@@ -213,27 +235,29 @@ export class InvoicesService implements OnModuleInit {
               name: row.customer,
               phone: row.phone || "555-0199",
               address: row.destination,
+              latitude: -23.5505,
+              longitude: -46.6333,
+              organizationId: organizationId,
+            },
+          });
+        }
+
+        const delivery = await this.prisma.delivery.create({
+          data: {
+            deliveryNumber: `DEL-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            customerId: customerObj.id,
+            materialType: row.materialList || "General Cargo",
+            quantity: String(row.quantity),
+            deliveryAddress: row.destination,
             latitude: -23.5505,
             longitude: -46.6333,
+            scheduledTime: row.deliveryDate
+              ? new Date(row.deliveryDate)
+              : new Date(),
+            status: "PENDING",
             organizationId: organizationId,
           },
         });
-      }
-
-      const delivery = await this.prisma.delivery.create({
-        data: {
-          deliveryNumber: `DEL-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          customerId: customerObj.id,
-          materialType: row.materialList || "General Cargo",
-          quantity: String(row.quantity),
-          deliveryAddress: row.destination,
-          latitude: -23.5505,
-          longitude: -46.6333,
-          scheduledTime: row.deliveryDate ? new Date(row.deliveryDate) : new Date(),
-          status: "PENDING",
-          organizationId: organizationId,
-        },
-      });
 
         const weight = parseFloat(row.weight);
         const totalAmount = !isNaN(weight) ? weight * 10 : 1000;

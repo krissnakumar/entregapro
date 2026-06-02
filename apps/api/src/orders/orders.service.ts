@@ -32,7 +32,8 @@ export class OrdersService {
         orderNumber: order.orderNumber,
         status: delivery?.status || "PENDING",
         eta_minutes: 24,
-        customerAddress: delivery?.deliveryAddress || delivery?.customer?.address || "",
+        customerAddress:
+          delivery?.deliveryAddress || delivery?.customer?.address || "",
         materialType: delivery?.materialType || "",
         quantity: delivery?.quantity || "",
         driver: delivery?.driver
@@ -72,7 +73,8 @@ export class OrdersService {
         orderNumber: delivery.deliveryNumber,
         status: delivery.status,
         eta_minutes: 24,
-        customerAddress: delivery.deliveryAddress || delivery.customer?.address || "",
+        customerAddress:
+          delivery.deliveryAddress || delivery.customer?.address || "",
         materialType: delivery.materialType || "",
         quantity: delivery.quantity || "",
         driver: delivery.driver

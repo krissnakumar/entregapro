@@ -12,6 +12,8 @@ export class SimulationController {
   @Get("routes")
   @Roles(Role.ADMIN, Role.DISPATCHER)
   routes(@Req() req: any) {
-    return this.simulationService.getRoutes(req.headers.authorization?.replace("Bearer ", ""));
+    return this.simulationService.getRoutes(
+      req.headers.authorization?.replace("Bearer ", ""),
+    );
   }
 }

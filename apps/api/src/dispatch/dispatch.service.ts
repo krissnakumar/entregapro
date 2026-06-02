@@ -1,4 +1,9 @@
-import { Injectable, ConflictException, NotFoundException, Logger } from "@nestjs/common";
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  Logger,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { Order, OrderStatus } from "@prisma/client";
 
@@ -17,12 +22,16 @@ export class DispatchService {
   async create(data: any): Promise<Order> {
     // Garante que exista um Customer válido para não quebrar a restrição de chave estrangeira
     let targetCustomerId = data.customerId;
-    
+
     // Verifica se o customerId enviado existe no banco
     let existingCustomer: any = null;
     if (targetCustomerId) {
       existingCustomer = await this.prisma.customer.findFirst({
-        where: { id: targetCustomerId, organizationId: data.organizationId, deletedAt: null },
+        where: {
+          id: targetCustomerId,
+          organizationId: data.organizationId,
+          deletedAt: null,
+        },
       });
     }
 
@@ -45,7 +54,7 @@ export class DispatchService {
             latitude: -23.5505,
             longitude: -46.6333,
             organizationId: data.organizationId,
-          }
+          },
         });
         targetCustomerId = newCustomer.id;
       }
@@ -58,7 +67,9 @@ export class DispatchService {
     const safeLng = isNaN(lng) ? -46.6333 : lng;
 
     // Converte timestamp agendado para o formato correto com flexibilidade de datas passadas/futuras
-    const scheduledDate = data.scheduledTime ? new Date(data.scheduledTime) : new Date();
+    const scheduledDate = data.scheduledTime
+      ? new Date(data.scheduledTime)
+      : new Date();
 
     const order = await this.prisma.order.create({
       data: {
@@ -74,7 +85,8 @@ export class DispatchService {
             deliveryNumber: `DEL-${Date.now().toString().slice(-6)}`,
             materialType: data.materialType || "Concrete",
             quantity: data.quantity || "10m³",
-            deliveryAddress: data.deliveryAddress || "Av. Principal, Centro - São Paulo",
+            deliveryAddress:
+              data.deliveryAddress || "Av. Principal, Centro - São Paulo",
             scheduledTime: scheduledDate,
             driverId: data.driverId || null,
             vehicleId: data.vehicleId || null,
@@ -116,7 +128,7 @@ export class DispatchService {
     return this.prisma.order.findMany({
       where: { organizationId, deletedAt: null },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
       include: {
         deliveries: {
@@ -192,7 +204,8 @@ export class DispatchService {
       where: { id, organizationId, deletedAt: null },
       data: { status },
     });
-    if (res.count === 0) throw new NotFoundException(`Delivery ${id} not found`);
+    if (res.count === 0)
+      throw new NotFoundException(`Delivery ${id} not found`);
     return this.prisma.delivery.findFirstOrThrow({
       where: { id, organizationId, deletedAt: null },
       include: {
@@ -297,7 +310,11 @@ export class DispatchService {
 
   async optimize(organizationId: string): Promise<any> {
     const now = new Date();
-    const ACTIVE_STATUSES: OrderStatus[] = [OrderStatus.ASSIGNED, OrderStatus.LOADED, OrderStatus.IN_TRANSIT];
+    const ACTIVE_STATUSES: OrderStatus[] = [
+      OrderStatus.ASSIGNED,
+      OrderStatus.LOADED,
+      OrderStatus.IN_TRANSIT,
+    ];
 
     // 1. Get pending invoices with delivery info, using PostGIS for distance
     const pendingInvoices = await this.prisma.invoice.findMany({
@@ -318,7 +335,10 @@ export class DispatchService {
     );
 
     if (unassignedInvoices.length === 0) {
-      return { message: "Nenhuma entrega pendente para otimização.", routes: [] };
+      return {
+        message: "Nenhuma entrega pendente para otimização.",
+        routes: [],
+      };
     }
 
     // 2. Get available drivers with performance data
@@ -333,7 +353,11 @@ export class DispatchService {
 
     // Filter busy drivers (those with active deliveries)
     const activeDeliveries = await this.prisma.delivery.findMany({
-      where: { status: { in: ACTIVE_STATUSES }, driverId: { not: null }, organizationId },
+      where: {
+        status: { in: ACTIVE_STATUSES },
+        driverId: { not: null },
+        organizationId,
+      },
       select: { driverId: true },
     });
     const busyIds = new Set(activeDeliveries.map((d) => d.driverId));
@@ -343,10 +367,13 @@ export class DispatchService {
       where: { organizationId },
       include: { vehicle: { select: { id: true, vehicleNumber: true } } },
     });
-    const vehicleIdToCap = new Map(driverCapacities.map((vc) => [vc.vehicleId, vc]));
+    const vehicleIdToCap = new Map(
+      driverCapacities.map((vc) => [vc.vehicleId, vc]),
+    );
 
     const availableDrivers = drivers.filter(
-      (d) => !busyIds.has(d.id) && d.vehicleId && vehicleIdToCap.has(d.vehicleId),
+      (d) =>
+        !busyIds.has(d.id) && d.vehicleId && vehicleIdToCap.has(d.vehicleId),
     );
 
     if (availableDrivers.length === 0) {
@@ -362,7 +389,9 @@ export class DispatchService {
     }> = [];
 
     for (const driver of availableDrivers) {
-      const cap = driver.vehicleId ? vehicleIdToCap.get(driver.vehicleId)! : null;
+      const cap = driver.vehicleId
+        ? vehicleIdToCap.get(driver.vehicleId)!
+        : null;
       if (!cap) continue;
       const maxWeight = cap.maxWeight || Infinity;
       const maxVolume = cap.maxVolume || Infinity;
@@ -373,7 +402,10 @@ export class DispatchService {
       const stops: typeof unassignedInvoices = [];
 
       const invoicesByPriority = [...unassignedInvoices].sort(
-        (a, b) => (b.priority || 0) - (a.priority || 0) || (a.deliveryDeadline?.getTime() || 0) - (b.deliveryDeadline?.getTime() || 0),
+        (a, b) =>
+          (b.priority || 0) - (a.priority || 0) ||
+          (a.deliveryDeadline?.getTime() || 0) -
+            (b.deliveryDeadline?.getTime() || 0),
       );
 
       for (const inv of invoicesByPriority) {
@@ -415,10 +447,15 @@ export class DispatchService {
 
       const perf = driver.driverPerformance;
       const perfScore = perf ? perf.score : 5.0;
-      const capacityUtil = maxWeight > 0 ? ((maxWeight - availableWeight) / maxWeight) * 100 : 50;
+      const capacityUtil =
+        maxWeight > 0 ? ((maxWeight - availableWeight) / maxWeight) * 100 : 50;
       const riskScore = perf ? (1 - perf.onTimeRate) * 100 : 10;
 
-      const score = totalDistance * 0.3 + (100 - capacityUtil) * 0.2 + riskScore * 0.2 + (5 - perfScore) * 10 * 0.3;
+      const score =
+        totalDistance * 0.3 +
+        (100 - capacityUtil) * 0.2 +
+        riskScore * 0.2 +
+        (5 - perfScore) * 10 * 0.3;
 
       results.push({ driver, capacity: cap, stops, score });
     }
@@ -429,7 +466,9 @@ export class DispatchService {
     const finalRoutes: any[] = [];
 
     for (const result of results) {
-      const unassignedStops = result.stops.filter((s) => !assignedInvoiceIds.has(s.id));
+      const unassignedStops = result.stops.filter(
+        (s) => !assignedInvoiceIds.has(s.id),
+      );
       if (unassignedStops.length === 0) continue;
       for (const stop of unassignedStops) assignedInvoiceIds.add(stop.id);
 
@@ -443,11 +482,19 @@ export class DispatchService {
           totalDistance: unassignedStops.reduce((sum, s) => {
             return sum + (s.weight || 0);
           }, 0),
-          totalWeight: unassignedStops.reduce((sum, s) => sum + (s.weight || 0), 0),
-          totalVolume: unassignedStops.reduce((sum, s) => sum + (s.volume || 0), 0),
+          totalWeight: unassignedStops.reduce(
+            (sum, s) => sum + (s.weight || 0),
+            0,
+          ),
+          totalVolume: unassignedStops.reduce(
+            (sum, s) => sum + (s.volume || 0),
+            0,
+          ),
           stopCount: unassignedStops.length,
           capacityUtilization: result.capacity.maxWeight
-            ? (unassignedStops.reduce((s, i) => s + (i.weight || 0), 0) / result.capacity.maxWeight) * 100
+            ? (unassignedStops.reduce((s, i) => s + (i.weight || 0), 0) /
+                result.capacity.maxWeight) *
+              100
             : null,
           riskScore: result.score,
           organizationId,
@@ -480,7 +527,10 @@ export class DispatchService {
       // Update deliveries to ASSIGNED
       const invoiceIds = unassignedStops.map((s) => s.id);
       const deliveriesToUpdate = await this.prisma.delivery.findMany({
-        where: { invoices: { some: { id: { in: invoiceIds } } }, organizationId },
+        where: {
+          invoices: { some: { id: { in: invoiceIds } } },
+          organizationId,
+        },
         select: { id: true, driverId: true },
       });
       for (const d of deliveriesToUpdate) {
@@ -520,21 +570,35 @@ export class DispatchService {
     };
   }
 
-  private async postgisDistance(lat1: number, lng1: number, lat2: number, lng2: number): Promise<number> {
+  private async postgisDistance(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number,
+  ): Promise<number> {
     try {
-      const result = await this.prisma.$queryRawUnsafe<Array<{ distance: number }>>(
+      const result = await this.prisma.$queryRawUnsafe<
+        Array<{ distance: number }>
+      >(
         `SELECT ST_DistanceSphere(
           ST_SetSRID(ST_MakePoint($1, $2), 4326),
           ST_SetSRID(ST_MakePoint($3, $4), 4326)
         ) AS distance`,
-        lng1, lat1, lng2, lat2,
+        lng1,
+        lat1,
+        lng2,
+        lat2,
       );
       return result[0]?.distance || 0;
     } catch {
       const R = 6371000;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLng = (lng2 - lng1) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      const dLat = ((lat2 - lat1) * Math.PI) / 180;
+      const dLng = ((lng2 - lng1) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos((lat1 * Math.PI) / 180) *
+          Math.cos((lat2 * Math.PI) / 180) *
+          Math.sin(dLng / 2) ** 2;
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
   }

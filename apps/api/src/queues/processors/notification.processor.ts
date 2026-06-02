@@ -33,7 +33,9 @@ export class NotificationProcessor extends WorkerHost {
   private async sendPushNotification(data: PushJob) {
     const tokens = this.pushTokensService.getTokens(data.userId);
     if (tokens.length === 0) {
-      this.logger.debug(`No push tokens for user ${data.userId}, skipping push`);
+      this.logger.debug(
+        `No push tokens for user ${data.userId}, skipping push`,
+      );
       return;
     }
 
@@ -43,7 +45,7 @@ export class NotificationProcessor extends WorkerHost {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Accept": "application/json",
+            Accept: "application/json",
           },
           body: JSON.stringify({
             to: token,

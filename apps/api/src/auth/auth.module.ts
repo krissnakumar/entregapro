@@ -9,7 +9,12 @@ import { JwtStrategy } from "./strategies/jwt.strategy";
 import { RefreshTokenStrategy } from "./strategies/refresh-token.strategy";
 
 @Module({
-  imports: [UsersModule, OrganizationModule, PassportModule, JwtModule.register({})],
+  imports: [
+    UsersModule,
+    OrganizationModule,
+    PassportModule,
+    JwtModule.register({}),
+  ],
   providers: [AuthService, JwtStrategy, RefreshTokenStrategy],
   controllers: [AuthController],
   exports: [AuthService],

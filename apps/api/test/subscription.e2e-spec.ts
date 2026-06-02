@@ -1,4 +1,13 @@
-import { setupTestApp, teardownTestApp, app, prisma, ORG1_ADMIN, ORG2_ADMIN, login, authHeader } from "./setup";
+import {
+  setupTestApp,
+  teardownTestApp,
+  app,
+  prisma,
+  ORG1_ADMIN,
+  ORG2_ADMIN,
+  login,
+  authHeader,
+} from "./setup";
 import request from "supertest";
 
 jest.setTimeout(30000);
@@ -64,8 +73,14 @@ describe("Subscription & Plans (e2e)", () => {
 
     it("should be scoped per organization", async () => {
       const [res1, res2] = await Promise.all([
-        request(app.getHttpServer()).get("/subscription/current").set(...authHeader(org1Token)).expect(200),
-        request(app.getHttpServer()).get("/subscription/current").set(...authHeader(org2Token)).expect(200),
+        request(app.getHttpServer())
+          .get("/subscription/current")
+          .set(...authHeader(org1Token))
+          .expect(200),
+        request(app.getHttpServer())
+          .get("/subscription/current")
+          .set(...authHeader(org2Token))
+          .expect(200),
       ]);
 
       expect(res1.body.organizationId).not.toBe(res2.body.organizationId);

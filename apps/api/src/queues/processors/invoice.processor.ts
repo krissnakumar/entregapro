@@ -1,23 +1,23 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
-import { Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { InvoiceStatus } from '@prisma/client';
-import * as fs from 'fs';
-const pdf = require('pdf-parse');
-import * as mammoth from 'mammoth';
-import * as xlsx from 'xlsx';
-import { createWorker } from 'tesseract.js';
+import { Processor, WorkerHost } from "@nestjs/bullmq";
+import { Job } from "bullmq";
+import { Logger } from "@nestjs/common";
+import { PrismaService } from "../../prisma/prisma.service";
+import { InvoiceStatus } from "@prisma/client";
+import * as fs from "fs";
+const pdf = require("pdf-parse");
+import * as mammoth from "mammoth";
+import * as xlsx from "xlsx";
+import { createWorker } from "tesseract.js";
 
 let ocrWorker: Awaited<ReturnType<typeof createWorker>> | null = null;
 async function getOcrWorker() {
   if (!ocrWorker) {
-    ocrWorker = await createWorker('eng');
+    ocrWorker = await createWorker("eng");
   }
   return ocrWorker;
 }
 
-@Processor('invoice-processing')
+@Processor("invoice-processing")
 export class InvoiceProcessor extends WorkerHost {
   private readonly logger = new Logger(InvoiceProcessor.name);
 
@@ -37,7 +37,7 @@ export class InvoiceProcessor extends WorkerHost {
 
     if (!existing) {
       this.logger.warn(`Invoice ${invoiceId} not found, skipping.`);
-      return { success: false, skipped: true, reason: 'not_found' };
+      return { success: false, skipped: true, reason: "not_found" };
     }
 
     if (existing.status === InvoiceStatus.PROCESSED) {
@@ -48,7 +48,9 @@ export class InvoiceProcessor extends WorkerHost {
     try {
       // If previously errored, reset to PENDING before retrying
       if (existing.status === InvoiceStatus.ERROR) {
-        this.logger.log(`Invoice ${invoiceId} previously errored, resetting to PENDING and retrying.`);
+        this.logger.log(
+          `Invoice ${invoiceId} previously errored, resetting to PENDING and retrying.`,
+        );
         await this.prisma.invoice.update({
           where: { id: invoiceId },
           data: { status: InvoiceStatus.PENDING },
@@ -56,20 +58,27 @@ export class InvoiceProcessor extends WorkerHost {
       }
 
       const buffer = fs.readFileSync(filePath);
-      let extractedText = '';
+      let extractedText = "";
 
-      if (fileType === 'application/pdf') {
+      if (fileType === "application/pdf") {
         const data = await pdf(buffer);
         extractedText = data.text;
-      } else if (fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      } else if (
+        fileType ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ) {
         const result = await mammoth.extractRawText({ buffer });
         extractedText = result.value;
-      } else if (fileType.includes('spreadsheet') || fileType.includes('excel')) {
-        const workbook = xlsx.read(buffer, { type: 'buffer' });
+      } else if (
+        fileType.includes("spreadsheet") ||
+        fileType.includes("excel")
+      ) {
+        const workbook = xlsx.read(buffer, { type: "buffer" });
         workbook.SheetNames.forEach((name) => {
-          extractedText += xlsx.utils.sheet_to_txt(workbook.Sheets[name]) + '\n';
+          extractedText +=
+            xlsx.utils.sheet_to_txt(workbook.Sheets[name]) + "\n";
         });
-      } else if (fileType.startsWith('image/')) {
+      } else if (fileType.startsWith("image/")) {
         const worker = await getOcrWorker();
         const ret = await worker.recognize(buffer);
         extractedText = ret.data.text;
@@ -82,11 +91,11 @@ export class InvoiceProcessor extends WorkerHost {
         where: { id: invoiceId },
         select: { organizationId: true },
       });
-      const orgId = invoiceRecord?.organizationId || 'unknown';
+      const orgId = invoiceRecord?.organizationId || "unknown";
 
       // 1. Find or create Customer
       let customer = await this.prisma.customer.findFirst({
-        where: { name: { equals: details.vendorName, mode: 'insensitive' } },
+        where: { name: { equals: details.vendorName, mode: "insensitive" } },
       });
 
       if (!customer) {
@@ -94,7 +103,7 @@ export class InvoiceProcessor extends WorkerHost {
           data: {
             name: details.vendorName,
             address: details.address,
-            phone: 'N/A',
+            phone: "N/A",
             latitude: -23.5505,
             longitude: -46.6333,
             organizationId: orgId,
@@ -133,7 +142,9 @@ export class InvoiceProcessor extends WorkerHost {
 
       return { success: true, deliveryId: delivery.id };
     } catch (error) {
-      this.logger.error(`Failed to process invoice ${invoiceId}: ${error.message}`);
+      this.logger.error(
+        `Failed to process invoice ${invoiceId}: ${error.message}`,
+      );
       await this.prisma.invoice.update({
         where: { id: invoiceId },
         data: { status: InvoiceStatus.ERROR },
@@ -143,13 +154,25 @@ export class InvoiceProcessor extends WorkerHost {
   }
 
   private extractDetails(text: string) {
-    const invoiceNumberMatch = text.match(/(?:Invoice|Inv|Nº|Bill|No)[:.\s#]*([A-Z0-9-]+)/i);
+    const invoiceNumberMatch = text.match(
+      /(?:Invoice|Inv|Nº|Bill|No)[:.\s#]*([A-Z0-9-]+)/i,
+    );
     const dateMatch = text.match(/(\d{1,4}[/-]\d{1,2}[/-]\d{1,4})/);
-    const totalAmountMatch = text.match(/(?:Total|Amount|Valuation|Sum|Balance|Due)[:.\s]*[^\d]*([\d,]+(?:\.\d{2})?)/i);
-    const materialMatch = text.match(/(Concrete|Sand|Gravel|Aggregate|Cement|Steel|Iron|Brick|Block|Stone)/i);
-    const quantityMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:m3|tons|t|kg|units|bags|liters|l|m|sqm)/i);
-    const addressMatch = text.match(/(?:Delivery Address|To|Ship To|Site|Destination|Local)[:.\s]*([^\n]+)/i);
-    const customerMatch = text.match(/(?:Bill To|Customer|Client|Recipient|Sold To)[:.\s]*([^\n]+)/i);
+    const totalAmountMatch = text.match(
+      /(?:Total|Amount|Valuation|Sum|Balance|Due)[:.\s]*[^\d]*([\d,]+(?:\.\d{2})?)/i,
+    );
+    const materialMatch = text.match(
+      /(Concrete|Sand|Gravel|Aggregate|Cement|Steel|Iron|Brick|Block|Stone)/i,
+    );
+    const quantityMatch = text.match(
+      /(\d+(?:\.\d+)?)\s*(?:m3|tons|t|kg|units|bags|liters|l|m|sqm)/i,
+    );
+    const addressMatch = text.match(
+      /(?:Delivery Address|To|Ship To|Site|Destination|Local)[:.\s]*([^\n]+)/i,
+    );
+    const customerMatch = text.match(
+      /(?:Bill To|Customer|Client|Recipient|Sold To)[:.\s]*([^\n]+)/i,
+    );
 
     let parsedDate = new Date();
     if (dateMatch) {
@@ -158,13 +181,25 @@ export class InvoiceProcessor extends WorkerHost {
     }
 
     return {
-      invoiceNumber: invoiceNumberMatch ? invoiceNumberMatch[1] : `INV-${Date.now().toString().slice(-6)}`,
-      vendorName: customerMatch ? customerMatch[1].trim().substring(0, 50) : 'Standard Vendor',
+      invoiceNumber: invoiceNumberMatch
+        ? invoiceNumberMatch[1]
+        : `INV-${Date.now().toString().slice(-6)}`,
+      vendorName: customerMatch
+        ? customerMatch[1].trim().substring(0, 50)
+        : "Standard Vendor",
       issueDate: parsedDate,
-      totalAmount: totalAmountMatch ? parseFloat(totalAmountMatch[1].replace(/,/g, '')) : 0,
-      materialType: materialMatch ? materialMatch[0].trim().substring(0, 50) : 'Standard Load',
-      quantity: quantityMatch ? quantityMatch[0].trim().substring(0, 20) : '10 m³',
-      address: addressMatch ? addressMatch[1].trim().substring(0, 100) : 'Main Construction Site',
+      totalAmount: totalAmountMatch
+        ? parseFloat(totalAmountMatch[1].replace(/,/g, ""))
+        : 0,
+      materialType: materialMatch
+        ? materialMatch[0].trim().substring(0, 50)
+        : "Standard Load",
+      quantity: quantityMatch
+        ? quantityMatch[0].trim().substring(0, 20)
+        : "10 m³",
+      address: addressMatch
+        ? addressMatch[1].trim().substring(0, 100)
+        : "Main Construction Site",
     };
   }
 }

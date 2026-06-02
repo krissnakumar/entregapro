@@ -1,4 +1,17 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Req, Query, ParseIntPipe, DefaultValuePipe } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Req,
+  Query,
+  ParseIntPipe,
+  DefaultValuePipe,
+} from "@nestjs/common";
 import { VehiclesService } from "./vehicles.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -28,7 +41,10 @@ export class VehiclesController {
     @Query("take", new DefaultValuePipe(50), ParseIntPipe) take: number,
     @Query("skip", new DefaultValuePipe(0), ParseIntPipe) skip: number,
   ) {
-    const result = await this.vehiclesService.findAll(req.user.organizationId, { take, skip });
+    const result = await this.vehiclesService.findAll(req.user.organizationId, {
+      take,
+      skip,
+    });
     return {
       ...result,
       data: result.data.map((v) => ({
@@ -47,7 +63,11 @@ export class VehiclesController {
   @Patch(":id")
   @RequirePermissions("MANAGE_VEHICLES")
   async update(@Param("id") id: string, @Body() data: any, @Req() req: any) {
-    const updated = await this.vehiclesService.update(id, req.user.organizationId, data);
+    const updated = await this.vehiclesService.update(
+      id,
+      req.user.organizationId,
+      data,
+    );
     return {
       ...updated,
       status: updated.activeStatus ? "active" : "maintenance",

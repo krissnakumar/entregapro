@@ -113,16 +113,17 @@ export class AuthService {
       // Don't reveal whether the email exists
       return {
         success: true,
-        message: "If an account exists with this email, a reset link has been sent.",
+        message:
+          "If an account exists with this email, a reset link has been sent.",
       };
     }
 
     // Generate a password reset token (valid for 1 hour)
     const resetToken = await this.jwtService.signAsync(
-      { sub: user.id, email: user.email, type: 'password_reset' },
+      { sub: user.id, email: user.email, type: "password_reset" },
       {
-        secret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
-        expiresIn: '1h',
+        secret: process.env.JWT_SECRET || "dev-secret-change-in-production",
+        expiresIn: "1h",
       },
     );
 
@@ -132,11 +133,16 @@ export class AuthService {
 
     return {
       success: true,
-      message: "If an account exists with this email, a reset link has been sent.",
+      message:
+        "If an account exists with this email, a reset link has been sent.",
     };
   }
 
-  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+  async changePassword(
+    userId: string,
+    oldPassword: string,
+    newPassword: string,
+  ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new UnauthorizedException("User not found");
@@ -174,11 +180,13 @@ export class AuthService {
     const payload = { sub: userId, email, role, permissions, organizationId };
     const [at, rt] = await Promise.all([
       this.jwtService.signAsync(payload, {
-        secret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
+        secret: process.env.JWT_SECRET || "dev-secret-change-in-production",
         expiresIn: "15m",
       }),
       this.jwtService.signAsync(payload, {
-        secret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-change-in-production',
+        secret:
+          process.env.JWT_REFRESH_SECRET ||
+          "dev-refresh-secret-change-in-production",
         expiresIn: "7d",
       }),
     ]);

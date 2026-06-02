@@ -64,7 +64,11 @@ export class FleetService {
         odometer: Number(data.odometer || data.odo || 0),
         providerName: data.providerName || null,
         notes: data.notes || null,
-        nextDueDate: data.nextDueDate ? new Date(data.nextDueDate) : (data.nextDue ? new Date(data.nextDue) : null),
+        nextDueDate: data.nextDueDate
+          ? new Date(data.nextDueDate)
+          : data.nextDue
+            ? new Date(data.nextDue)
+            : null,
         organizationId: data.organizationId,
       },
       include: { vehicle: true },

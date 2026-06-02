@@ -67,10 +67,12 @@ export class ClusteringService {
           cluster.totalWeight += other.weight || 0;
           cluster.totalVolume += other.volume || 0;
           cluster.avgLat =
-            (cluster.avgLat * (cluster.invoiceIds.length - 1) + other.addressLat!) /
+            (cluster.avgLat * (cluster.invoiceIds.length - 1) +
+              other.addressLat!) /
             cluster.invoiceIds.length;
           cluster.avgLng =
-            (cluster.avgLng * (cluster.invoiceIds.length - 1) + other.addressLng!) /
+            (cluster.avgLng * (cluster.invoiceIds.length - 1) +
+              other.addressLng!) /
             cluster.invoiceIds.length;
           cluster.priority = Math.max(cluster.priority, other.priority || 0);
           assigned.add(other.id);
@@ -118,13 +120,20 @@ export class ClusteringService {
     });
   }
 
-  private haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  private haversine(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
     const R = 6371;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLon = ((lon2 - lon1) * Math.PI) / 180;
     const a =
       Math.sin(dLat / 2) ** 2 +
-      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) ** 2;
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 }

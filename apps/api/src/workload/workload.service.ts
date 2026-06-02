@@ -35,7 +35,10 @@ export class WorkloadService {
       0,
     );
 
-    const totalKm = activeDeliveries.reduce((sum, d) => sum + (d.total_km || 0), 0);
+    const totalKm = activeDeliveries.reduce(
+      (sum, d) => sum + (d.total_km || 0),
+      0,
+    );
     const avgSpeed = 40;
     const stopTimePerDelivery = 15;
     const totalDurationMin =
@@ -46,13 +49,19 @@ export class WorkloadService {
 
     const warnings: string[] = [];
     if (activeDeliveries.length > this.MAX_DAILY_DELIVERIES) {
-      warnings.push(`Motorista excedeu limite de ${this.MAX_DAILY_DELIVERIES} entregas/dia`);
+      warnings.push(
+        `Motorista excedeu limite de ${this.MAX_DAILY_DELIVERIES} entregas/dia`,
+      );
     }
     if (totalWeight > this.MAX_DAILY_WEIGHT_KG) {
-      warnings.push(`Peso total (${totalWeight}kg) excede limite de ${this.MAX_DAILY_WEIGHT_KG}kg`);
+      warnings.push(
+        `Peso total (${totalWeight}kg) excede limite de ${this.MAX_DAILY_WEIGHT_KG}kg`,
+      );
     }
     if (totalDurationMin > this.MAX_WORK_HOURS * 60) {
-      warnings.push(`Jornada estimada (${Math.round(totalDurationMin / 60)}h) excede ${this.MAX_WORK_HOURS}h`);
+      warnings.push(
+        `Jornada estimada (${Math.round(totalDurationMin / 60)}h) excede ${this.MAX_WORK_HOURS}h`,
+      );
     }
 
     const workloadScore = Math.min(
@@ -96,7 +105,10 @@ export class WorkloadService {
     return {
       ...metric,
       isOverloaded: workloadScore > 70,
-      suggestedReduction: Math.max(0, activeDeliveries.length - Math.floor(this.MAX_DAILY_DELIVERIES * 0.7)),
+      suggestedReduction: Math.max(
+        0,
+        activeDeliveries.length - Math.floor(this.MAX_DAILY_DELIVERIES * 0.7),
+      ),
       warnings,
     };
   }

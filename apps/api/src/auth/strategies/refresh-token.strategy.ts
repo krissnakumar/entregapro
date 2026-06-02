@@ -11,7 +11,9 @@ export class RefreshTokenStrategy extends PassportStrategy(
   constructor() {
     const secret = process.env.JWT_REFRESH_SECRET;
     if (!secret) {
-      Logger.warn("JWT_REFRESH_SECRET not set. Using insecure default for development.");
+      Logger.warn(
+        "JWT_REFRESH_SECRET not set. Using insecure default for development.",
+      );
     }
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),

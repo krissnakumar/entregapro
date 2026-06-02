@@ -9,7 +9,7 @@ import { NotificationProcessor } from "../queues/processors/notification.process
 @Module({
   imports: [
     TrackingModule,
-    BullModule.registerQueue({ name: 'notifications' }),
+    BullModule.registerQueue({ name: "notifications" }),
   ],
   controllers: [NotificationsController],
   providers: [NotificationsService, NotificationProcessor, PushTokensService],

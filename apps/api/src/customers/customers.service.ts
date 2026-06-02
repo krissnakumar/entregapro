@@ -5,7 +5,10 @@ import { PrismaService } from "../prisma/prisma.service";
 export class CustomersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(organizationId: string, options?: { take?: number; skip?: number }) {
+  async findAll(
+    organizationId: string,
+    options?: { take?: number; skip?: number },
+  ) {
     const take = options?.take ?? 50;
     const skip = options?.skip ?? 0;
     const where = { organizationId, deletedAt: null };
@@ -45,9 +48,15 @@ export class CustomersService {
   }
 
   async create(data: any) {
-    const lat = data.latitude !== undefined && data.latitude !== null ? parseFloat(data.latitude) : NaN;
-    const lng = data.longitude !== undefined && data.longitude !== null ? parseFloat(data.longitude) : NaN;
-    
+    const lat =
+      data.latitude !== undefined && data.latitude !== null
+        ? parseFloat(data.latitude)
+        : NaN;
+    const lng =
+      data.longitude !== undefined && data.longitude !== null
+        ? parseFloat(data.longitude)
+        : NaN;
+
     return this.prisma.customer.create({
       data: {
         name: data.name,

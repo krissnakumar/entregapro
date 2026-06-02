@@ -46,7 +46,9 @@ export class AuthController {
   async register(@Body() body: any) {
     const { orgName, orgSlug, name, email, password } = body;
     if (!orgName || !orgSlug || !name || !email || !password) {
-      throw new BadRequestException("Missing required fields: orgName, orgSlug, name, email, password");
+      throw new BadRequestException(
+        "Missing required fields: orgName, orgSlug, name, email, password",
+      );
     }
 
     const org = await this.organizationService.create({
@@ -56,12 +58,30 @@ export class AuthController {
 
     // Ensure global permissions exist
     const permissionKeys = [
-      "MANAGE_USERS", "MANAGE_ROLES", "MANAGE_SETTINGS", "VIEW_ANALYTICS",
-      "VIEW_AUDIT_LOGS", "MANAGE_WHATSAPP", "CREATE_DELIVERY", "ASSIGN_DRIVER",
-      "TRACK_DELIVERY", "MONITOR_OPERATIONS", "MANAGE_CUSTOMERS", "MANAGE_VEHICLES",
-      "MANAGE_ZONES", "OPTIMIZE_DISPATCH", "VIEW_ASSIGNED_TASKS", "UPDATE_DELIVERY_STATUS",
-      "EXECUTE_DELIVERY", "UPLOAD_POD", "SHARE_GPS_LIVE", "VIEW_INVOICES",
-      "MANAGE_INVOICES", "VIEW_FINANCIALS", "MANAGE_SUBSCRIPTION", "MANAGE_FLEET",
+      "MANAGE_USERS",
+      "MANAGE_ROLES",
+      "MANAGE_SETTINGS",
+      "VIEW_ANALYTICS",
+      "VIEW_AUDIT_LOGS",
+      "MANAGE_WHATSAPP",
+      "CREATE_DELIVERY",
+      "ASSIGN_DRIVER",
+      "TRACK_DELIVERY",
+      "MONITOR_OPERATIONS",
+      "MANAGE_CUSTOMERS",
+      "MANAGE_VEHICLES",
+      "MANAGE_ZONES",
+      "OPTIMIZE_DISPATCH",
+      "VIEW_ASSIGNED_TASKS",
+      "UPDATE_DELIVERY_STATUS",
+      "EXECUTE_DELIVERY",
+      "UPLOAD_POD",
+      "SHARE_GPS_LIVE",
+      "VIEW_INVOICES",
+      "MANAGE_INVOICES",
+      "VIEW_FINANCIALS",
+      "MANAGE_SUBSCRIPTION",
+      "MANAGE_FLEET",
     ];
     const existingPerms = await this.prisma.permission.findMany({
       where: { key: { in: permissionKeys } },
@@ -84,16 +104,30 @@ export class AuthController {
 
     // Create default roles for the organization
     const excludedFromDispatcher = new Set([
-      "MANAGE_USERS", "MANAGE_ROLES", "MANAGE_SETTINGS", "MANAGE_SUBSCRIPTION", "VIEW_AUDIT_LOGS",
+      "MANAGE_USERS",
+      "MANAGE_ROLES",
+      "MANAGE_SETTINGS",
+      "MANAGE_SUBSCRIPTION",
+      "VIEW_AUDIT_LOGS",
     ]);
     const driverOnlyKeys = new Set([
-      "VIEW_ASSIGNED_TASKS", "UPDATE_DELIVERY_STATUS", "EXECUTE_DELIVERY", "UPLOAD_POD", "SHARE_GPS_LIVE",
+      "VIEW_ASSIGNED_TASKS",
+      "UPDATE_DELIVERY_STATUS",
+      "EXECUTE_DELIVERY",
+      "UPLOAD_POD",
+      "SHARE_GPS_LIVE",
     ]);
 
     const roleDefs = [
       { name: "ADMIN", filter: () => true },
-      { name: "DISPATCHER", filter: (p: { key: string }) => !excludedFromDispatcher.has(p.key) },
-      { name: "DRIVER", filter: (p: { key: string }) => driverOnlyKeys.has(p.key) },
+      {
+        name: "DISPATCHER",
+        filter: (p: { key: string }) => !excludedFromDispatcher.has(p.key),
+      },
+      {
+        name: "DRIVER",
+        filter: (p: { key: string }) => driverOnlyKeys.has(p.key),
+      },
     ];
     await this.prisma.role.createMany({
       data: roleDefs.map((r) => ({ name: r.name, organizationId: org.id })),
@@ -106,7 +140,10 @@ export class AuthController {
       const rolePerms = allPermissions.filter(roleDef.filter);
       if (rolePerms.length > 0) {
         await this.prisma.rolePermission.createMany({
-          data: rolePerms.map((p) => ({ role_id: role.id, permission_id: p.id })),
+          data: rolePerms.map((p) => ({
+            role_id: role.id,
+            permission_id: p.id,
+          })),
         });
       }
     }

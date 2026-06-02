@@ -40,7 +40,8 @@ export class UsersController {
 
   @Patch(":id")
   update(@Param("id") id: string, @Body() data: any, @Req() req: any) {
-    const isAdmin = req.user?.role === Role.ADMIN || req.user?.role === Role.SUPER_ADMIN;
+    const isAdmin =
+      req.user?.role === Role.ADMIN || req.user?.role === Role.SUPER_ADMIN;
     if (!isAdmin && req.user?.userId !== id) {
       throw new ForbiddenException("You can only update your own profile");
     }
@@ -52,7 +53,8 @@ export class UsersController {
 
   @Delete(":id")
   remove(@Param("id") id: string, @Req() req: any) {
-    const isAdmin = req.user?.role === Role.ADMIN || req.user?.role === Role.SUPER_ADMIN;
+    const isAdmin =
+      req.user?.role === Role.ADMIN || req.user?.role === Role.SUPER_ADMIN;
     if (!isAdmin && req.user?.userId !== id) {
       throw new ForbiddenException("You can only delete your own account");
     }

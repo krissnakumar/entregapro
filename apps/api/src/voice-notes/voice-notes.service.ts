@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
@@ -25,7 +29,12 @@ export class VoiceNotesService {
     });
   }
 
-  async findByDriver(driverId: string, organizationId: string, skip = 0, take = 50) {
+  async findByDriver(
+    driverId: string,
+    organizationId: string,
+    skip = 0,
+    take = 50,
+  ) {
     const [data, total] = await Promise.all([
       this.prisma.deliveryVoiceNote.findMany({
         where: { driverId, organizationId },
@@ -37,7 +46,9 @@ export class VoiceNotesService {
           stop: { select: { id: true, stopSequence: true } },
         },
       }),
-      this.prisma.deliveryVoiceNote.count({ where: { driverId, organizationId } }),
+      this.prisma.deliveryVoiceNote.count({
+        where: { driverId, organizationId },
+      }),
     ]);
     return { data, total };
   }

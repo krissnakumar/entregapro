@@ -71,7 +71,11 @@ export class ProofOfDeliveryService {
         take: Math.min(take, 100),
         include: {
           delivery: {
-            select: { id: true, deliveryNumber: true, customer: { select: { name: true } } },
+            select: {
+              id: true,
+              deliveryNumber: true,
+              customer: { select: { name: true } },
+            },
           },
         },
       }),

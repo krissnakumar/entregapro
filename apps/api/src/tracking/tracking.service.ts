@@ -12,7 +12,16 @@ export class TrackingProcessor extends WorkerHost {
   }
 
   async process(job: Job<any, any, string>): Promise<any> {
-    const { deliveryId, lat, lng, driverId, speed, heading, batteryLevel, organizationId } = job.data;
+    const {
+      deliveryId,
+      lat,
+      lng,
+      driverId,
+      speed,
+      heading,
+      batteryLevel,
+      organizationId,
+    } = job.data;
 
     try {
       // 1. Persist location ping
@@ -25,7 +34,7 @@ export class TrackingProcessor extends WorkerHost {
           heading: heading ?? null,
           batteryLevel: batteryLevel ?? null,
           timestamp: new Date(),
-          organizationId: organizationId || 'unknown',
+          organizationId: organizationId || "unknown",
         },
       });
 

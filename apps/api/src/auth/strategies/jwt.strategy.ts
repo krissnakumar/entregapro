@@ -9,7 +9,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor() {
     const secret = process.env.JWT_SECRET;
     if (!secret) {
-      Logger.warn("JWT_SECRET not set. Using insecure default for development.");
+      Logger.warn(
+        "JWT_SECRET not set. Using insecure default for development.",
+      );
     }
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),

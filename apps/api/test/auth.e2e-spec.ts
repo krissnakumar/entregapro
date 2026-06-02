@@ -1,4 +1,13 @@
-import { setupTestApp, teardownTestApp, app, ORG1_ADMIN, ORG1_DRIVER, ORG2_ADMIN, login, authHeader } from "./setup";
+import {
+  setupTestApp,
+  teardownTestApp,
+  app,
+  ORG1_ADMIN,
+  ORG1_DRIVER,
+  ORG2_ADMIN,
+  login,
+  authHeader,
+} from "./setup";
 import request from "supertest";
 
 jest.setTimeout(30000);
@@ -84,7 +93,9 @@ describe("Auth (e2e)", () => {
         email: `testadmin${uniqueId}@test.com`,
       });
       // Role should be ADMIN (registered as admin with default role creation)
-      expect(res.body.user.role || res.body.user.roleName || "ADMIN").toBeDefined();
+      expect(
+        res.body.user.role || res.body.user.roleName || "ADMIN",
+      ).toBeDefined();
     });
 
     it("should reject registration with missing fields", async () => {
@@ -128,9 +139,7 @@ describe("Auth (e2e)", () => {
     });
 
     it("should reject logout without auth", async () => {
-      await request(app.getHttpServer())
-        .post("/auth/logout")
-        .expect(401);
+      await request(app.getHttpServer()).post("/auth/logout").expect(401);
     });
   });
 

@@ -21,12 +21,12 @@ export class SimulationService {
     });
 
     return deliveries
-      .filter(d => d.driverId && d.latitude && d.longitude)
-      .map(d => {
+      .filter((d) => d.driverId && d.latitude && d.longitude)
+      .map((d) => {
         const originLat = d.driver?.liveLatitude ?? -23.5505;
         const originLng = d.driver?.liveLongitude ?? -46.6333;
-        const destLat = d.latitude!;
-        const destLng = d.longitude!;
+        const destLat = d.latitude;
+        const destLng = d.longitude;
         const steps = 40;
         const waypoints: { lat: number; lng: number }[] = [];
         for (let i = 0; i <= steps; i++) {

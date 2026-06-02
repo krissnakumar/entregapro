@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsNumber, IsArray, IsEnum } from "class-validator";
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsArray,
+  IsEnum,
+} from "class-validator";
 
 export class CreateJobSiteDto {
   @IsString() name: string;

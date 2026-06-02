@@ -11,8 +11,8 @@ export class NotificationsService {
   constructor(
     private prisma: PrismaService,
     private trackingGateway: TrackingGateway,
-    @InjectQueue('whatsapp-events') private whatsappQueue: Queue,
-    @InjectQueue('notifications') private notificationsQueue: Queue,
+    @InjectQueue("whatsapp-events") private whatsappQueue: Queue,
+    @InjectQueue("notifications") private notificationsQueue: Queue,
   ) {}
 
   async findAll(userId: string, organizationId: string) {
@@ -38,16 +38,21 @@ export class NotificationsService {
     });
   }
 
-  async create(userId: string, title: string, message: string, organizationId: string) {
+  async create(
+    userId: string,
+    title: string,
+    message: string,
+    organizationId: string,
+  ) {
     const notification = await this.prisma.notification.create({
       data: { userId, title, message, organizationId },
     });
 
     // Emit via Socket.IO for instant delivery to foreground clients
-    this.trackingGateway.notifyUser(userId, 'newNotification', notification);
+    this.trackingGateway.notifyUser(userId, "newNotification", notification);
 
     // Enqueue push notification for background delivery
-    await this.notificationsQueue.add('send-push', {
+    await this.notificationsQueue.add("send-push", {
       userId,
       notificationId: notification.id,
       title,
@@ -64,12 +69,12 @@ export class NotificationsService {
     organizationId?: string,
   ) {
     this.logger.log(`Queueing WhatsApp (${templateName}) for ${phone}`);
-    
-    await this.whatsappQueue.add('send-message', {
+
+    await this.whatsappQueue.add("send-message", {
       phone,
       templateName,
       templateData,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
 
     // Also log to DB for audit
@@ -77,9 +82,9 @@ export class NotificationsService {
       data: {
         phone,
         message: `Template: ${templateName}`,
-        status: 'QUEUED',
-        organizationId: organizationId || 'unknown',
-      }
+        status: "QUEUED",
+        organizationId: organizationId || "unknown",
+      },
     });
   }
 
@@ -119,7 +124,11 @@ export class NotificationsService {
 
   // --- DISPATCHER ALERTS ---
 
-  async alertDispatcher(title: string, message: string, organizationId?: string) {
+  async alertDispatcher(
+    title: string,
+    message: string,
+    organizationId?: string,
+  ) {
     const where: any = { active_status: true };
     if (organizationId) {
       where.organizationId = organizationId;
@@ -130,7 +139,12 @@ export class NotificationsService {
     const dispatchers = await this.prisma.user.findMany({ where });
 
     for (const dispatcher of dispatchers) {
-      await this.create(dispatcher.id, title, message, dispatcher.organizationId);
+      await this.create(
+        dispatcher.id,
+        title,
+        message,
+        dispatcher.organizationId,
+      );
     }
   }
 
@@ -222,11 +236,16 @@ export class NotificationsService {
     trackingUrl: string,
     organizationId: string,
   ) {
-    await this.sendWhatsAppMessage(phone, "driver_nearby", {
-      driverName,
-      etaMinutes,
-      trackingUrl,
-    }, organizationId);
+    await this.sendWhatsAppMessage(
+      phone,
+      "driver_nearby",
+      {
+        driverName,
+        etaMinutes,
+        trackingUrl,
+      },
+      organizationId,
+    );
   }
 
   async alertDelayedTrip(deliveryNumber: string, expectedTime: Date) {
@@ -245,7 +264,7 @@ export class NotificationsService {
       await this.create(
         delivery.driver.userId,
         "Alerta de Atraso",
-        `Sua entrega #${deliveryNumber} está atrasada. Chegada estimada era às ${expectedTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`,
+        `Sua entrega #${deliveryNumber} está atrasada. Chegada estimada era às ${expectedTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.`,
         delivery.organizationId,
       );
     }

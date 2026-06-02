@@ -5,7 +5,10 @@ import { PrismaService } from "../prisma/prisma.service";
 export class VehiclesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(organizationId: string, options?: { take?: number; skip?: number }) {
+  async findAll(
+    organizationId: string,
+    options?: { take?: number; skip?: number },
+  ) {
     const take = options?.take ?? 50;
     const skip = options?.skip ?? 0;
     const where = { organizationId, deletedAt: null };
@@ -66,7 +69,8 @@ export class VehiclesService {
         type: data.type,
         capacity: data.capacity,
         fuelType: data.fuelType,
-        activeStatus: data.activeStatus !== undefined ? data.activeStatus : undefined,
+        activeStatus:
+          data.activeStatus !== undefined ? data.activeStatus : undefined,
         maintenanceDue: data.maintenanceDue
           ? new Date(data.maintenanceDue)
           : undefined,

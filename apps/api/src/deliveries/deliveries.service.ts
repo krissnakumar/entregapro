@@ -1,4 +1,9 @@
-import { Injectable, ConflictException, NotFoundException, Logger } from "@nestjs/common";
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  Logger,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { OrderStatus } from "@prisma/client";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -45,7 +50,9 @@ export class DeliveriesService {
           status: true,
           completedAt: true,
           createdAt: true,
-          customer: { select: { id: true, name: true, address: true, phone: true } },
+          customer: {
+            select: { id: true, name: true, address: true, phone: true },
+          },
           driver: { select: { id: true, user: { select: { name: true } } } },
           vehicle: { select: { id: true, vehicleNumber: true, type: true } },
         },
@@ -77,7 +84,9 @@ export class DeliveriesService {
         scheduledTime: true,
         status: true,
         completedAt: true,
-        customer: { select: { id: true, name: true, phone: true, address: true } },
+        customer: {
+          select: { id: true, name: true, phone: true, address: true },
+        },
       },
       orderBy: { scheduledTime: "asc" },
     });
@@ -105,8 +114,18 @@ export class DeliveriesService {
         delivery_margin_percentage: true,
         proof_image_url: true,
         signature_url: true,
-        customer: { select: { id: true, name: true, address: true, phone: true, whatsapp: true } },
-        driver: { select: { id: true, phone: true, user: { select: { name: true } } } },
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            phone: true,
+            whatsapp: true,
+          },
+        },
+        driver: {
+          select: { id: true, phone: true, user: { select: { name: true } } },
+        },
         vehicle: { select: { id: true, vehicleNumber: true, type: true } },
         dispatcher: { select: { id: true, name: true } },
         statusLogs: {
@@ -162,7 +181,9 @@ export class DeliveriesService {
           id: true,
           deliveryNumber: true,
           status: true,
-          customer: { select: { id: true, name: true, phone: true, whatsapp: true } },
+          customer: {
+            select: { id: true, name: true, phone: true, whatsapp: true },
+          },
           driver: { select: { id: true, user: { select: { name: true } } } },
         },
       });
@@ -199,7 +220,11 @@ export class DeliveriesService {
     return result.updated;
   }
 
-  async uploadProof(id: string, organizationId: string, proof_image_url: string) {
+  async uploadProof(
+    id: string,
+    organizationId: string,
+    proof_image_url: string,
+  ) {
     const res = await this.prisma.delivery.updateMany({
       where: { id, organizationId, deletedAt: null },
       data: {
@@ -209,7 +234,8 @@ export class DeliveriesService {
         pod_timestamp: new Date(),
       },
     });
-    if (res.count === 0) throw new NotFoundException(`Delivery ${id} not found`);
+    if (res.count === 0)
+      throw new NotFoundException(`Delivery ${id} not found`);
     return this.findOne(id, organizationId);
   }
 
@@ -231,8 +257,17 @@ export class DeliveriesService {
         proof_image_url: true,
         signature_url: true,
         customer: { select: { name: true, phone: true, address: true } },
-        driver: { select: { id: true, phone: true, user: { select: { name: true } }, vehicle: { select: { vehicleNumber: true, type: true } } } },
-        invoices: { select: { nfeNumber: true, accessKey: true, totalAmount: true } },
+        driver: {
+          select: {
+            id: true,
+            phone: true,
+            user: { select: { name: true } },
+            vehicle: { select: { vehicleNumber: true, type: true } },
+          },
+        },
+        invoices: {
+          select: { nfeNumber: true, accessKey: true, totalAmount: true },
+        },
         statusLogs: {
           select: { status: true, changedAt: true, notes: true },
           orderBy: { changedAt: "asc" },
@@ -355,7 +390,8 @@ export class DeliveriesService {
         vehicle: { select: { fuelType: true } },
       },
     });
-    if (!delivery) throw new NotFoundException(`Delivery ${deliveryId} not found`);
+    if (!delivery)
+      throw new NotFoundException(`Delivery ${deliveryId} not found`);
 
     // Use PostGIS for distance calculation
     const destLat = delivery.latitude;
@@ -373,21 +409,39 @@ export class DeliveriesService {
     }
 
     const estimated_driving_time_minutes = Math.round(total_km * 1.2 + 15);
-    const toll_cost = parseFloat((total_km > 50 ? 15 + (total_km - 50) * 0.1 : 5).toFixed(2));
-    const traffic_delay_minutes = total_km > 100 ? Math.round(total_km * 0.05) : 0;
+    const toll_cost = parseFloat(
+      (total_km > 50 ? 15 + (total_km - 50) * 0.1 : 5).toFixed(2),
+    );
+    const traffic_delay_minutes =
+      total_km > 100 ? Math.round(total_km * 0.05) : 0;
 
     const efficiency = delivery.vehicle?.fuelType === "Diesel" ? 4.5 : 6.0;
     const expected_fuel_liters = parseFloat((total_km / efficiency).toFixed(1));
-    const expected_fuel_cost = parseFloat((expected_fuel_liters * 1.15).toFixed(2));
+    const expected_fuel_cost = parseFloat(
+      (expected_fuel_liters * 1.15).toFixed(2),
+    );
 
-    const driver_cost = parseFloat((estimated_driving_time_minutes * 0.45).toFixed(2));
-    const assistant_cost = parseFloat((estimated_driving_time_minutes * 0.25).toFixed(2));
+    const driver_cost = parseFloat(
+      (estimated_driving_time_minutes * 0.45).toFixed(2),
+    );
+    const assistant_cost = parseFloat(
+      (estimated_driving_time_minutes * 0.25).toFixed(2),
+    );
     const maintenance_cost = parseFloat((total_km * 0.12).toFixed(2));
 
     const baseline_revenue = total_km * 4.5 + 150;
-    const total_cost = expected_fuel_cost + driver_cost + assistant_cost + maintenance_cost + toll_cost;
-    const estimated_profit = parseFloat((baseline_revenue - total_cost).toFixed(2));
-    const delivery_margin_percentage = parseFloat(((estimated_profit / baseline_revenue) * 100).toFixed(1));
+    const total_cost =
+      expected_fuel_cost +
+      driver_cost +
+      assistant_cost +
+      maintenance_cost +
+      toll_cost;
+    const estimated_profit = parseFloat(
+      (baseline_revenue - total_cost).toFixed(2),
+    );
+    const delivery_margin_percentage = parseFloat(
+      ((estimated_profit / baseline_revenue) * 100).toFixed(1),
+    );
 
     return this.prisma.delivery.update({
       where: { id: deliveryId },
@@ -421,17 +475,29 @@ export class DeliveriesService {
       where: { id: deliveryId, organizationId, deletedAt: null },
       select: { id: true, latitude: true, longitude: true, materialType: true },
     });
-    if (!delivery) throw new NotFoundException(`Delivery ${deliveryId} not found`);
+    if (!delivery)
+      throw new NotFoundException(`Delivery ${deliveryId} not found`);
 
     const availableDrivers = await this.prisma.driver.findMany({
-      where: { availabilityStatus: true, isOnline: true, organizationId, deletedAt: null },
+      where: {
+        availabilityStatus: true,
+        isOnline: true,
+        organizationId,
+        deletedAt: null,
+      },
       select: {
         id: true,
         liveLatitude: true,
         liveLongitude: true,
         vehicleId: true,
-        vehicle: { select: { id: true, type: true, capacity: true, activeStatus: true } },
-        _count: { select: { deliveries: { where: { status: { in: ACTIVE_DELIVERY_STATUSES } } } } },
+        vehicle: {
+          select: { id: true, type: true, capacity: true, activeStatus: true },
+        },
+        _count: {
+          select: {
+            deliveries: { where: { status: { in: ACTIVE_DELIVERY_STATUSES } } },
+          },
+        },
       },
     });
 
@@ -441,7 +507,10 @@ export class DeliveriesService {
         where: { organizationId, deletedAt: null },
         select: { id: true, vehicleId: true },
       });
-      if (!anyDriver) throw new NotFoundException("No drivers available. Register a driver first.");
+      if (!anyDriver)
+        throw new NotFoundException(
+          "No drivers available. Register a driver first.",
+        );
       await this.assignResources(deliveryId, organizationId, {
         driverId: anyDriver.id,
         vehicleId: anyDriver.vehicleId ?? undefined,
@@ -455,8 +524,9 @@ export class DeliveriesService {
         id: d.id,
         vehicleId: d.vehicleId,
         activeCount: d._count.deliveries,
-        score: d._count.deliveries * 100
-          - (d.liveLatitude && d.liveLatitude ? 1 : 0), // Prefer drivers with known location
+        score:
+          d._count.deliveries * 100 -
+          (d.liveLatitude && d.liveLatitude ? 1 : 0), // Prefer drivers with known location
       }))
       .sort((a, b) => a.score - b.score);
 

@@ -35,9 +35,16 @@ export class DeliveriesController {
     @Query("status") status?: OrderStatus,
   ) {
     if (req.user.role === Role.DRIVER) {
-      return this.deliveriesService.findForDriver(req.user.userId, req.user.organizationId);
+      return this.deliveriesService.findForDriver(
+        req.user.userId,
+        req.user.organizationId,
+      );
     }
-    return this.deliveriesService.findAll(req.user.organizationId, { take, skip, status });
+    return this.deliveriesService.findAll(req.user.organizationId, {
+      take,
+      skip,
+      status,
+    });
   }
 
   @Get(":id")
@@ -55,17 +62,30 @@ export class DeliveriesController {
     @Request() req: any,
     @Body("notes") notes?: string,
   ) {
-    return this.deliveriesService.updateStatus(id, req.user.organizationId, status, {
-      notes,
-      userId: req.user.userId,
-    });
+    return this.deliveriesService.updateStatus(
+      id,
+      req.user.organizationId,
+      status,
+      {
+        notes,
+        userId: req.user.userId,
+      },
+    );
   }
 
   @Patch(":id/proof")
   @Roles(Role.DRIVER)
   @RequirePermissions("UPLOAD_POD")
-  uploadProof(@Param("id") id: string, @Body("image") image: string, @Request() req: any) {
-    return this.deliveriesService.uploadProof(id, req.user.organizationId, image);
+  uploadProof(
+    @Param("id") id: string,
+    @Body("image") image: string,
+    @Request() req: any,
+  ) {
+    return this.deliveriesService.uploadProof(
+      id,
+      req.user.organizationId,
+      image,
+    );
   }
 
   @Post(":id/smart-assign")

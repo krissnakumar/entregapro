@@ -1,6 +1,11 @@
-import { Injectable, Logger, NotFoundException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { OrderStatus } from '@prisma/client';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ConflictException,
+} from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { OrderStatus } from "@prisma/client";
 
 @Injectable()
 export class PodService {
@@ -12,7 +17,12 @@ export class PodService {
     deliveryId: string,
     organizationId: string,
     userId: string,
-    data: { signatureUrl?: string; photoUrl?: string; lat?: number; lng?: number },
+    data: {
+      signatureUrl?: string;
+      photoUrl?: string;
+      lat?: number;
+      lng?: number;
+    },
   ) {
     this.logger.log(`Saving POD for delivery ${deliveryId}`);
 
@@ -25,7 +35,12 @@ export class PodService {
     }
 
     const delivery = await this.prisma.delivery.findFirst({
-      where: { id: deliveryId, organizationId, driverId: driver.id, deletedAt: null },
+      where: {
+        id: deliveryId,
+        organizationId,
+        driverId: driver.id,
+        deletedAt: null,
+      },
       select: { id: true, status: true },
     });
 
@@ -34,11 +49,18 @@ export class PodService {
     }
 
     if (delivery.status === OrderStatus.DELIVERED) {
-      throw new ConflictException(`Delivery ${deliveryId} is already completed`);
+      throw new ConflictException(
+        `Delivery ${deliveryId} is already completed`,
+      );
     }
 
     const res = await this.prisma.delivery.updateMany({
-      where: { id: deliveryId, organizationId, driverId: driver.id, deletedAt: null },
+      where: {
+        id: deliveryId,
+        organizationId,
+        driverId: driver.id,
+        deletedAt: null,
+      },
       data: {
         signature_url: data.signatureUrl,
         proof_image_url: data.photoUrl,

@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, Query, UseGuards, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  UseGuards,
+  Req,
+} from "@nestjs/common";
 import { FleetService } from "./fleet.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 
@@ -22,7 +30,10 @@ export class FleetController {
 
   @Get("maintenance-logs")
   findMaintenanceLogs(@Req() req: any, @Query("vehicleId") vehicleId?: string) {
-    return this.fleetService.findMaintenanceLogs(vehicleId, req.user.organizationId);
+    return this.fleetService.findMaintenanceLogs(
+      vehicleId,
+      req.user.organizationId,
+    );
   }
 
   @Post("maintenance-logs")

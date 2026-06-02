@@ -13,7 +13,9 @@ export class RolesController {
   @Get()
   findAll(@Req() req: any) {
     const isSuperAdmin = req.user?.role === Role.SUPER_ADMIN;
-    return this.rolesService.findAll(isSuperAdmin ? undefined : req.user?.organizationId);
+    return this.rolesService.findAll(
+      isSuperAdmin ? undefined : req.user?.organizationId,
+    );
   }
 
   @Get(":id")

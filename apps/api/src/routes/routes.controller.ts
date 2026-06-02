@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, Req, UseGuards } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Query,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { RoutesService } from "./routes.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -14,8 +24,20 @@ export class RoutesController {
   @Post()
   @Roles(Role.ADMIN, Role.DISPATCHER)
   @RequirePermissions("OPTIMIZE_DISPATCH")
-  create(@Body() body: { name?: string; driverId?: string; vehicleId?: string; stopIds: string[] }, @Req() req: any) {
-    return this.routesService.create({ ...body, organizationId: req.user.organizationId });
+  create(
+    @Body()
+    body: {
+      name?: string;
+      driverId?: string;
+      vehicleId?: string;
+      stopIds: string[];
+    },
+    @Req() req: any,
+  ) {
+    return this.routesService.create({
+      ...body,
+      organizationId: req.user.organizationId,
+    });
   }
 
   @Get()
@@ -46,7 +68,11 @@ export class RoutesController {
   @Patch(":id/status")
   @Roles(Role.ADMIN, Role.DISPATCHER)
   @RequirePermissions("OPTIMIZE_DISPATCH")
-  updateStatus(@Param("id") id: string, @Body("status") status: string, @Req() req: any) {
+  updateStatus(
+    @Param("id") id: string,
+    @Body("status") status: string,
+    @Req() req: any,
+  ) {
     return this.routesService.updateStatus(id, req.user.organizationId, status);
   }
 
@@ -62,14 +88,28 @@ export class RoutesController {
   @RequirePermissions("MONITOR_OPERATIONS")
   updateStop(
     @Param("stopId") stopId: string,
-    @Body() body: { status?: string; actualArrival?: string; actualDeparture?: string; notes?: string },
+    @Body()
+    body: {
+      status?: string;
+      actualArrival?: string;
+      actualDeparture?: string;
+      notes?: string;
+    },
     @Req() req: any,
   ) {
-    return this.routesService.updateStopStatus(stopId, req.user.organizationId, {
-      ...body,
-      actualArrival: body.actualArrival ? new Date(body.actualArrival) : undefined,
-      actualDeparture: body.actualDeparture ? new Date(body.actualDeparture) : undefined,
-    });
+    return this.routesService.updateStopStatus(
+      stopId,
+      req.user.organizationId,
+      {
+        ...body,
+        actualArrival: body.actualArrival
+          ? new Date(body.actualArrival)
+          : undefined,
+        actualDeparture: body.actualDeparture
+          ? new Date(body.actualDeparture)
+          : undefined,
+      },
+    );
   }
 
   @Post(":id/costs")
@@ -77,7 +117,13 @@ export class RoutesController {
   @RequirePermissions("OPTIMIZE_DISPATCH")
   addCost(
     @Param("id") id: string,
-    @Body() body: { fuelCost?: number; tollCost?: number; driverCost?: number; maintenanceCost?: number },
+    @Body()
+    body: {
+      fuelCost?: number;
+      tollCost?: number;
+      driverCost?: number;
+      maintenanceCost?: number;
+    },
     @Req() req: any,
   ) {
     return this.routesService.addCost(id, req.user.organizationId, body);

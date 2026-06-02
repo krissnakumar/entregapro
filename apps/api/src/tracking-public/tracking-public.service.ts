@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import * as crypto from "crypto";
 
@@ -8,7 +13,10 @@ export class TrackingPublicService {
 
   constructor(private prisma: PrismaService) {}
 
-  async getOrCreateToken(deliveryId: string, organizationId: string): Promise<string> {
+  async getOrCreateToken(
+    deliveryId: string,
+    organizationId: string,
+  ): Promise<string> {
     const existing = await this.prisma.deliveryTrackingToken.findFirst({
       where: { deliveryId, organizationId },
     });
@@ -41,7 +49,10 @@ export class TrackingPublicService {
             tracking: { orderBy: { timestamp: "desc" }, take: 10 },
             events: { orderBy: { createdAt: "desc" }, take: 20 },
             instructions: { orderBy: { createdAt: "desc" }, take: 1 },
-            availabilityResponses: { orderBy: { responseTime: "desc" }, take: 1 },
+            availabilityResponses: {
+              orderBy: { responseTime: "desc" },
+              take: 1,
+            },
           },
         },
       },
@@ -79,7 +90,9 @@ export class TrackingPublicService {
         : null,
       instructions: delivery.instructions[0] || null,
       availabilityResponse: delivery.availabilityResponses[0] || null,
-      canConfirmAvailability: ["ASSIGNED", "LOADED", "IN_TRANSIT"].includes(delivery.status),
+      canConfirmAvailability: ["ASSIGNED", "LOADED", "IN_TRANSIT"].includes(
+        delivery.status,
+      ),
     };
   }
 
@@ -122,7 +135,11 @@ export class TrackingPublicService {
     });
   }
 
-  async confirmAvailability(token: string, isAvailable: boolean, notes?: string) {
+  async confirmAvailability(
+    token: string,
+    isAvailable: boolean,
+    notes?: string,
+  ) {
     const tokenRecord = await this.prisma.deliveryTrackingToken.findUnique({
       where: { token },
     });

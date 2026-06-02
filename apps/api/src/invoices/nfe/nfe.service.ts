@@ -69,7 +69,9 @@ export class NfeService {
       where: { accessKey: data.accessKey },
     });
     if (existing) {
-      throw new BadRequestException(`NF-e com chave ${data.accessKey} já importada`);
+      throw new BadRequestException(
+        `NF-e com chave ${data.accessKey} já importada`,
+      );
     }
 
     const uploadsDir = join(process.cwd(), "uploads", "nfe");
@@ -105,7 +107,7 @@ export class NfeService {
         createdBy,
         deliveryId: deliveryId || null,
         items: {
-          create: data.items.map(item => ({
+          create: data.items.map((item) => ({
             description: item.description,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
@@ -178,10 +180,11 @@ export class NfeService {
             unitPrice: parseFloat(prod.vUnCom || "0"),
             totalPrice: parseFloat(prod.vProd || "0"),
             ncm: prod.NCM || "",
-            cst: imposto?.ICMS?.ICMS00?.CST
-              || imposto?.ICMS?.ICMS20?.CST
-              || imposto?.ICMS?.ICMS60?.CST
-              || "",
+            cst:
+              imposto?.ICMS?.ICMS00?.CST ||
+              imposto?.ICMS?.ICMS20?.CST ||
+              imposto?.ICMS?.ICMS60?.CST ||
+              "",
             cfop: prod.CFOP || "",
             icmsAliquota: parseFloat(imposto?.ICMS?.ICMS00?.pICMS || "0"),
             icmsValor: parseFloat(imposto?.ICMS?.ICMS00?.vICMS || "0"),
@@ -189,14 +192,20 @@ export class NfeService {
             ipiValor: parseFloat(imposto?.IPI?.vIPI || "0"),
             pisAliquota: parseFloat(imposto?.PIS?.PISAliq?.pPIS || "0"),
             pisValor: parseFloat(imposto?.PIS?.PISAliq?.vPIS || "0"),
-            cofinsAliquota: parseFloat(imposto?.COFINS?.COFINSAliq?.pCOFINS || "0"),
-            cofinsValor: parseFloat(imposto?.COFINS?.COFINSAliq?.vCOFINS || "0"),
+            cofinsAliquota: parseFloat(
+              imposto?.COFINS?.COFINSAliq?.pCOFINS || "0",
+            ),
+            cofinsValor: parseFloat(
+              imposto?.COFINS?.COFINSAliq?.vCOFINS || "0",
+            ),
           };
         }),
       };
     } catch (err: any) {
       this.logger.error(`Failed to parse NF-e XML: ${err.message}`);
-      throw new BadRequestException(`Erro ao interpretar XML NF-e: ${err.message}`);
+      throw new BadRequestException(
+        `Erro ao interpretar XML NF-e: ${err.message}`,
+      );
     }
   }
 
@@ -206,7 +215,9 @@ export class NfeService {
     });
     if (!invoice) throw new BadRequestException("NF-e não encontrada");
     if (invoice.nfeStatus !== "AUTHORIZED") {
-      throw new BadRequestException("Apenas NF-e autorizadas podem ser canceladas");
+      throw new BadRequestException(
+        "Apenas NF-e autorizadas podem ser canceladas",
+      );
     }
 
     return this.prisma.invoice.update({

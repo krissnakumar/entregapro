@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Param, Req, UseGuards } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { DeliveryInstructionsService } from "./delivery-instructions.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -12,7 +20,10 @@ export class DeliveryInstructionsController {
   @Post()
   @Roles(Role.ADMIN, Role.DISPATCHER)
   upsert(@Body() body: any, @Req() req: any) {
-    return this.service.upsert({ ...body, organizationId: req.user.organizationId });
+    return this.service.upsert({
+      ...body,
+      organizationId: req.user.organizationId,
+    });
   }
 
   @Get("delivery/:deliveryId")

@@ -11,7 +11,9 @@ export class SubscriptionController {
 
   @Get("current")
   getCurrent(@Req() req: any) {
-    return this.subscriptionService.getCurrentSubscription(req.user.organizationId);
+    return this.subscriptionService.getCurrentSubscription(
+      req.user.organizationId,
+    );
   }
 
   @Get("usage")
@@ -23,7 +25,10 @@ export class SubscriptionController {
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)
   @UseGuards(RolesGuard)
   changePlan(@Body("planSlug") planSlug: string, @Req() req: any) {
-    return this.subscriptionService.changePlan(req.user.organizationId, planSlug);
+    return this.subscriptionService.changePlan(
+      req.user.organizationId,
+      planSlug,
+    );
   }
 
   @Post("cancel")

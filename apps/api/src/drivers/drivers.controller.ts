@@ -1,4 +1,17 @@
-import { Body, Controller, Get, Param, Post, Patch, Delete, UseGuards, Req, Query, ParseIntPipe, DefaultValuePipe } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Patch,
+  Delete,
+  UseGuards,
+  Req,
+  Query,
+  ParseIntPipe,
+  DefaultValuePipe,
+} from "@nestjs/common";
 import { DriversService } from "./drivers.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -19,7 +32,10 @@ export class DriversController {
     @Query("take", new DefaultValuePipe(50), ParseIntPipe) take: number,
     @Query("skip", new DefaultValuePipe(0), ParseIntPipe) skip: number,
   ) {
-    const result = await this.driversService.findAll(req.user.organizationId, { take, skip });
+    const result = await this.driversService.findAll(req.user.organizationId, {
+      take,
+      skip,
+    });
     return {
       ...result,
       data: result.data.map((d) => ({
@@ -61,7 +77,11 @@ export class DriversController {
       phone: created.phone,
       cnhNumber: created.licenseNumber,
       cnhCategory: data.cnhCategory || "E",
-      cnhExpiration: data.cnhExpiration || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000 * 2).toISOString().split("T")[0],
+      cnhExpiration:
+        data.cnhExpiration ||
+        new Date(Date.now() + 365 * 24 * 60 * 60 * 1000 * 2)
+          .toISOString()
+          .split("T")[0],
       status: "disponível",
       rating: 5,
       tripsCount: 0,
@@ -78,14 +98,22 @@ export class DriversController {
   @Patch(":id")
   @RequirePermissions("MANAGE_FLEET")
   async update(@Param("id") id: string, @Body() data: any, @Req() req: any) {
-    const updated = await this.driversService.update(id, req.user.organizationId, data);
+    const updated = await this.driversService.update(
+      id,
+      req.user.organizationId,
+      data,
+    );
     return {
       id: updated.id,
       name: updated.user?.name,
       phone: updated.phone,
       cnhNumber: updated.licenseNumber,
       cnhCategory: data.cnhCategory || "E",
-      cnhExpiration: data.cnhExpiration || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000 * 2).toISOString().split("T")[0],
+      cnhExpiration:
+        data.cnhExpiration ||
+        new Date(Date.now() + 365 * 24 * 60 * 60 * 1000 * 2)
+          .toISOString()
+          .split("T")[0],
       status: updated.availabilityStatus ? "disponível" : "em_descanso",
       currentVehicle: updated.vehicle
         ? {

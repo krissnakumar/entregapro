@@ -1,4 +1,12 @@
-import { setupTestApp, teardownTestApp, app, prisma, ORG1_ADMIN, login, authHeader } from "./setup";
+import {
+  setupTestApp,
+  teardownTestApp,
+  app,
+  prisma,
+  ORG1_ADMIN,
+  login,
+  authHeader,
+} from "./setup";
 import request from "supertest";
 
 jest.setTimeout(30000);
@@ -15,10 +23,14 @@ describe("Public Tracking (e2e)", () => {
     adminToken = loginRes.access_token;
     orgId = loginRes.user.organizationId;
 
-    const customer = await prisma.customer.findFirst({ where: { organizationId: orgId } });
+    const customer = await prisma.customer.findFirst({
+      where: { organizationId: orgId },
+    });
     customerId = customer!.id;
 
-    const driver = await prisma.driver.findFirst({ where: { organizationId: orgId } });
+    const driver = await prisma.driver.findFirst({
+      where: { organizationId: orgId },
+    });
 
     // Create a delivery via dispatch
     const delivery = await request(app.getHttpServer())
@@ -31,30 +43,48 @@ describe("Public Tracking (e2e)", () => {
         address: "Av. Tracking Teste, 500",
         latitude: -23.561,
         longitude: -46.656,
-        items: [{ description: "Item Teste", quantity: 10, unit: "UN", unitPrice: 50 }],
+        items: [
+          {
+            description: "Item Teste",
+            quantity: 10,
+            unit: "UN",
+            unitPrice: 50,
+          },
+        ],
       });
 
-    deliveryId = delivery.body.id || delivery.body.delivery?.id || delivery.body.deliveryId;
+    deliveryId =
+      delivery.body.id ||
+      delivery.body.delivery?.id ||
+      delivery.body.deliveryId;
 
     // Progress to IN_TRANSIT
     if (deliveryId) {
       await request(app.getHttpServer())
         .patch(`/deliveries/${deliveryId}/status`)
         .set(...authHeader(adminToken))
-        .send({ status: "ASSIGNED" }).catch(() => {});
+        .send({ status: "ASSIGNED" })
+        .catch(() => {});
 
       await request(app.getHttpServer())
         .patch(`/deliveries/${deliveryId}/status`)
         .set(...authHeader(adminToken))
-        .send({ status: "IN_TRANSIT" }).catch(() => {});
+        .send({ status: "IN_TRANSIT" })
+        .catch(() => {});
     }
   });
 
   afterAll(async () => {
     if (deliveryId) {
-      await prisma.deliveryStatusLog.deleteMany({ where: { deliveryId } }).catch(() => {});
-      await prisma.deliveryTracking.deleteMany({ where: { deliveryId } }).catch(() => {});
-      await prisma.delivery.deleteMany({ where: { id: deliveryId } }).catch(() => {});
+      await prisma.deliveryStatusLog
+        .deleteMany({ where: { deliveryId } })
+        .catch(() => {});
+      await prisma.deliveryTracking
+        .deleteMany({ where: { deliveryId } })
+        .catch(() => {});
+      await prisma.delivery
+        .deleteMany({ where: { id: deliveryId } })
+        .catch(() => {});
     }
     await teardownTestApp();
   });
@@ -91,7 +121,8 @@ describe("Public Tracking (e2e)", () => {
         .get(`/tracking/public/${deliveryId}`)
         .expect(200);
 
-      const timeline = res.body.timeline || res.body.statusLogs || res.body.status_history;
+      const timeline =
+        res.body.timeline || res.body.statusLogs || res.body.status_history;
       if (timeline) {
         expect(Array.isArray(timeline)).toBe(true);
       }
@@ -107,7 +138,9 @@ describe("Public Tracking (e2e)", () => {
   describe("GET /tracking/by-document", () => {
     it("should return deliveries by customer document", async () => {
       if (!customerId) return;
-      const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+      const customer = await prisma.customer.findUnique({
+        where: { id: customerId },
+      });
 
       const res = await request(app.getHttpServer())
         .get("/tracking/by-document")

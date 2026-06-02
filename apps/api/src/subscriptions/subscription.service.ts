@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
@@ -11,13 +15,17 @@ export class SubscriptionService {
       include: { plan: true },
     });
     if (!sub) {
-      throw new NotFoundException("No subscription found for this organization");
+      throw new NotFoundException(
+        "No subscription found for this organization",
+      );
     }
     return sub;
   }
 
   async changePlan(organizationId: string, planSlug: string) {
-    const plan = await this.prisma.plan.findUnique({ where: { slug: planSlug } });
+    const plan = await this.prisma.plan.findUnique({
+      where: { slug: planSlug },
+    });
     if (!plan) {
       throw new BadRequestException("Plan not found");
     }
@@ -72,30 +80,31 @@ export class SubscriptionService {
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
 
-    const [deliveriesThisMonth, activeDrivers, activeDispatchers] = await Promise.all([
-      this.prisma.delivery.count({
-        where: {
-          organizationId,
-          createdAt: { gte: monthStart },
-          deletedAt: null,
-        },
-      }),
-      this.prisma.driver.count({
-        where: {
-          organizationId,
-          availabilityStatus: true,
-          deletedAt: null,
-        },
-      }),
-      this.prisma.user.count({
-        where: {
-          organizationId,
-          role: { name: "DISPATCHER", organizationId },
-          active_status: true,
-          deletedAt: null,
-        },
-      }),
-    ]);
+    const [deliveriesThisMonth, activeDrivers, activeDispatchers] =
+      await Promise.all([
+        this.prisma.delivery.count({
+          where: {
+            organizationId,
+            createdAt: { gte: monthStart },
+            deletedAt: null,
+          },
+        }),
+        this.prisma.driver.count({
+          where: {
+            organizationId,
+            availabilityStatus: true,
+            deletedAt: null,
+          },
+        }),
+        this.prisma.user.count({
+          where: {
+            organizationId,
+            role: { name: "DISPATCHER", organizationId },
+            active_status: true,
+            deletedAt: null,
+          },
+        }),
+      ]);
 
     return {
       plan: sub.plan,
@@ -105,13 +114,17 @@ export class SubscriptionService {
       usage: {
         deliveriesThisMonth,
         deliveriesLimit: sub.plan.maxDeliveriesPerMonth,
-        deliveriesPercent: Math.round((deliveriesThisMonth / sub.plan.maxDeliveriesPerMonth) * 100),
+        deliveriesPercent: Math.round(
+          (deliveriesThisMonth / sub.plan.maxDeliveriesPerMonth) * 100,
+        ),
         activeDrivers,
         driversLimit: sub.plan.maxDrivers,
         driversPercent: Math.round((activeDrivers / sub.plan.maxDrivers) * 100),
         activeDispatchers,
         dispatchersLimit: sub.plan.maxDispatchers,
-        dispatchersPercent: Math.round((activeDispatchers / sub.plan.maxDispatchers) * 100),
+        dispatchersPercent: Math.round(
+          (activeDispatchers / sub.plan.maxDispatchers) * 100,
+        ),
       },
       features: {
         routeOptimization: sub.plan.hasRouteOptimization,
@@ -124,12 +137,24 @@ export class SubscriptionService {
     };
   }
 
-  async checkUsageLimit(organizationId: string, metric: string): Promise<{ allowed: boolean; current: number; limit: number }> {
+  async checkUsageLimit(
+    organizationId: string,
+    metric: string,
+  ): Promise<{ allowed: boolean; current: number; limit: number }> {
     const usage = await this.getUsage(organizationId);
     const limits: Record<string, { current: number; limit: number }> = {
-      deliveries: { current: usage.usage.deliveriesThisMonth, limit: usage.usage.deliveriesLimit },
-      drivers: { current: usage.usage.activeDrivers, limit: usage.usage.driversLimit },
-      dispatchers: { current: usage.usage.activeDispatchers, limit: usage.usage.dispatchersLimit },
+      deliveries: {
+        current: usage.usage.deliveriesThisMonth,
+        limit: usage.usage.deliveriesLimit,
+      },
+      drivers: {
+        current: usage.usage.activeDrivers,
+        limit: usage.usage.driversLimit,
+      },
+      dispatchers: {
+        current: usage.usage.activeDispatchers,
+        limit: usage.usage.dispatchersLimit,
+      },
     };
 
     const entry = limits[metric];

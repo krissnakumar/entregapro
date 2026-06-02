@@ -11,7 +11,12 @@ export class MapsService {
     });
   }
 
-  async createZone(data: { name: string; polygon: any; active: boolean; organizationId: string }) {
+  async createZone(data: {
+    name: string;
+    polygon: any;
+    active: boolean;
+    organizationId: string;
+  }) {
     return this.prisma.zone.create({
       data,
     });

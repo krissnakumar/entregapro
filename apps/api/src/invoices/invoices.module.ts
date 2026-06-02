@@ -8,10 +8,7 @@ import { PrismaModule } from "../prisma/prisma.module";
 import { InvoiceProcessor } from "../queues/processors/invoice.processor";
 
 @Module({
-  imports: [
-    PrismaModule,
-    MulterModule.register({ dest: "./uploads" }),
-  ],
+  imports: [PrismaModule, MulterModule.register({ dest: "./uploads" })],
   controllers: [InvoicesController, NfeController],
   providers: [InvoicesService, NfeService, InvoiceProcessor],
   exports: [InvoicesService, NfeService],

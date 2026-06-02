@@ -21,7 +21,13 @@ export class RoutesService {
           organizationId: data.organizationId,
           deletedAt: null,
         },
-        select: { id: true, weight: true, volume: true, addressLat: true, addressLng: true },
+        select: {
+          id: true,
+          weight: true,
+          volume: true,
+          addressLat: true,
+          addressLng: true,
+        },
       });
 
       if (invoices.length === 0) {
@@ -59,7 +65,10 @@ export class RoutesService {
     });
   }
 
-  async findAll(organizationId: string, query: { status?: string; driverId?: string; skip?: number; take?: number }) {
+  async findAll(
+    organizationId: string,
+    query: { status?: string; driverId?: string; skip?: number; take?: number },
+  ) {
     const where: any = { organizationId, deletedAt: null };
     if (query.status) where.status = query.status;
     if (query.driverId) where.driverId = query.driverId;
@@ -76,7 +85,16 @@ export class RoutesService {
         include: {
           stops: {
             orderBy: { stopSequence: "asc" },
-            include: { invoice: { select: { id: true, invoiceNumber: true, weight: true, volume: true } } },
+            include: {
+              invoice: {
+                select: {
+                  id: true,
+                  invoiceNumber: true,
+                  weight: true,
+                  volume: true,
+                },
+              },
+            },
           },
           driver: { include: { user: { select: { id: true, name: true } } } },
           vehicle: { select: { id: true, vehicleNumber: true } },
@@ -96,7 +114,15 @@ export class RoutesService {
       include: {
         stops: {
           orderBy: { stopSequence: "asc" },
-          include: { invoice: { include: { delivery: { select: { id: true, deliveryNumber: true, status: true } } } } },
+          include: {
+            invoice: {
+              include: {
+                delivery: {
+                  select: { id: true, deliveryNumber: true, status: true },
+                },
+              },
+            },
+          },
         },
         driver: { include: { user: { select: { id: true, name: true } } } },
         vehicle: true,
@@ -111,27 +137,59 @@ export class RoutesService {
   async updateStatus(id: string, organizationId: string, status: string) {
     const res = await this.prisma.route.updateMany({
       where: { id, organizationId, deletedAt: null },
-      data: { status, ...(status === "STARTED" ? { startedAt: new Date() } : {}), ...(status === "COMPLETED" ? { completedAt: new Date() } : {}) },
+      data: {
+        status,
+        ...(status === "STARTED" ? { startedAt: new Date() } : {}),
+        ...(status === "COMPLETED" ? { completedAt: new Date() } : {}),
+      },
     });
     if (res.count === 0) throw new NotFoundException(`Route ${id} not found`);
     return this.findOne(id, organizationId);
   }
 
-  async updateStopStatus(stopId: string, organizationId: string, data: { status?: string; actualArrival?: Date; actualDeparture?: Date; notes?: string }) {
+  async updateStopStatus(
+    stopId: string,
+    organizationId: string,
+    data: {
+      status?: string;
+      actualArrival?: Date;
+      actualDeparture?: Date;
+      notes?: string;
+    },
+  ) {
     const updateData: any = { ...data };
-    if (data.status === "ARRIVED" && !data.actualArrival) updateData.actualArrival = new Date();
-    if (data.status === "COMPLETED" && !data.actualDeparture) updateData.actualDeparture = new Date();
+    if (data.status === "ARRIVED" && !data.actualArrival)
+      updateData.actualArrival = new Date();
+    if (data.status === "COMPLETED" && !data.actualDeparture)
+      updateData.actualDeparture = new Date();
 
     const res = await this.prisma.routeStop.updateMany({
       where: { id: stopId, organizationId },
       data: updateData,
     });
-    if (res.count === 0) throw new NotFoundException(`RouteStop ${stopId} not found`);
-    return this.prisma.routeStop.findFirst({ where: { id: stopId }, include: { invoice: true } });
+    if (res.count === 0)
+      throw new NotFoundException(`RouteStop ${stopId} not found`);
+    return this.prisma.routeStop.findFirst({
+      where: { id: stopId },
+      include: { invoice: true },
+    });
   }
 
-  async addCost(id: string, organizationId: string, data: { fuelCost?: number; tollCost?: number; driverCost?: number; maintenanceCost?: number }) {
-    const totalCost = (data.fuelCost || 0) + (data.tollCost || 0) + (data.driverCost || 0) + (data.maintenanceCost || 0);
+  async addCost(
+    id: string,
+    organizationId: string,
+    data: {
+      fuelCost?: number;
+      tollCost?: number;
+      driverCost?: number;
+      maintenanceCost?: number;
+    },
+  ) {
+    const totalCost =
+      (data.fuelCost || 0) +
+      (data.tollCost || 0) +
+      (data.driverCost || 0) +
+      (data.maintenanceCost || 0);
     return this.prisma.routeCost.create({
       data: {
         routeId: id,
@@ -205,11 +263,20 @@ export class RoutesService {
     return result;
   }
 
-  private haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  private haversine(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
     const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) ** 2;
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 }

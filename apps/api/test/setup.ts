@@ -78,7 +78,9 @@ export async function teardownTestApp(): Promise<void> {
   if (app) await app.close();
 }
 
-export async function login(user: AuthUser): Promise<{ access_token: string; refresh_token: string; user: any }> {
+export async function login(
+  user: AuthUser,
+): Promise<{ access_token: string; refresh_token: string; user: any }> {
   const res = await request(app.getHttpServer())
     .post("/auth/login")
     .send({ email: user.email, password: user.password })
@@ -90,7 +92,11 @@ export function authHeader(token: string): [string, string] {
   return ["Authorization", `Bearer ${token}`];
 }
 
-export async function createTestCustomer(orgId: string, token: string, overrides: Record<string, any> = {}) {
+export async function createTestCustomer(
+  orgId: string,
+  token: string,
+  overrides: Record<string, any> = {},
+) {
   const res = await request(app.getHttpServer())
     .post("/customers")
     .set(...authHeader(token))
@@ -110,7 +116,13 @@ export async function createTestCustomer(orgId: string, token: string, overrides
   return res.body;
 }
 
-export async function createTestDriver(orgId: string, token: string, userId: string, vehicleId: string, overrides: Record<string, any> = {}) {
+export async function createTestDriver(
+  orgId: string,
+  token: string,
+  userId: string,
+  vehicleId: string,
+  overrides: Record<string, any> = {},
+) {
   const res = await request(app.getHttpServer())
     .post("/drivers")
     .set(...authHeader(token))

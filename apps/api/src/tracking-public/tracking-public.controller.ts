@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Param, ParseUUIDPipe, Req } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  ParseUUIDPipe,
+  Req,
+} from "@nestjs/common";
 import { TrackingPublicService } from "./tracking-public.service";
 import { Public } from "../auth/decorators/public.decorator";
 
@@ -16,7 +24,8 @@ export class TrackingPublicController {
   @Post("track/:token/instructions")
   async saveInstructions(
     @Param("token") token: string,
-    @Body() body: {
+    @Body()
+    body: {
       gateCode?: string;
       buildingAccess?: string;
       apartmentNumber?: string;
@@ -35,7 +44,11 @@ export class TrackingPublicController {
     @Param("token") token: string,
     @Body() body: { isAvailable: boolean; notes?: string },
   ) {
-    return this.service.confirmAvailability(token, body.isAvailable, body.notes);
+    return this.service.confirmAvailability(
+      token,
+      body.isAvailable,
+      body.notes,
+    );
   }
 
   @Public()

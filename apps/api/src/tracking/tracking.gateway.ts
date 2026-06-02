@@ -24,15 +24,22 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
 
 @WebSocketGateway({
   cors: {
-    origin: ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : (origin, cb) => {
-      if (process.env.NODE_ENV === "development") cb(null, true);
-      else cb(new Error("Not allowed by CORS"));
-    },
+    origin:
+      ALLOWED_ORIGINS.length > 0
+        ? ALLOWED_ORIGINS
+        : (origin, cb) => {
+            if (process.env.NODE_ENV === "development") cb(null, true);
+            else cb(new Error("Not allowed by CORS"));
+          },
   },
 })
 @UseGuards(WsJwtGuard)
 export class TrackingGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit, OnModuleDestroy
+  implements
+    OnGatewayConnection,
+    OnGatewayDisconnect,
+    OnGatewayInit,
+    OnModuleDestroy
 {
   @WebSocketServer()
   server: Server;
@@ -73,11 +80,13 @@ export class TrackingGateway
               where: { id: driverId },
               data: { isOnline: false, lastSeen: new Date() },
             })
-            .catch((err: Error) => this.logger.error(`Ghost cleanup DB failed: ${err.message}`));
+            .catch((err: Error) =>
+              this.logger.error(`Ghost cleanup DB failed: ${err.message}`),
+            );
         }
       }
       if (!foundGhost) {
-        this.logger.debug('Ghost cleanup: no ghosts found, skipping DB write');
+        this.logger.debug("Ghost cleanup: no ghosts found, skipping DB write");
       }
     }, 30_000);
   }
@@ -86,7 +95,8 @@ export class TrackingGateway
     this.logger.log(`Client connected: ${client.id}`);
 
     // Extract user info from the authenticated socket (set by WsJwtGuard)
-    const userId = (client as any).data?.user?.sub || (client as any).data?.user?.userId;
+    const userId =
+      (client as any).data?.user?.sub || (client as any).data?.user?.userId;
     if (userId) {
       client.join(`user_${userId}`);
       const sockets = this.userSockets.get(userId) || new Set();
@@ -122,10 +132,14 @@ export class TrackingGateway
         this.server
           .to("dispatchers")
           .emit("driverStatusChanged", { driverId, status: "offline" });
-        await this.prisma.driver.update({
-          where: { id: driverId },
-          data: { isOnline: false, lastSeen: new Date() },
-        }).catch((err: Error) => this.logger.error(`Failed to persist disconnect: ${err.message}`));
+        await this.prisma.driver
+          .update({
+            where: { id: driverId },
+            data: { isOnline: false, lastSeen: new Date() },
+          })
+          .catch((err: Error) =>
+            this.logger.error(`Failed to persist disconnect: ${err.message}`),
+          );
         break;
       }
     }
@@ -162,9 +176,10 @@ export class TrackingGateway
     // 1. Live status management
     const existingSocketId = this.activeDrivers.get(data.driverId);
 
-    const dbUpdate = existingSocketId !== client.id
-      ? { isOnline: true, lastSeen: new Date() }
-      : { lastSeen: new Date() };
+    const dbUpdate =
+      existingSocketId !== client.id
+        ? { isOnline: true, lastSeen: new Date() }
+        : { lastSeen: new Date() };
 
     if (existingSocketId !== client.id) {
       const isNewlyOnline = !existingSocketId;
@@ -179,13 +194,20 @@ export class TrackingGateway
     }
 
     // Batch DB write: fire but log errors, don't block the flow
-    this.prisma.driver.update({
-      where: { id: data.driverId },
-      data: dbUpdate,
-    }).catch((err: Error) => this.logger.error(`Failed to persist driver status: ${err.message}`));
+    this.prisma.driver
+      .update({
+        where: { id: data.driverId },
+        data: dbUpdate,
+      })
+      .catch((err: Error) =>
+        this.logger.error(`Failed to persist driver status: ${err.message}`),
+      );
 
     // 2. Offload to background queue for persistence and heavy processing
-    await this.trackingQueue.add("process-location", { ...data, organizationId });
+    await this.trackingQueue.add("process-location", {
+      ...data,
+      organizationId,
+    });
 
     // 3. Instant feedback to watchers
     this.server.to(`delivery_${data.deliveryId}`).emit("locationUpdated", data);
@@ -193,7 +215,11 @@ export class TrackingGateway
 
     // 4. Geofence checking (only if we have coordinates)
     if (data.lat && data.lng) {
-      const alerts = await this.geoService.checkGeofenceAlert(data.driverId, data.lat, data.lng);
+      const alerts = await this.geoService.checkGeofenceAlert(
+        data.driverId,
+        data.lat,
+        data.lng,
+      );
       if (alerts.length > 0) {
         this.server.to("dispatchers").emit("geofenceAlert", {
           driverId: data.driverId,
@@ -228,7 +254,10 @@ export class TrackingGateway
   }
 
   @SubscribeMessage("joinUser")
-  handleJoinUser(@MessageBody() userId: string, @ConnectedSocket() client: Socket) {
+  handleJoinUser(
+    @MessageBody() userId: string,
+    @ConnectedSocket() client: Socket,
+  ) {
     if (!userId) return;
     client.join(`user_${userId}`);
     const sockets = this.userSockets.get(userId) || new Set();

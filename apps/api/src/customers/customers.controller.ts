@@ -1,4 +1,17 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Req, Query, ParseIntPipe, DefaultValuePipe } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Req,
+  Query,
+  ParseIntPipe,
+  DefaultValuePipe,
+} from "@nestjs/common";
 import { CustomersService } from "./customers.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -28,7 +41,10 @@ export class CustomersController {
     @Query("take", new DefaultValuePipe(50), ParseIntPipe) take: number,
     @Query("skip", new DefaultValuePipe(0), ParseIntPipe) skip: number,
   ) {
-    return this.customersService.findAll(req.user.organizationId, { take, skip });
+    return this.customersService.findAll(req.user.organizationId, {
+      take,
+      skip,
+    });
   }
 
   @Get(":id")

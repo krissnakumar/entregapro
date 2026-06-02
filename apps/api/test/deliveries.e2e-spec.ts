@@ -1,4 +1,12 @@
-import { setupTestApp, teardownTestApp, app, prisma, ORG1_ADMIN, login, authHeader } from "./setup";
+import {
+  setupTestApp,
+  teardownTestApp,
+  app,
+  prisma,
+  ORG1_ADMIN,
+  login,
+  authHeader,
+} from "./setup";
 import request from "supertest";
 
 jest.setTimeout(30000);
@@ -20,7 +28,9 @@ describe("Delivery Flow (e2e)", () => {
     orgId = loginRes.user.organizationId;
     userId = loginRes.user.id;
 
-    const customer = await prisma.customer.findFirst({ where: { organizationId: orgId } });
+    const customer = await prisma.customer.findFirst({
+      where: { organizationId: orgId },
+    });
     customerId = customer!.id;
 
     const driver = await prisma.driver.findFirst({
@@ -33,12 +43,20 @@ describe("Delivery Flow (e2e)", () => {
 
   afterAll(async () => {
     if (deliveryId) {
-      await prisma.deliveryStatusLog.deleteMany({ where: { deliveryId } }).catch(() => {});
-      await prisma.deliveryTracking.deleteMany({ where: { deliveryId } }).catch(() => {});
-      await prisma.delivery.deleteMany({ where: { id: deliveryId } }).catch(() => {});
+      await prisma.deliveryStatusLog
+        .deleteMany({ where: { deliveryId } })
+        .catch(() => {});
+      await prisma.deliveryTracking
+        .deleteMany({ where: { deliveryId } })
+        .catch(() => {});
+      await prisma.delivery
+        .deleteMany({ where: { id: deliveryId } })
+        .catch(() => {});
     }
     if (jobSiteId) {
-      await prisma.jobSite.deleteMany({ where: { id: jobSiteId } }).catch(() => {});
+      await prisma.jobSite
+        .deleteMany({ where: { id: jobSiteId } })
+        .catch(() => {});
     }
     await teardownTestApp();
   });
@@ -78,8 +96,18 @@ describe("Delivery Flow (e2e)", () => {
         latitude: -23.5505,
         longitude: -46.6333,
         items: [
-          { description: "Cimento CP-III 50kg", quantity: 100, unit: "SACO", unitPrice: 28.50 },
-          { description: "Areia Fina 20kg", quantity: 50, unit: "SACO", unitPrice: 12.90 },
+          {
+            description: "Cimento CP-III 50kg",
+            quantity: 100,
+            unit: "SACO",
+            unitPrice: 28.5,
+          },
+          {
+            description: "Areia Fina 20kg",
+            quantity: 50,
+            unit: "SACO",
+            unitPrice: 12.9,
+          },
         ],
       })
       .expect(201);

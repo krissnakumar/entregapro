@@ -1,4 +1,13 @@
-import { setupTestApp, teardownTestApp, app, prisma, ORG1_ADMIN, ORG2_ADMIN, login, authHeader } from "./setup";
+import {
+  setupTestApp,
+  teardownTestApp,
+  app,
+  prisma,
+  ORG1_ADMIN,
+  ORG2_ADMIN,
+  login,
+  authHeader,
+} from "./setup";
 import request from "supertest";
 
 describe("Multi-Tenant Isolation (e2e)", () => {
@@ -83,15 +92,25 @@ describe("Multi-Tenant Isolation (e2e)", () => {
   describe("Driver isolation", () => {
     it("should return different drivers per organization", async () => {
       const [org1Res, org2Res] = await Promise.all([
-        request(app.getHttpServer()).get("/drivers").set(...authHeader(org1Token)).expect(200),
-        request(app.getHttpServer()).get("/drivers").set(...authHeader(org2Token)).expect(200),
+        request(app.getHttpServer())
+          .get("/drivers")
+          .set(...authHeader(org1Token))
+          .expect(200),
+        request(app.getHttpServer())
+          .get("/drivers")
+          .set(...authHeader(org2Token))
+          .expect(200),
       ]);
 
       expect(org1Res.body.length).toBeGreaterThan(0);
       expect(org2Res.body.length).toBeGreaterThan(0);
 
-      const org1DriverEmails = org1Res.body.map((d: any) => d.user?.email).filter(Boolean);
-      const org2DriverEmails = org2Res.body.map((d: any) => d.user?.email).filter(Boolean);
+      const org1DriverEmails = org1Res.body
+        .map((d: any) => d.user?.email)
+        .filter(Boolean);
+      const org2DriverEmails = org2Res.body
+        .map((d: any) => d.user?.email)
+        .filter(Boolean);
 
       for (const email of org1DriverEmails) {
         expect(org2DriverEmails).not.toContain(email);
@@ -102,8 +121,14 @@ describe("Multi-Tenant Isolation (e2e)", () => {
   describe("Vehicle isolation", () => {
     it("should return different vehicles per organization", async () => {
       const [org1Res, org2Res] = await Promise.all([
-        request(app.getHttpServer()).get("/vehicles").set(...authHeader(org1Token)).expect(200),
-        request(app.getHttpServer()).get("/vehicles").set(...authHeader(org2Token)).expect(200),
+        request(app.getHttpServer())
+          .get("/vehicles")
+          .set(...authHeader(org1Token))
+          .expect(200),
+        request(app.getHttpServer())
+          .get("/vehicles")
+          .set(...authHeader(org2Token))
+          .expect(200),
       ]);
 
       const org1Plates = org1Res.body.map((v: any) => v.vehicleNumber);
@@ -120,15 +145,11 @@ describe("Multi-Tenant Isolation (e2e)", () => {
 
   describe("Unauthenticated access", () => {
     it("should reject unauthenticated access to protected endpoints", async () => {
-      await request(app.getHttpServer())
-        .get("/customers")
-        .expect(401);
+      await request(app.getHttpServer()).get("/customers").expect(401);
     });
 
     it("should reject unauthenticated access to drivers", async () => {
-      await request(app.getHttpServer())
-        .get("/drivers")
-        .expect(401);
+      await request(app.getHttpServer()).get("/drivers").expect(401);
     });
 
     it("should allow public access to tracking endpoints", async () => {
