@@ -41,7 +41,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     throw new Error(error.message || 'Something went wrong');
   }
 
-  return response.json();
+  const json = await response.json();
+  if (json && typeof json === 'object' && Array.isArray(json.data) && 'total' in json) {
+    return json.data;
+  }
+  return json;
 }
 
 export const api = {
