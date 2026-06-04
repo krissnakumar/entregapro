@@ -16,9 +16,13 @@ export default function InvoicesScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const [search, setSearch] = useState('');
-  const { data: invoices, isLoading } = useInvoices();
+  const { data: invoicesRaw, isLoading } = useInvoices();
 
-  const filtered = (invoices || []).filter((inv: any) =>
+  const invoices = Array.isArray(invoicesRaw)
+    ? invoicesRaw
+    : (invoicesRaw as any)?.data || [];
+
+  const filtered = invoices.filter((inv: any) =>
     inv.invoiceNumber?.toLowerCase().includes(search.toLowerCase()) ||
     (inv.vendor || inv.customer?.name || '').toLowerCase().includes(search.toLowerCase()),
   );

@@ -61,6 +61,68 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return errorData as T;
 }
 
+let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (isRefreshing && refreshPromise) {
+    return refreshPromise;
+  }
+
+  isRefreshing = true;
+
+  refreshPromise = (async () => {
+    try {
+      const { useAuthStore } = require('../store/authStore');
+      const state = useAuthStore.getState();
+      const refreshToken = state.refreshToken;
+
+      if (!refreshToken) {
+        logger.warn('Refresh requested but no refreshToken in state');
+        state.logout();
+        return null;
+      }
+
+      logger.debug('Refreshing tokens...');
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${refreshToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        logger.warn('Refresh token request failed on server', { status: response.status });
+        state.logout();
+        return null;
+      }
+
+      const data = await response.json();
+      if (data.access_token && data.refresh_token) {
+        state.setTokens(data.access_token, data.refresh_token);
+        return data.access_token;
+      }
+
+      logger.warn('Invalid tokens returned from refresh endpoint');
+      state.logout();
+      return null;
+    } catch (error) {
+      logger.error('Error refreshing tokens', error as Error);
+      try {
+        const { useAuthStore } = require('../store/authStore');
+        useAuthStore.getState().logout();
+      } catch {}
+      return null;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -74,6 +136,22 @@ async function request<T>(
     logger.debug('Token retrieval failed', { error: String(error) });
   }
 
+  // Pre-request expiration check and token refresh
+  if (endpoint !== '/auth/refresh' && endpoint !== '/auth/login') {
+    try {
+      const { useAuthStore } = require('../store/authStore');
+      const state = useAuthStore.getState();
+      if (state.token && state.isTokenExpired() && state.refreshToken) {
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+          token = newToken;
+        }
+      }
+    } catch (err) {
+      logger.debug('Pre-request token refresh check failed', { error: String(err) });
+    }
+  }
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -83,10 +161,28 @@ async function request<T>(
   try {
     logger.debug(`API ${options.method || 'GET'} ${endpoint}`);
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    let response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
     });
+
+    // If 401/403, and it's not a refresh/login request, try to refresh and retry
+    if ((response.status === 401 || response.status === 403) && endpoint !== '/auth/refresh' && endpoint !== '/auth/login') {
+      logger.warn(`API returned ${response.status} for ${endpoint}. Attempting token refresh...`);
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        // Retry request with new token
+        logger.info(`Retrying request ${endpoint} with refreshed token`);
+        const retryHeaders = {
+          ...headers,
+          Authorization: `Bearer ${newToken}`,
+        };
+        response = await fetch(`${API_BASE_URL}${endpoint}`, {
+          ...options,
+          headers: retryHeaders,
+        });
+      }
+    }
 
     return await handleResponse<T>(response);
   } catch (error) {

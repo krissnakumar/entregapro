@@ -16,9 +16,13 @@ export default function CustomersScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const [search, setSearch] = useState('');
-  const { data: customers, isLoading } = useCustomers();
+  const { data: customersRaw, isLoading } = useCustomers();
 
-  const filtered = (customers || []).filter(
+  const customers = Array.isArray(customersRaw)
+    ? customersRaw
+    : (customersRaw as any)?.data || [];
+
+  const filtered = customers.filter(
     (c: any) => c.name?.toLowerCase().includes(search.toLowerCase()),
   );
 

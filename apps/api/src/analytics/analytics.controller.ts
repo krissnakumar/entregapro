@@ -19,4 +19,9 @@ export class AnalyticsController {
   getLeaderboard(@Req() req: any) {
     return this.analyticsService.getDriverLeaderboard(req.user.organizationId);
   }
+
+  @Get()
+  getKPIs(@Req() req: any) {
+    return this.analyticsService.getDashboardKPIs(req.user.organizationId);
+  }
 }

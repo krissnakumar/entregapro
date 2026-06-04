@@ -43,7 +43,9 @@ export class DriversController {
         name: d.user.name,
         email: d.user.email,
         phone: d.phone,
-        status: d.availabilityStatus ? "disponível" : "em_descanso",
+        status: (d as any).deliveries && (d as any).deliveries.length > 0
+          ? "em_rota"
+          : d.availabilityStatus ? "disponível" : "em_descanso",
         isOnline: d.isOnline,
         lastSeen: d.lastSeen,
         cnhNumber: d.licenseNumber,
@@ -114,7 +116,9 @@ export class DriversController {
         new Date(Date.now() + 365 * 24 * 60 * 60 * 1000 * 2)
           .toISOString()
           .split("T")[0],
-      status: updated.availabilityStatus ? "disponível" : "em_descanso",
+      status: (updated as any).deliveries && (updated as any).deliveries.length > 0
+        ? "em_rota"
+        : updated.availabilityStatus ? "disponível" : "em_descanso",
       currentVehicle: updated.vehicle
         ? {
             id: updated.vehicle.id,

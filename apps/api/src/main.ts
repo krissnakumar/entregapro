@@ -3,9 +3,14 @@ import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { ValidationPipe } from "@nestjs/common";
 import helmet from "helmet";
+import { json, urlencoded } from "express";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // POD/photo uploads arrive as base64 JSON payloads and exceed the default parser size.
+  app.use(json({ limit: "12mb" }));
+  app.use(urlencoded({ extended: true, limit: "12mb" }));
 
   // Security Hardening
   app.use(

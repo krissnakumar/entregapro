@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
-import { Search, Plus, Truck, Calendar, Gauge, Settings, Layers, Activity, AlertCircle, Wrench, FileText, CheckCircle2, FileCheck, Edit, Trash2, MoreVertical } from 'lucide-react';
+import { Search, Plus, Truck, Calendar, Gauge, Settings, Layers, Activity, AlertCircle, Wrench, FileText, CheckCircle2, FileCheck, Edit, Trash2, MoreVertical, User } from 'lucide-react';
 import { cn } from '../lib/utils';
 import VehicleFormModal from './VehicleFormModal';
 import VehicleLogsModal from './VehicleLogsModal';
@@ -17,7 +17,21 @@ interface Vehicle {
   fuelType?: string;
   maintenanceDate?: string;
   imageUrl?: string;
+  driver?: { id: string; status?: string; user?: { name?: string } } | null;
 }
+
+interface Driver {
+  id: string;
+  name?: string;
+  currentVehicle?: { id?: string } | null;
+}
+
+type PaginatedResponse<T> = {
+  data: T[];
+  total: number;
+  take: number;
+  skip: number;
+};
 
 const INITIAL_VEHICLES: Vehicle[] = [];
 
@@ -46,10 +60,41 @@ const VehiclesList = () => {
   const { data: remoteVehicles, isLoading } = useQuery({
     queryKey: ['vehicles'],
     queryFn: async () => {
-      const res = await api.get<Vehicle[]>('/vehicles');
-      return res;
+      return api.get<Vehicle[] | PaginatedResponse<Vehicle>>('/vehicles');
     },
     retry: false,
+  });
+
+  const { data: drivers } = useQuery({
+    queryKey: ['drivers'],
+    queryFn: async () => {
+      return api.get<Driver[] | PaginatedResponse<Driver>>('/drivers');
+    },
+    retry: false,
+  });
+
+  const vehicles = Array.isArray(remoteVehicles)
+    ? remoteVehicles
+    : remoteVehicles?.data || [];
+
+  const driverOptions = Array.isArray(drivers)
+    ? drivers
+    : drivers?.data || [];
+
+  const [assigningVehicleId, setAssigningVehicleId] = useState<string | null>(null);
+
+  const assignDriverMutation = useMutation({
+    mutationFn: ({ driverId, vehicleId }: { driverId: string; vehicleId: string | null }) =>
+      api.patch(`/drivers/${driverId}`, { vehicleId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      toast.success('Motorista atribuído ao veículo!');
+      setAssigningVehicleId(null);
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Erro ao atribuir motorista');
+    },
   });
 
   const deleteVehicleMutation = useMutation({
@@ -64,9 +109,16 @@ const VehiclesList = () => {
   });
 
   // Interpolação inteligente que preza pela estabilidade
-  const baseVehicles = (remoteVehicles && remoteVehicles.length > 0)
-    ? [...localVehicles.filter(lv => !remoteVehicles.some(rv => rv.id === lv.id)), ...remoteVehicles]
+  const baseVehicles = vehicles.length > 0
+    ? [...localVehicles.filter(lv => !vehicles.some(rv => rv.id === lv.id)), ...vehicles]
     : localVehicles;
+
+  const getAvailableDriversForVehicle = (vehicleId: string) => {
+    if (!driverOptions.length) return [];
+    return driverOptions.filter(
+      d => !d.currentVehicle?.id || d.currentVehicle?.id === vehicleId,
+    );
+  };
 
   const filteredVehicles = baseVehicles.filter(v => {
     const safeNumber = v.vehicleNumber || '';
@@ -126,6 +178,18 @@ const VehiclesList = () => {
 
   return (
     <div className="space-y-6 font-sans pb-12 animate-in fade-in duration-200">
+      <style>{`
+        @keyframes truckRun {
+          0% { transform: translate(0, 0); }
+          25% { transform: translate(0.5px, -0.5px); }
+          50% { transform: translate(0, 0.5px); }
+          75% { transform: translate(-0.5px, -0.2px); }
+          100% { transform: translate(0, 0); }
+        }
+        .animate-truck-run {
+          animation: truckRun 0.4s infinite linear;
+        }
+      `}</style>
       
       {/* HEADER SIMPLIFICADO */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -237,11 +301,21 @@ const VehiclesList = () => {
                         <Truck size={16} />
                       </div>
                     )}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="font-bold text-slate-900 text-xs tracking-wide uppercase leading-tight truncate max-w-[80px]">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="font-bold text-slate-900 text-xs tracking-wide uppercase leading-tight truncate max-w-[80px] flex items-center gap-1">
                           {vehicle.vehicleNumber || 'Sem Placa'}
                         </h4>
+                        {vehicle.driver?.status === 'em_rota' ? (
+                          <div className="relative inline-flex items-center shrink-0 ml-0.5" title="Em Rota (Em Trânsito)">
+                            <Truck size={12} className="text-indigo-600 animate-truck-run animate-infinite" />
+                            <span className="absolute -left-1 top-1/2 -translate-y-1/2 flex flex-col gap-[1px] opacity-75">
+                              <span className="w-[3px] h-[1px] bg-indigo-400 rounded-full animate-ping"></span>
+                            </span>
+                          </div>
+                        ) : (
+                          <Truck size={12} className="text-slate-400 shrink-0 ml-0.5" title="Estacionado" />
+                        )}
                         <span className={cn(
                           "px-1 py-0.5 rounded text-[8px] font-black uppercase shrink-0",
                           currentStatus === 'active' ? "bg-emerald-50 text-emerald-600 border border-emerald-100/60" :
@@ -314,6 +388,79 @@ const VehiclesList = () => {
                     <span className="text-slate-400 text-[9px] uppercase tracking-wider font-bold mb-0.5">Revisão</span>
                     <span className="text-slate-600 font-bold text-[10px]">{safeDate}</span>
                   </div>
+                </div>
+
+                {/* DRIVER ASSIGNMENT */}
+                <div className="relative">
+                  {vehicle.driver ? (
+                    <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-lg p-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 bg-indigo-500 text-white rounded-full flex items-center justify-center text-[9px] font-bold shrink-0">
+                          {vehicle.driver.user?.name?.charAt(0)?.toUpperCase() || 'M'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold text-indigo-900 truncate">{vehicle.driver.user?.name || 'Motorista'}</p>
+                          <p className="text-[8px] text-indigo-500">Motorista padrão</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setAssigningVehicleId(assigningVehicleId === vehicle.id ? null : vehicle.id)}
+                        className="p-1 hover:bg-indigo-100 rounded text-indigo-400 hover:text-indigo-600 cursor-pointer"
+                        title="Reatribuir"
+                      >
+                        <Edit size={10} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setAssigningVehicleId(assigningVehicleId === vehicle.id ? null : vehicle.id)}
+                      className="w-full flex items-center justify-center gap-1.5 bg-slate-50 border border-dashed border-slate-300 rounded-lg p-2 text-[10px] font-bold text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all cursor-pointer"
+                    >
+                      <User size={10} />
+                      Atribuir Motorista
+                    </button>
+                  )}
+
+                  {/* Assign Dropdown */}
+                  {assigningVehicleId === vehicle.id && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setAssigningVehicleId(null)} />
+                      <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-slate-200 rounded-xl shadow-lg py-1 z-50 max-h-40 overflow-y-auto animate-in fade-in slide-in-from-bottom-1 duration-150">
+                        <button
+                          onClick={() => {
+                            // Find the currently assigned driver and unassign them
+                            const currentDriver = driverOptions.find(
+                              d => d.currentVehicle?.id === vehicle.id,
+                            );
+                            if (currentDriver) {
+                              assignDriverMutation.mutate({ driverId: currentDriver.id, vehicleId: null });
+                            } else {
+                              setAssigningVehicleId(null);
+                            }
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-500 text-[11px] font-bold flex items-center gap-2 border-b border-slate-100"
+                        >
+                          <X size={11} className="text-slate-400" />
+                          Remover motorista
+                        </button>
+                        {getAvailableDriversForVehicle(vehicle.id).map((driver) => (
+                          <button
+                            key={driver.id}
+                            onClick={() => assignDriverMutation.mutate({ driverId: driver.id, vehicleId: vehicle.id })}
+                            className="w-full text-left px-3 py-2 hover:bg-indigo-50 text-slate-700 text-[11px] font-bold flex items-center gap-2"
+                          >
+                            <div className="w-5 h-5 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-[8px] font-bold shrink-0">
+                              {driver.name?.charAt(0)?.toUpperCase() || 'M'}
+                            </div>
+                            {driver.name || 'Motorista'}
+                          </button>
+                        ))}
+                        {getAvailableDriversForVehicle(vehicle.id).length === 0 && (
+                          <p className="px-3 py-2 text-[10px] text-slate-400">Nenhum motorista disponível</p>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
 
               </div>

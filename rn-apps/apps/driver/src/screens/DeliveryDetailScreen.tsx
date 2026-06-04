@@ -15,7 +15,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as FileSystem from 'expo-file-system';
 import * as Location from 'expo-location';
 import {
   useAuthStore,
@@ -83,7 +82,12 @@ export default function DeliveryDetailScreen() {
       let completed = false;
 
       if (step.key === 'POD') {
-        completed = isCompleted && (!!signatureData || !!delivery.signature_url);
+        completed =
+          isCompleted &&
+          (!!photoData ||
+            !!delivery.proof_image_url ||
+            !!signatureData ||
+            !!delivery.signature_url);
         active = isCompleted && !completed;
       } else {
         const stepIdx = statusOrder.indexOf(step.key);
@@ -126,20 +130,19 @@ export default function DeliveryDetailScreen() {
     try {
       const photo = await cameraRef.current.takePictureAsync({
         base64: true,
-        quality: 0.6,
+        quality: 0.35,
       });
 
-      if (photo?.uri) {
-        const base64 = await FileSystem.readAsStringAsync(photo.uri, {
-          encoding: 'base64',
-        });
-        const dataUri = `data:image/jpeg;base64,${base64}`;
+      if (photo?.uri && photo.base64) {
+        const dataUri = `data:image/jpeg;base64,${photo.base64}`;
 
         if (cameraType === 'photo') {
           setPhotoData(dataUri);
         } else {
           setSignatureData(dataUri);
         }
+      } else {
+        throw new Error('Falha ao processar imagem capturada.');
       }
       setShowCamera(false);
     } catch (err) {
@@ -149,10 +152,10 @@ export default function DeliveryDetailScreen() {
   }, [cameraType]);
 
   const handleCompleteDelivery = useCallback(async () => {
-    if (!signatureData || !photoData) {
+    if (!photoData) {
       Alert.alert(
         'Atenção',
-        'É obrigatório capturar a assinatura digital e a foto do lacre antes de finalizar.'
+        'É obrigatório capturar a foto do lacre ou comprovante antes de finalizar.'
       );
       return;
     }
@@ -161,12 +164,12 @@ export default function DeliveryDetailScreen() {
       // Offline mode support
       updateLocalDeliveryPOD(delivery.id, signatureData, photoData);
       enqueueMutation('POD', delivery.id, {
-        signatureUrl: signatureData,
+        signatureUrl: signatureData || undefined,
         photoUrl: photoData,
       });
       Alert.alert(
         'Modo Offline',
-        'Comprovante assinado e registrado localmente. A sincronização com a central será feita assim que houver sinal de internet.',
+        'Comprovante registrado localmente. A sincronização com a central será feita assim que houver sinal de internet.',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
       return;
@@ -178,7 +181,7 @@ export default function DeliveryDetailScreen() {
       });
       await submitPOD.mutateAsync({
         deliveryId: delivery.id,
-        signatureUrl: signatureData,
+        signatureUrl: signatureData || undefined,
         photoUrl: photoData,
         lat: loc.coords.latitude,
         lng: loc.coords.longitude,
@@ -265,33 +268,32 @@ export default function DeliveryDetailScreen() {
           style={styles.cameraPreview}
           facing="back"
           flash="off"
-        >
-          <View style={styles.cameraOverlay}>
-            <TouchableOpacity
-              style={styles.cameraCloseBtn}
-              onPress={() => setShowCamera(false)}
-            >
-              <Text style={styles.cameraCloseText}>✕ Fechar</Text>
-            </TouchableOpacity>
+        />
+        <View style={styles.cameraOverlay}>
+          <TouchableOpacity
+            style={styles.cameraCloseBtn}
+            onPress={() => setShowCamera(false)}
+          >
+            <Text style={styles.cameraCloseText}>✕ Fechar</Text>
+          </TouchableOpacity>
 
-            <View style={styles.cameraGuide}>
-              <Text style={styles.cameraGuideText}>
-                {cameraType === 'photo'
-                  ? '📷 Fotografe o lacre/documento'
-                  : '✍️ Capture a assinatura digital'}
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.cameraCaptureBtn}
-              onPress={handleCapture}
-            >
-              <View style={styles.cameraCaptureOuter}>
-                <View style={styles.cameraCaptureInner} />
-              </View>
-            </TouchableOpacity>
+          <View style={styles.cameraGuide}>
+            <Text style={styles.cameraGuideText}>
+              {cameraType === 'photo'
+                ? '📷 Fotografe o lacre/documento'
+                : '✍️ Capture a assinatura digital'}
+            </Text>
           </View>
-        </CameraView>
+
+          <TouchableOpacity
+            style={styles.cameraCaptureBtn}
+            onPress={handleCapture}
+          >
+            <View style={styles.cameraCaptureOuter}>
+              <View style={styles.cameraCaptureInner} />
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -498,7 +500,7 @@ export default function DeliveryDetailScreen() {
                   <Text style={styles.captureIcon}>✍️</Text>
                   <Text style={styles.captureLabel}>Assinatura Digital</Text>
                   <Text style={styles.captureHint}>
-                    Toque para assinar com o dedo
+                    Opcional
                   </Text>
                 </TouchableOpacity>
               )}
@@ -898,7 +900,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cameraOverlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'transparent',
     justifyContent: 'space-between',
     padding: 24,

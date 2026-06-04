@@ -59,7 +59,7 @@ const Login = () => {
               <div className="relative group">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors" size={18} />
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   placeholder="admin@entregapro.com.br"
                   onChange={(e) => setEmail(e.target.value)}

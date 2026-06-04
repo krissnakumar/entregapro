@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  Fuel, 
-  Wrench, 
-  AlertOctagon, 
-  PlusCircle, 
-  Camera, 
-  FileText, 
+import {
+  Fuel,
+  Wrench,
+  AlertOctagon,
+  PlusCircle,
+  Camera,
+  FileText,
   CheckCircle,
   TrendingDown,
   AlertTriangle,
@@ -34,6 +34,14 @@ export const FuelMaintenanceModule: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'diesel' | 'maintenance'>('diesel');
   const [filterType, setFilterType] = useState<'all' | 'suspicious' | 'regular'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [approveData, setApproveData] = useState({
+    litersFilled: '',
+    costPerLiter: '',
+    stationName: '',
+    jobNumber: '',
+  });
 
   // Dynamically load real frotista vehicles from database
   const { data: vehicles = [] } = useQuery({
@@ -99,6 +107,31 @@ export const FuelMaintenanceModule: React.FC = () => {
     onError: () => toast.error('Falha ao salvar manutenção no backend.'),
   });
 
+  const approveMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: any }) =>
+      api.post(`/fuel-logs/${id}/approve`, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fuel-logs'] });
+      toast.success('Abastecimento aprovado e registrado com sucesso!');
+      setSelectedRequest(null);
+      setApproveData({ litersFilled: '', costPerLiter: '', stationName: '', jobNumber: '' });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || err.message || 'Falha ao aprovar abastecimento.');
+    }
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/fuel-logs/${id}/reject`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fuel-logs'] });
+      toast.success('Solicitação de abastecimento recusada.');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || err.message || 'Falha ao recusar solicitação.');
+    }
+  });
+
   const vehicleById = new Map((vehicles || []).map((v: any) => [v.id, v]));
   const fuelLogs = fuelLogsRaw.map((log: any) => {
     const v = vehicleById.get(log.vehicleId) || log.vehicle;
@@ -117,8 +150,13 @@ export const FuelMaintenanceModule: React.FC = () => {
       anomalyReason: isSuspicious ? 'Litragem acima do limite configurado.' : undefined,
       date: new Date(log.fillDate || log.createdAt).toLocaleDateString('pt-BR'),
       efficiency: 'N/A',
+      status: log.status || 'APPROVED',
+      jobNumber: log.jobNumber,
+      driverName: log.driver?.user?.name || 'N/A',
     };
   });
+
+  const pendingRequests = fuelLogs.filter(log => log.status === 'PENDING');
 
   const maintenanceItems = maintenanceRaw.map((item: any) => {
     const v = vehicleById.get(item.vehicleId) || item.vehicle;
@@ -148,7 +186,7 @@ export const FuelMaintenanceModule: React.FC = () => {
 
     const litersNum = parseFloat(newFuel.liters);
     // Heurística de detecção de anomalia / suspeita
-    const isSuspicious = litersNum > 140; 
+    const isSuspicious = litersNum > 140;
 
     addFuelMutation.mutate({
       vehicleId: newFuel.vehicle,
@@ -189,9 +227,10 @@ export const FuelMaintenanceModule: React.FC = () => {
 
   // Filtragem dinâmica dos logs de combustível
   const filteredFuelLogs = fuelLogs.filter(log => {
+    if (log.status === 'PENDING') return false;
     const matchesSearch = log.vehicle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          log.station.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          log.fuelType.toLowerCase().includes(searchTerm.toLowerCase());
+      log.station.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.fuelType.toLowerCase().includes(searchTerm.toLowerCase());
     if (filterType === 'suspicious') return matchesSearch && log.fraudRisk;
     if (filterType === 'regular') return matchesSearch && !log.fraudRisk;
     return matchesSearch;
@@ -204,7 +243,7 @@ export const FuelMaintenanceModule: React.FC = () => {
 
   return (
     <div className="space-y-8 font-sans select-none pb-12 animate-in fade-in duration-300">
-      
+
       {/* Cabeçalho do Módulo */}
       <div className="bg-white border border-slate-200 p-6 rounded-[2rem] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -252,7 +291,7 @@ export const FuelMaintenanceModule: React.FC = () => {
       {/* Interface Principal de Gestão de Combustível */}
       {activeTab === 'diesel' && (
         <div className="space-y-8 animate-in fade-in duration-300">
-          
+
           {/* Indicadores Consolidados */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-2xs flex items-center justify-between">
@@ -300,7 +339,7 @@ export const FuelMaintenanceModule: React.FC = () => {
                     </h3>
                     <p className="text-[11px] font-medium text-slate-500 mt-0.5">Input com verificação antifraude e OCR</p>
                   </div>
-                  
+
                   <button
                     type="button"
                     onClick={handleSimulateOCR}
@@ -315,9 +354,9 @@ export const FuelMaintenanceModule: React.FC = () => {
                 <form onSubmit={handleAddFuel} className="space-y-4">
                   <div>
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Veículo Alvo</label>
-                    <select 
+                    <select
                       value={newFuel.vehicle}
-                      onChange={e => setNewFuel({...newFuel, vehicle: e.target.value})}
+                      onChange={e => setNewFuel({ ...newFuel, vehicle: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:border-indigo-500 transition-all cursor-pointer"
                     >
                       <option value="">Selecione o veículo...</option>
@@ -335,9 +374,9 @@ export const FuelMaintenanceModule: React.FC = () => {
 
                   <div>
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Produto Averbado</label>
-                    <select 
+                    <select
                       value={newFuel.fuelType}
-                      onChange={e => setNewFuel({...newFuel, fuelType: e.target.value})}
+                      onChange={e => setNewFuel({ ...newFuel, fuelType: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:border-indigo-500 transition-all cursor-pointer"
                     >
                       <option value="Diesel S10">Diesel S10 Aditivado</option>
@@ -349,22 +388,22 @@ export const FuelMaintenanceModule: React.FC = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Litragem (L)</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         placeholder="Ex: 120"
                         value={newFuel.liters}
-                        onChange={e => setNewFuel({...newFuel, liters: e.target.value})}
+                        onChange={e => setNewFuel({ ...newFuel, liters: e.target.value })}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-indigo-500 transition-all"
                       />
                     </div>
                     <div>
                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Custo Total (R$)</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         step="0.01"
                         placeholder="Ex: 720.00"
                         value={newFuel.cost}
-                        onChange={e => setNewFuel({...newFuel, cost: e.target.value})}
+                        onChange={e => setNewFuel({ ...newFuel, cost: e.target.value })}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-indigo-500 transition-all"
                       />
                     </div>
@@ -372,39 +411,39 @@ export const FuelMaintenanceModule: React.FC = () => {
 
                   <div>
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Hodômetro Atual (KM)</label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       placeholder="Leitura do painel"
                       value={newFuel.odo}
-                      onChange={e => setNewFuel({...newFuel, odo: e.target.value})}
+                      onChange={e => setNewFuel({ ...newFuel, odo: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-indigo-500 transition-all"
                     />
                   </div>
 
                   <div>
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Posto de Combustível</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="Bandeira / Localização"
                       value={newFuel.station}
-                      onChange={e => setNewFuel({...newFuel, station: e.target.value})}
+                      onChange={e => setNewFuel({ ...newFuel, station: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-indigo-500 transition-all"
                     />
                   </div>
 
                   {/* Opções de Captura Fotográfica Auxiliar */}
                   <div className="pt-1 grid grid-cols-2 gap-2">
-                    <button 
-                      type="button" 
-                      onClick={() => toast.success('Câmera ativada: Comprovante digitalizado com sucesso.')} 
+                    <button
+                      type="button"
+                      onClick={() => toast.success('Câmera ativada: Comprovante digitalizado com sucesso.')}
                       className="p-2.5 border border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-slate-50 transition-colors cursor-pointer outline-none"
                     >
                       <Camera size={14} className="text-slate-400" />
                       <span className="text-[8px] font-black uppercase text-slate-500">Fotografar Cupom</span>
                     </button>
-                    <button 
-                      type="button" 
-                      onClick={() => toast.success('Hodômetro validado via telemetria embarcada.')} 
+                    <button
+                      type="button"
+                      onClick={() => toast.success('Hodômetro validado via telemetria embarcada.')}
                       className="p-2.5 border border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-slate-50 transition-colors cursor-pointer outline-none"
                     >
                       <Camera size={14} className="text-slate-400" />
@@ -412,8 +451,8 @@ export const FuelMaintenanceModule: React.FC = () => {
                     </button>
                   </div>
 
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     className="w-full mt-2 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 active:scale-95 transition-all cursor-pointer outline-none"
                   >
                     Confirmar Averbação
@@ -465,8 +504,8 @@ export const FuelMaintenanceModule: React.FC = () => {
                   </div>
 
                   <div className="pt-2">
-                    <button 
-                      onClick={() => toast.success('Parâmetros de validação volumétrica salvos com sucesso.')} 
+                    <button
+                      onClick={() => toast.success('Parâmetros de validação volumétrica salvos com sucesso.')}
                       className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer outline-none active:scale-95"
                     >
                       Salvar Regras
@@ -478,122 +517,196 @@ export const FuelMaintenanceModule: React.FC = () => {
 
             {/* Coluna 2: Listagem Extensa de Registros e Motor Antifraude */}
             <div className="lg:col-span-2 space-y-4">
-               
-               {/* Banner de Auditoria de Algoritmo */}
-               <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                 <div className="space-y-1">
-                   <div className="flex items-center gap-1.5">
-                     <ShieldCheck size={16} className="text-indigo-600 shrink-0" />
-                     <h4 className="text-xs font-black uppercase tracking-wider text-slate-900">Motor Antifraude Espacial</h4>
-                   </div>
-                   <p className="text-xs text-slate-500 font-medium max-w-xl">
-                     Cruzamento contínuo da volumetria declarada nos postos contra a curva de consumo esperada pelo polígono OSRM percorrido.
-                   </p>
-                 </div>
-                 <span className="px-3 py-1 bg-white text-emerald-700 border border-emerald-200 rounded-lg text-[9px] font-black uppercase tracking-widest self-start sm:self-auto shrink-0 text-center">
-                   Auditoria Ativa
-                 </span>
-               </div>
 
-               {/* Barra de Ferramentas de Filtragem e Busca */}
-               <div className="flex flex-col sm:flex-row gap-3">
-                 <div className="relative flex-1">
-                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                   <input 
-                     type="text"
-                     placeholder="Buscar por placa, bandeira ou produto..."
-                     value={searchTerm}
-                     onChange={e => setSearchTerm(e.target.value)}
-                     className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-indigo-500 transition-all"
-                   />
-                 </div>
-                 
-                 <div className="flex items-center gap-1 shrink-0 bg-slate-50 border border-slate-200 p-1 rounded-xl">
-                   <Filter size={12} className="text-slate-400 ml-2 mr-1" />
-                   {(['all', 'suspicious', 'regular'] as const).map(type => (
-                     <button
-                       key={type}
-                       onClick={() => setFilterType(type)}
-                       className={cn(
-                         "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors cursor-pointer outline-none",
-                         filterType === type ? "bg-white text-indigo-600 shadow-2xs border border-slate-200" : "text-slate-400 hover:text-slate-600"
-                       )}
-                     >
-                       {type === 'all' ? 'Todos' : type === 'suspicious' ? 'Suspeitos' : 'Regulares'}
-                     </button>
-                   ))}
-                 </div>
-               </div>
+              {/* Banner de Auditoria de Algoritmo */}
+              <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck size={16} className="text-indigo-600 shrink-0" />
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-900">Motor Antifraude Espacial</h4>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium max-w-xl">
+                    Cruzamento contínuo da volumetria declarada nos postos contra a curva de consumo esperada pelo polígono OSRM percorrido.
+                  </p>
+                </div>
+                <span className="px-3 py-1 bg-white text-emerald-700 border border-emerald-200 rounded-lg text-[9px] font-black uppercase tracking-widest self-start sm:self-auto shrink-0 text-center">
+                  Auditoria Ativa
+                </span>
+              </div>
 
-               {/* Lista Dinâmica */}
-               <div className="space-y-3">
-                 {filteredFuelLogs.map(log => (
-                   <div 
-                     key={log.id} 
-                     className={cn(
-                       "bg-white border rounded-2xl p-5 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden",
-                       log.fraudRisk ? "border-rose-300 hover:border-rose-400" : "border-slate-200 hover:border-slate-300"
-                     )}
-                   >
-                     {log.fraudRisk && <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-500" />}
+              {/* Solicitações Pendentes (Wow Premium Alert Card) */}
+              {pendingRequests.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 flex items-center gap-1.5 animate-pulse">
+                      <Fuel size={14} /> Solicitações Pendentes ({pendingRequests.length})
+                    </h3>
+                    <span className="text-[10px] text-slate-400 font-bold">Aguardando preenchimento operacional</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    {pendingRequests.map(req => (
+                      <div key={req.id} className="bg-gradient-to-r from-amber-50/50 to-white border border-amber-200 rounded-2xl p-5 shadow-2xs relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500" />
+                        <div className="space-y-1.5 flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-xs text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-200 font-mono">
+                              {req.vehicle}
+                            </span>
+                            <span className="text-xs font-bold text-slate-700">
+                              {req.driverName}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium">• {req.date}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-slate-600">
+                            <span className="font-semibold">Odômetro Declarado:</span>
+                            <strong className="font-mono text-slate-800">{req.odo.toLocaleString('pt-BR')} KM</strong>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Deseja realmente rejeitar esta solicitação de abastecimento?')) {
+                                rejectMutation.mutate(req.id);
+                              }
+                            }}
+                            className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl transition-colors font-bold text-[10px] uppercase tracking-wider cursor-pointer outline-none"
+                          >
+                            Recusar
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedRequest(req);
+                              setApproveData({
+                                litersFilled: '',
+                                costPerLiter: '',
+                                stationName: req.station !== 'N/A' ? req.station : '',
+                                jobNumber: '',
+                              });
+                            }}
+                            className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl shadow-xs transition-colors font-black text-[10px] uppercase tracking-wider cursor-pointer outline-none"
+                          >
+                            Preencher & Aprovar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                     <div className="space-y-1.5 min-w-0 flex-1">
-                       <div className="flex flex-wrap items-center gap-2">
-                         <span className="font-bold text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 font-mono">
-                           {log.vehicle}
-                         </span>
-                         <span className="text-[10px] font-bold text-indigo-600">
-                           {log.fuelType}
-                         </span>
-                         <span className="text-[10px] text-slate-400 font-medium">
-                           • {log.date}
-                         </span>
-                         {log.fraudRisk && (
-                           <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 font-black text-[9px] uppercase rounded tracking-widest flex items-center gap-1 shrink-0">
-                             <AlertOctagon size={10} className="text-rose-500" /> Discrepância de Volume
-                           </span>
-                         )}
-                       </div>
+              {/* Barra de Ferramentas de Filtragem e Busca */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por placa, bandeira ou produto..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-indigo-500 transition-all"
+                  />
+                </div>
 
-                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-slate-700">
-                         <span className="text-indigo-600">{log.liters} Litros</span>
-                         <span className="text-slate-300">•</span>
-                         <span className="text-emerald-600 font-mono">R$ {log.cost.toFixed(2)}</span>
-                         <span className="text-slate-300">•</span>
-                         <span className="text-slate-500 font-medium">Hodômetro: {log.odo.toLocaleString('pt-BR')} KM</span>
-                         <span className="text-slate-300">•</span>
-                         <span className="text-slate-500 font-mono text-[10px]">Média: {log.efficiency}</span>
-                       </div>
+                <div className="flex items-center gap-1 shrink-0 bg-slate-50 border border-slate-200 p-1 rounded-xl">
+                  <Filter size={12} className="text-slate-400 ml-2 mr-1" />
+                  {(['all', 'suspicious', 'regular'] as const).map(type => (
+                    <button
+                      key={type}
+                      onClick={() => setFilterType(type)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors cursor-pointer outline-none",
+                        filterType === type ? "bg-white text-indigo-600 shadow-2xs border border-slate-200" : "text-slate-400 hover:text-slate-600"
+                      )}
+                    >
+                      {type === 'all' ? 'Todos' : type === 'suspicious' ? 'Suspeitos' : 'Regulares'}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                       <p className="text-[11px] font-medium text-slate-500 truncate" title={log.station}>
-                         📍 {log.station}
-                       </p>
-                       
-                       {log.anomalyReason && (
-                         <p className="text-[11px] font-bold text-rose-700 mt-2 bg-rose-50/60 p-2.5 rounded-xl border border-rose-100/80 leading-tight">
-                           Motivo do Alerta: {log.anomalyReason}
-                         </p>
-                       )}
-                     </div>
+              {/* Lista Dinâmica */}
+              <div className="space-y-3">
+                {filteredFuelLogs.map(log => (
+                  <div
+                    key={log.id}
+                    className={cn(
+                      "bg-white border rounded-2xl p-5 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden",
+                      log.fraudRisk ? "border-rose-300 hover:border-rose-400" : "border-slate-200 hover:border-slate-300"
+                    )}
+                  >
+                    {log.fraudRisk && <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-500" />}
 
-                     <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                       <button 
-                         onClick={() => toast.success(`Comprovante fiscal auditado para a transação ${log.id}`)}
-                         className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-600 transition-colors font-bold text-[10px] uppercase tracking-wider flex items-center gap-1 cursor-pointer outline-none"
-                       >
-                         <FileText size={12} className="text-indigo-600" />
-                         <span>Nota Fiscal</span>
-                       </button>
-                     </div>
-                   </div>
-                 ))}
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 font-mono">
+                          {log.vehicle}
+                        </span>
+                        <span className="text-[10px] font-bold text-indigo-600">
+                          {log.fuelType}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          • {log.date}
+                        </span>
+                        {log.fraudRisk && (
+                          <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 font-black text-[9px] uppercase rounded tracking-widest flex items-center gap-1 shrink-0">
+                            <AlertOctagon size={10} className="text-rose-500" /> Discrepância de Volume
+                          </span>
+                        )}
+                      </div>
 
-                 {filteredFuelLogs.length === 0 && (
-                   <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 text-slate-400 font-medium text-xs">
-                     Nenhum registro de abastecimento atende aos critérios do filtro selecionado.
-                   </div>
-                 )}
-               </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-slate-700">
+                        <span className="text-indigo-600">{log.liters} Litros</span>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-emerald-600 font-mono">R$ {log.cost.toFixed(2)}</span>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-slate-500 font-medium">Hodômetro: {log.odo.toLocaleString('pt-BR')} KM</span>
+                        {log.jobNumber && (
+                          <>
+                            <span className="text-slate-300">•</span>
+                            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-bold rounded">
+                              Job: {log.jobNumber}
+                            </span>
+                          </>
+                        )}
+                        {log.status === 'REJECTED' && (
+                          <>
+                            <span className="text-slate-300">•</span>
+                            <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 text-[9px] uppercase font-black rounded tracking-widest">
+                              Recusado
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      <p className="text-[11px] font-medium text-slate-500 truncate" title={log.station}>
+                        📍 {log.station}
+                      </p>
+
+                      {log.anomalyReason && (
+                        <p className="text-[11px] font-bold text-rose-700 mt-2 bg-rose-50/60 p-2.5 rounded-xl border border-rose-100/80 leading-tight">
+                          Motivo do Alerta: {log.anomalyReason}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                      <button
+                        onClick={() => toast.success(`Comprovante fiscal auditado para a transação ${log.id}`)}
+                        className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-600 transition-colors font-bold text-[10px] uppercase tracking-wider flex items-center gap-1 cursor-pointer outline-none"
+                      >
+                        <FileText size={12} className="text-indigo-600" />
+                        <span>Nota Fiscal</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {filteredFuelLogs.length === 0 && (
+                  <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 text-slate-400 font-medium text-xs">
+                    Nenhum registro de abastecimento atende aos critérios do filtro selecionado.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -602,7 +715,7 @@ export const FuelMaintenanceModule: React.FC = () => {
       {/* Interface de Acompanhamento de Manutenções */}
       {activeTab === 'maintenance' && (
         <div className="space-y-6 animate-in fade-in duration-300">
-          
+
           {/* Métricas de Manutenção */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-2xs">
@@ -640,9 +753,9 @@ export const FuelMaintenanceModule: React.FC = () => {
                 <form onSubmit={handleAddMaintenance} className="space-y-4">
                   <div>
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Unidade Frotista</label>
-                    <select 
+                    <select
                       value={newMnt.vehicle}
-                      onChange={e => setNewMnt({...newMnt, vehicle: e.target.value})}
+                      onChange={e => setNewMnt({ ...newMnt, vehicle: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:border-indigo-500 transition-all cursor-pointer"
                     >
                       <option value="">Selecione o veículo...</option>
@@ -660,11 +773,11 @@ export const FuelMaintenanceModule: React.FC = () => {
 
                   <div>
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Escopo de Serviço</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="Ex: Troca de lonas, alinhamento..."
                       value={newMnt.type}
-                      onChange={e => setNewMnt({...newMnt, type: e.target.value})}
+                      onChange={e => setNewMnt({ ...newMnt, type: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-indigo-500 transition-all"
                     />
                   </div>
@@ -672,28 +785,28 @@ export const FuelMaintenanceModule: React.FC = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Custo Aprox (R$)</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         step="0.01"
                         placeholder="Ex: 1450.00"
                         value={newMnt.cost}
-                        onChange={e => setNewMnt({...newMnt, cost: e.target.value})}
+                        onChange={e => setNewMnt({ ...newMnt, cost: e.target.value })}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-indigo-500 transition-all"
                       />
                     </div>
                     <div>
                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Data Limite</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         placeholder="DD/MM/AAAA"
                         value={newMnt.nextDue}
-                        onChange={e => setNewMnt({...newMnt, nextDue: e.target.value})}
+                        onChange={e => setNewMnt({ ...newMnt, nextDue: e.target.value })}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-indigo-500 transition-all"
                       />
                     </div>
                   </div>
 
-                  <button 
+                  <button
                     type="submit"
                     className="w-full mt-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-sm active:scale-95 transition-all cursor-pointer outline-none"
                   >
@@ -738,8 +851,8 @@ export const FuelMaintenanceModule: React.FC = () => {
                   </div>
 
                   <div className="pt-2">
-                    <button 
-                      onClick={() => toast.success('Relatório consolidado exportado para o e-mail cadastrado.')} 
+                    <button
+                      onClick={() => toast.success('Relatório consolidado exportado para o e-mail cadastrado.')}
                       className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-sm transition-all cursor-pointer outline-none flex items-center justify-center gap-1.5"
                     >
                       <FileText size={14} />
@@ -795,12 +908,12 @@ export const FuelMaintenanceModule: React.FC = () => {
                             <span className={cn(
                               "px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest inline-block text-center shrink-0",
                               item.status === 'OK' ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                              item.status === 'ALERTA' ? "bg-amber-50 text-amber-700 border border-amber-200" :
-                              "bg-rose-50 text-rose-700 border border-rose-200"
+                                item.status === 'ALERTA' ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                                  "bg-rose-50 text-rose-700 border border-rose-200"
                             )}>
                               {item.status}
                             </span>
-                            
+
                             {item.status !== 'OK' && (
                               <button
                                 onClick={() => handleResolveMaintenance(item.id)}
@@ -821,6 +934,112 @@ export const FuelMaintenanceModule: React.FC = () => {
 
           </div>
 
+        </div>
+      )}
+
+      {selectedRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-xl w-full max-w-md space-y-5 animate-in zoom-in-95 duration-200">
+            <div>
+              <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
+                <CheckCircle size={16} className="text-indigo-600" /> Aprovar Abastecimento
+              </h3>
+              <p className="text-[11px] font-medium text-slate-500 mt-0.5">
+                Veículo: <strong className="font-mono text-slate-700">{selectedRequest.vehicle}</strong> • Motorista: <strong>{selectedRequest.driverName}</strong> • Odômetro: <strong>{selectedRequest.odo} KM</strong>
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Nº do Job (Job Number)</label>
+                <input
+                  type="text"
+                  placeholder="Ex: JOB-9982"
+                  value={approveData.jobNumber}
+                  onChange={e => setApproveData({ ...approveData, jobNumber: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-indigo-500 transition-all text-slate-800"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Litragem Cheia (L)</label>
+                  <input
+                    type="number"
+                    placeholder="Ex: 120"
+                    value={approveData.litersFilled}
+                    onChange={e => setApproveData({ ...approveData, litersFilled: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-indigo-500 transition-all text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Preço/Litro (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Ex: 5.89"
+                    value={approveData.costPerLiter}
+                    onChange={e => setApproveData({ ...approveData, costPerLiter: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-indigo-500 transition-all text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Nome do Posto</label>
+                <input
+                  type="text"
+                  placeholder="Bandeira / Localização"
+                  value={approveData.stationName}
+                  onChange={e => setApproveData({ ...approveData, stationName: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-indigo-500 transition-all text-slate-800"
+                />
+              </div>
+
+              {approveData.litersFilled && approveData.costPerLiter && (
+                <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl flex justify-between items-center text-xs">
+                  <span className="font-bold text-emerald-800">Custo Total Calculado:</span>
+                  <strong className="font-mono text-emerald-700 text-sm">
+                    R$ {(Number(approveData.litersFilled) * Number(approveData.costPerLiter)).toFixed(2)}
+                  </strong>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setSelectedRequest(null)}
+                  className="flex-1 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl font-black text-xs uppercase tracking-wider transition-colors outline-none cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    if (!approveData.jobNumber) {
+                      toast.error('O número do Job é obrigatório para aprovação.');
+                      return;
+                    }
+                    if (!approveData.litersFilled || !approveData.costPerLiter) {
+                      toast.error('Litragem e custo por litro são obrigatórios.');
+                      return;
+                    }
+                    approveMutation.mutate({
+                      id: selectedRequest.id,
+                      payload: {
+                        litersFilled: parseFloat(approveData.litersFilled),
+                        costPerLiter: parseFloat(approveData.costPerLiter),
+                        totalCost: parseFloat(approveData.litersFilled) * parseFloat(approveData.costPerLiter),
+                        stationName: approveData.stationName,
+                        jobNumber: approveData.jobNumber,
+                      }
+                    });
+                  }}
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-sm transition-colors outline-none cursor-pointer"
+                >
+                  Confirmar Aprov.
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

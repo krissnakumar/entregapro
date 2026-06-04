@@ -16,11 +16,15 @@ export default function DeliveriesScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const [search, setSearch] = useState('');
-  const { data: deliveries, isLoading } = useDeliveries();
+  const { data: deliveriesRaw, isLoading } = useDeliveries();
 
-  const filtered = (deliveries || []).filter((d: any) =>
-    d.customer?.name?.toLowerCase().includes(search.toLowerCase()) ||
-    d.deliveryNumber?.toLowerCase().includes(search.toLowerCase()),
+  const deliveries = Array.isArray(deliveriesRaw)
+    ? deliveriesRaw
+    : (deliveriesRaw as any)?.data || [];
+
+  const filtered = deliveries.filter((d: any) =>
+    d?.customer?.name?.toLowerCase().includes(search.toLowerCase()) ||
+    d?.deliveryNumber?.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -30,7 +34,7 @@ export default function DeliveriesScreen() {
           <Text style={styles.backBtn}>← Voltar</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Entregas</Text>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('CreateDelivery')}>
           <Text style={styles.addBtn}>+ Nova</Text>
         </TouchableOpacity>
       </View>

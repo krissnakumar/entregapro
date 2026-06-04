@@ -32,6 +32,20 @@ export class DriversService {
           createdAt: true,
           user: { select: { name: true, email: true } },
           vehicle: { select: { id: true, vehicleNumber: true, type: true } },
+          deliveries: {
+            where: {
+              deliveryStatus: {
+                in: [
+                  'ACCEPTED_BY_DRIVER',
+                  'LOADING_STARTED',
+                  'LOADED',
+                  'IN_TRANSIT',
+                  'ARRIVED'
+                ]
+              }
+            },
+            select: { id: true }
+          }
         },
       }),
       this.prisma.driver.count({ where }),
@@ -98,6 +112,20 @@ export class DriversService {
         include: {
           user: true,
           vehicle: true,
+          deliveries: {
+            where: {
+              deliveryStatus: {
+                in: [
+                  'ACCEPTED_BY_DRIVER',
+                  'LOADING_STARTED',
+                  'LOADED',
+                  'IN_TRANSIT',
+                  'ARRIVED'
+                ]
+              }
+            },
+            select: { id: true }
+          }
         },
       });
     });
@@ -139,14 +167,19 @@ export class DriversService {
         }
       }
 
+      let availabilityStatus = data.availabilityStatus;
+      if (data.status !== undefined) {
+        availabilityStatus = (data.status === 'disponível' || data.status === 'em_rota');
+      }
+
       const res = await tx.driver.updateMany({
         where: { id, organizationId, deletedAt: null },
         data: {
           licenseNumber: data.cnhNumber,
           phone: data.phone,
           availabilityStatus:
-            data.availabilityStatus !== undefined
-              ? data.availabilityStatus
+            availabilityStatus !== undefined
+              ? availabilityStatus
               : undefined,
           vehicleId: data.vehicleId !== undefined ? data.vehicleId : undefined,
         },
@@ -155,7 +188,24 @@ export class DriversService {
 
       return tx.driver.findFirstOrThrow({
         where: { id, organizationId, deletedAt: null },
-        include: { user: true, vehicle: true },
+        include: {
+          user: true,
+          vehicle: true,
+          deliveries: {
+            where: {
+              deliveryStatus: {
+                in: [
+                  'ACCEPTED_BY_DRIVER',
+                  'LOADING_STARTED',
+                  'LOADED',
+                  'IN_TRANSIT',
+                  'ARRIVED'
+                ]
+              }
+            },
+            select: { id: true }
+          }
+        },
       });
     });
   }

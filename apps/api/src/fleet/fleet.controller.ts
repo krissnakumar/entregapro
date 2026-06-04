@@ -6,6 +6,7 @@ import {
   Query,
   UseGuards,
   Req,
+  Param,
 } from "@nestjs/common";
 import { FleetService } from "./fleet.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -26,6 +27,21 @@ export class FleetController {
       ...data,
       organizationId: req.user.organizationId,
     });
+  }
+
+  @Post("fuel-logs/request")
+  createFuelRequest(@Req() req: any, @Body() data: any) {
+    return this.fleetService.createFuelRequest(req.user.userId, data);
+  }
+
+  @Post("fuel-logs/:id/approve")
+  approveFuelRequest(@Req() req: any, @Param("id") id: string, @Body() data: any) {
+    return this.fleetService.approveFuelRequest(req.user.userId, id, data);
+  }
+
+  @Post("fuel-logs/:id/reject")
+  rejectFuelRequest(@Req() req: any, @Param("id") id: string) {
+    return this.fleetService.rejectFuelRequest(req.user.userId, id);
   }
 
   @Get("maintenance-logs")

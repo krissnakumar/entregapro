@@ -9,6 +9,8 @@ import DispatcherLoginScreen from './src/screens/DispatcherLoginScreen';
 import FleetConsoleScreen from './src/screens/FleetConsoleScreen';
 import GpsMonitoringScreen from './src/screens/GpsMonitoringScreen';
 import InvoiceInspectionScreen from './src/screens/InvoiceInspectionScreen';
+import FuelControlScreen from './src/screens/FuelControlScreen';
+import DeliveryDetailScreen from './src/screens/DeliveryDetailScreen';
 
 const queryClient = new QueryClient();
 const Stack = createNativeStackNavigator();
@@ -30,8 +32,10 @@ function RootNavigator() {
       {isAuthenticated ? (
         <>
           <Stack.Screen name="FleetConsole" component={FleetConsoleScreen} />
+          <Stack.Screen name="DeliveryDetail" component={DeliveryDetailScreen} />
           <Stack.Screen name="GpsMonitoring" component={GpsMonitoringScreen} />
           <Stack.Screen name="InvoiceInspection" component={InvoiceInspectionScreen} />
+          <Stack.Screen name="FuelControl" component={FuelControlScreen} />
         </>
       ) : (
         <Stack.Screen name="Login" component={DispatcherLoginScreen} />

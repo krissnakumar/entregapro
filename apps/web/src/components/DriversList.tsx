@@ -17,12 +17,24 @@ interface Driver {
   cnhExpiration?: string;
   tripsCount?: number;
   avatarUrl?: string;
+  vehicle?: {
+    id?: string;
+    vehicleNumber: string;
+    type: string;
+  } | null;
   currentVehicle?: {
     id?: string;
     vehicleNumber: string;
     type: string;
   } | null;
 }
+
+type PaginatedResponse<T> = {
+  data: T[];
+  total: number;
+  take: number;
+  skip: number;
+};
 
 const INITIAL_DRIVERS: Driver[] = [];
 
@@ -59,8 +71,7 @@ const DriversList = () => {
   const { data: remoteDrivers, isLoading } = useQuery({
     queryKey: ['drivers'],
     queryFn: async () => {
-      const res = await api.get<Driver[]>('/drivers');
-      return res;
+      return api.get<Driver[] | PaginatedResponse<Driver>>('/drivers');
     },
     retry: false,
   });
@@ -68,11 +79,18 @@ const DriversList = () => {
   const { data: vehicles } = useQuery({
     queryKey: ['vehicles'],
     queryFn: async () => {
-      const res = await api.get<any[]>('/vehicles');
-      return res;
+      return api.get<any[] | PaginatedResponse<any>>('/vehicles');
     },
     retry: false,
   });
+
+  const drivers = Array.isArray(remoteDrivers)
+    ? remoteDrivers
+    : remoteDrivers?.data || [];
+
+  const vehicleOptions = Array.isArray(vehicles)
+    ? vehicles
+    : vehicles?.data || [];
 
   const createDriverMutation = useMutation({
     mutationFn: (payload: any) => api.post('/drivers', payload),
@@ -116,7 +134,7 @@ const DriversList = () => {
       cnhNumber: driver.cnhNumber || '',
       cnhCategory: driver.cnhCategory || 'E',
       cnhExpiration: driver.cnhExpiration ? new Date(driver.cnhExpiration).toISOString().split('T')[0] : '',
-      vehicleId: driver.currentVehicle?.id || '',
+      vehicleId: driver.vehicle?.id || driver.currentVehicle?.id || '',
       avatarUrl: driver.avatarUrl || '',
       status: driver.status || 'disponível',
     });
@@ -125,12 +143,12 @@ const DriversList = () => {
   };
 
   const getAvailableVehicles = (currentVehicleId?: string) => {
-    if (!vehicles) return [];
+    if (!vehicleOptions.length) return [];
     const assignedVehicleIds = baseDrivers
-      .map(d => d.currentVehicle?.id)
+      .map(d => d.vehicle?.id || d.currentVehicle?.id)
       .filter((id): id is string => !!id && id !== currentVehicleId);
     
-    return vehicles.filter(v => !assignedVehicleIds.includes(v.id));
+    return vehicleOptions.filter(v => !assignedVehicleIds.includes(v.id));
   };
 
   const handleUpdateVehicle = (driverId: string, vehicleId: string | null) => {
@@ -162,14 +180,14 @@ const DriversList = () => {
     );
   };
 
-  const baseDrivers = (remoteDrivers && remoteDrivers.length > 0)
-    ? [...localDrivers.filter(ld => !remoteDrivers.some(rd => rd.id === ld.id)), ...remoteDrivers]
+  const baseDrivers = drivers.length > 0
+    ? [...localDrivers.filter(ld => !drivers.some(rd => rd.id === ld.id)), ...drivers]
     : localDrivers;
 
   const filteredDrivers = baseDrivers.filter(driver => {
     const safeName = driver.name || '';
     const safeCnh = driver.cnhNumber || '';
-    const safeVehicle = driver.currentVehicle?.vehicleNumber || '';
+    const safeVehicle = driver.vehicle?.vehicleNumber || driver.currentVehicle?.vehicleNumber || '';
     
     const matchesSearch = safeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           safeCnh.includes(searchTerm) ||
@@ -250,6 +268,18 @@ const DriversList = () => {
 
   return (
     <div className="space-y-6 font-sans pb-12 animate-in fade-in duration-200">
+      <style>{`
+        @keyframes truckRun {
+          0% { transform: translate(0, 0); }
+          25% { transform: translate(0.5px, -0.5px); }
+          50% { transform: translate(0, 0.5px); }
+          75% { transform: translate(-0.5px, -0.2px); }
+          100% { transform: translate(0, 0); }
+        }
+        .animate-truck-run {
+          animation: truckRun 0.4s infinite linear;
+        }
+      `}</style>
       
       {/* HEADER SIMPLIFICADO */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -376,11 +406,21 @@ const DriversList = () => {
                         currentStatus === 'em_rota' ? "bg-indigo-500" : "bg-amber-500"
                       )} />
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="font-bold text-slate-900 text-xs truncate max-w-[90px] group-hover:text-indigo-600 transition-colors leading-tight">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="font-bold text-slate-900 text-xs truncate max-w-[90px] group-hover:text-indigo-600 transition-colors leading-tight flex items-center gap-1">
                           {safeName}
                         </h4>
+                        {currentStatus === 'em_rota' ? (
+                          <div className="relative inline-flex items-center shrink-0 ml-0.5" title="Em Rota (Em Trânsito)">
+                            <Truck size={12} className="text-indigo-600 animate-truck-run animate-infinite" />
+                            <span className="absolute -left-1 top-1/2 -translate-y-1/2 flex flex-col gap-[1px] opacity-75">
+                              <span className="w-[3px] h-[1px] bg-indigo-400 rounded-full animate-ping"></span>
+                            </span>
+                          </div>
+                        ) : (
+                          <Truck size={12} className="text-slate-400 shrink-0 ml-0.5" title="Estacionado" />
+                        )}
                         <span className={cn(
                           "px-1 py-0.5 rounded text-[8px] font-black uppercase flex items-center gap-0.5 shrink-0",
                           currentStatus === 'disponível' ? "bg-emerald-50 text-emerald-600 border border-emerald-100/60" :
@@ -451,7 +491,7 @@ const DriversList = () => {
                   <div className="flex flex-col min-w-0">
                     <span className="text-slate-400 text-[9px] uppercase tracking-wider font-bold">Veículo</span>
                     <select
-                      value={driver.currentVehicle?.id || ''}
+                      value={driver.vehicle?.id || driver.currentVehicle?.id || ''}
                       onChange={(e) => {
                         const val = e.target.value;
                         handleUpdateVehicle(driver.id, val === '' ? null : val);
@@ -460,7 +500,7 @@ const DriversList = () => {
                       className="bg-transparent border-0 hover:text-indigo-600 focus:text-indigo-600 focus:ring-0 text-slate-800 text-[11px] font-bold outline-none cursor-pointer p-0 w-28 truncate"
                     >
                       <option value="">Nenhum</option>
-                      {getAvailableVehicles(driver.currentVehicle?.id).map((v) => (
+                      {getAvailableVehicles(driver.vehicle?.id || driver.currentVehicle?.id).map((v) => (
                         <option key={v.id} value={v.id}>
                           {v.vehicleNumber}
                         </option>
@@ -643,12 +683,18 @@ const DriversList = () => {
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 transition-all cursor-pointer"
                 >
                   <option value="">Nenhum Veículo Alocado</option>
-                  {getAvailableVehicles(editingDriver?.currentVehicle?.id).map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.type} ({v.vehicleNumber})
-                    </option>
-                  ))}
+                  {vehicleOptions.map((v: any) => {
+                    const isAssignedToOther = v.driver && v.driver.id !== editingDriver?.id;
+                    return (
+                      <option key={v.id} value={v.id} disabled={isAssignedToOther}>
+                        {v.vehicleNumber} - {v.type}{isAssignedToOther ? ' (já atribuído)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
+                {newDriver.vehicleId && (
+                  <p className="text-[9px] text-slate-400 mt-0.5">O motorista anterior será automaticamente desatribuído</p>
+                )}
               </div>
 
               <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">

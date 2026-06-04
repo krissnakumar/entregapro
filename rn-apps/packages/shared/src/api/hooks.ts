@@ -13,6 +13,17 @@ import type {
   Order,
 } from '../types';
 
+type PaginatedResponse<T> = {
+  data: T[];
+  total: number;
+  take: number;
+  skip: number;
+};
+
+function unwrapListResponse<T>(response: T[] | PaginatedResponse<T>): T[] {
+  return Array.isArray(response) ? response : response.data ?? [];
+}
+
 // ─── Auth ───────────────────────────────────────────────────────────────────
 
 export function useLogin() {
@@ -28,6 +39,24 @@ export function useDeliveries() {
   return useQuery({
     queryKey: ['deliveries'],
     queryFn: () => api.get<Delivery[]>('/deliveries'),
+  });
+}
+
+export function useCreateDelivery() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      deliveryNumber: string;
+      customerId: string;
+      materialType: string;
+      quantity: string;
+      scheduledTime: string;
+      driverId?: string;
+      vehicleId?: string;
+    }) => api.post<Delivery>('/deliveries', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deliveries'] });
+    },
   });
 }
 
@@ -178,7 +207,10 @@ export function useCreateCustomer() {
 export function useDrivers() {
   return useQuery({
     queryKey: ['drivers'],
-    queryFn: () => api.get<Driver[]>('/drivers'),
+    queryFn: async () =>
+      unwrapListResponse(
+        await api.get<Driver[] | PaginatedResponse<Driver>>('/drivers'),
+      ),
   });
 }
 
@@ -192,12 +224,26 @@ export function useCreateDriver() {
   });
 }
 
+export function useUpdateDriver() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      api.patch(`/drivers/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+    },
+  });
+}
+
 // ─── Vehicles ───────────────────────────────────────────────────────────────
 
 export function useVehicles() {
   return useQuery({
     queryKey: ['vehicles'],
-    queryFn: () => api.get<Vehicle[]>('/vehicles'),
+    queryFn: async () =>
+      unwrapListResponse(
+        await api.get<Vehicle[] | PaginatedResponse<Vehicle>>('/vehicles'),
+      ),
   });
 }
 
@@ -246,6 +292,39 @@ export function useCreateFuelLog() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: any) => api.post('/fuel-logs', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fuel-logs'] });
+    },
+  });
+}
+
+export function useCreateFuelRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { odometer: number; vehicleId?: string }) =>
+      api.post<FuelLog>('/fuel-logs/request', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fuel-logs'] });
+    },
+  });
+}
+
+export function useApproveFuelRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { litersFilled: number; costPerLiter: number; totalCost?: number; stationName?: string; jobNumber?: string; receiptPhoto?: string | null; odometerPhoto?: string | null } }) =>
+      api.post<FuelLog>(`/fuel-logs/${id}/approve`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fuel-logs'] });
+    },
+  });
+}
+
+export function useRejectFuelRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<FuelLog>(`/fuel-logs/${id}/reject`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fuel-logs'] });
     },

@@ -7,20 +7,61 @@ import {
   StyleSheet,
   TextInput,
   ActivityIndicator,
+  Modal,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { useDrivers, colors, borderRadius, shadows } from '@rn-apps/shared';
+import { useDrivers, useVehicles, useUpdateDriver, colors, borderRadius, shadows } from '@rn-apps/shared';
 
 export default function DriversScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const [search, setSearch] = useState('');
-  const { data: drivers, isLoading } = useDrivers();
+  const { data: driversRaw, isLoading } = useDrivers();
+  const { data: vehiclesRaw } = useVehicles();
+  const updateDriverMutation = useUpdateDriver();
 
-  const filtered = (drivers || []).filter((d: any) =>
-    (d.user?.name || d.name || '').toLowerCase().includes(search.toLowerCase()),
+  const [selectedDriver, setSelectedDriver] = useState<any>(null);
+  const [vehicleModalVisible, setVehicleModalVisible] = useState(false);
+
+  const drivers = Array.isArray(driversRaw)
+    ? driversRaw
+    : (driversRaw as any)?.data || [];
+
+  const vehicles = Array.isArray(vehiclesRaw)
+    ? vehiclesRaw
+    : (vehiclesRaw as any)?.data || [];
+
+  const filtered = drivers.filter((d: any) =>
+    (d.name || d.user?.name || '').toLowerCase().includes(search.toLowerCase()),
   );
+
+  const handleOpenVehicleModal = (driver: any) => {
+    setSelectedDriver(driver);
+    setVehicleModalVisible(true);
+  };
+
+  const handleSelectVehicle = (vehicleId: string | null) => {
+    if (!selectedDriver) return;
+
+    updateDriverMutation.mutate(
+      {
+        id: selectedDriver.id,
+        data: { vehicleId },
+      },
+      {
+        onSuccess: () => {
+          setVehicleModalVisible(false);
+          setSelectedDriver(null);
+          Alert.alert('Sucesso', 'Veículo atualizado com sucesso!');
+        },
+        onError: (err: any) => {
+          Alert.alert('Erro', err.message || 'Não foi possível atualizar o veículo.');
+        },
+      }
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -52,9 +93,9 @@ export default function DriversScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
           {filtered.map((d: any) => {
-            const driverName = d.user?.name || d.name || '';
+            const driverName = d.name || d.user?.name || '';
             const isActive = d.isOnline ?? d.active ?? false;
-            const vehiclePlate = d.vehicle?.vehicleNumber || d.vehicle?.plate || '';
+            const vehiclePlate = d.currentVehicle?.vehicleNumber || d.vehicle?.vehicleNumber || d.vehicle?.plate || '';
             return (
             <View key={d.id} style={styles.card}>
               <View style={styles.cardTop}>
@@ -73,18 +114,76 @@ export default function DriversScreen() {
                   </View>
                   {d.phone && <Text style={styles.driverDetail}>{d.phone}</Text>}
                 </View>
-                {vehiclePlate && (
-                  <View style={styles.vehicleBadge}>
-                    <Text style={styles.vehicleBadgeText}>{vehiclePlate}</Text>
-                  </View>
+                {vehiclePlate ? (
+                  <TouchableOpacity 
+                    style={styles.vehicleBadge}
+                    onPress={() => handleOpenVehicleModal(d)}
+                  >
+                    <Text style={styles.vehicleBadgeText}>{vehiclePlate} ✏️</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity 
+                    style={[styles.vehicleBadge, { backgroundColor: '#F8FAFC', borderStyle: 'dashed' }]}
+                    onPress={() => handleOpenVehicleModal(d)}
+                  >
+                    <Text style={[styles.vehicleBadgeText, { color: colors.textTertiary }]}>+ Veículo</Text>
+                  </TouchableOpacity>
                 )}
               </View>
-              {d.licenseNumber && <Text style={styles.driverLicense}>{d.licenseNumber}</Text>}
+              {(d.cnhNumber || d.licenseNumber) ? (
+                <Text style={styles.driverLicense}>CNH: {d.cnhNumber || d.licenseNumber}</Text>
+              ) : null}
             </View>
             );
           })}
         </ScrollView>
       )}
+
+      {/* Vehicle Picker Modal */}
+      <Modal
+        visible={vehicleModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setVehicleModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Vincular Veículo</Text>
+              <Text style={styles.modalSubtitle}>
+                Motorista: {selectedDriver?.name || selectedDriver?.user?.name}
+              </Text>
+            </View>
+
+            <ScrollView style={styles.modalScroll}>
+              <TouchableOpacity
+                style={styles.modalItem}
+                onPress={() => handleSelectVehicle(null)}
+              >
+                <Text style={[styles.modalItemTitle, { color: colors.error }]}>Desatribuir Veículo</Text>
+              </TouchableOpacity>
+              
+              {vehicles.map((v: any) => (
+                <TouchableOpacity
+                  key={v.id}
+                  style={styles.modalItem}
+                  onPress={() => handleSelectVehicle(v.id)}
+                >
+                  <Text style={styles.modalItemTitle}>{v.vehicleNumber}</Text>
+                  <Text style={styles.modalItemSub}>{v.type} • {v.capacity}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.closeBtn}
+              onPress={() => setVehicleModalVisible(false)}
+            >
+              <Text style={styles.closeBtnText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -129,4 +228,63 @@ const styles = StyleSheet.create({
   },
   vehicleBadgeText: { fontSize: 10, fontWeight: '700', color: colors.text, fontFamily: 'monospace' },
   driverLicense: { fontSize: 10, color: colors.textTertiary, fontFamily: 'monospace' },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
+    width: '100%',
+    maxHeight: '80%',
+    padding: 20,
+    ...shadows.lg,
+  },
+  modalHeader: {
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  modalScroll: {
+    marginBottom: 16,
+  },
+  modalItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+  },
+  modalItemTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  modalItemSub: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  closeBtn: {
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 12,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+  },
+  closeBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
 });

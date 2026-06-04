@@ -49,7 +49,14 @@ export class VehiclesController {
       ...result,
       data: result.data.map((v) => ({
         ...v,
+        active: v.activeStatus,
         status: v.activeStatus ? "active" : "maintenance",
+        driver: v.driver ? {
+          ...v.driver,
+          status: (v.driver as any).deliveries && (v.driver as any).deliveries.length > 0
+            ? "em_rota"
+            : v.driver.availabilityStatus ? "disponível" : "em_descanso",
+        } : null,
       })),
     };
   }
@@ -70,6 +77,7 @@ export class VehiclesController {
     );
     return {
       ...updated,
+      active: updated.activeStatus,
       status: updated.activeStatus ? "active" : "maintenance",
     };
   }

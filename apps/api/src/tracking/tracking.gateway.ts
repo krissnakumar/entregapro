@@ -57,10 +57,6 @@ export class TrackingGateway
 
   private lastGhostCleanup = 0;
 
-  /**
-   * Periodic heartbeat to detect and clean up stale/ghost connections.
-   * Runs every 30 seconds — only writes to DB when ghost connections are found.
-   */
   afterInit() {
     ghostInterval = setInterval(() => {
       let foundGhost = false;
@@ -94,17 +90,35 @@ export class TrackingGateway
   handleConnection(client: Socket) {
     this.logger.log(`Client connected: ${client.id}`);
 
-    // Extract user info from the authenticated socket (set by WsJwtGuard)
     const userId =
       (client as any).data?.user?.sub || (client as any).data?.user?.userId;
+    const role = (client as any).data?.user?.role;
+    const organizationId = (client as any).data?.user?.organizationId;
+
     if (userId) {
       client.join(`user_${userId}`);
       const sockets = this.userSockets.get(userId) || new Set();
       sockets.add(client.id);
       this.userSockets.set(userId, sockets);
+
+      // Auto-join role-based rooms
+      if (role === "DISPATCHER") {
+        client.join("dispatchers");
+        client.join(`dispatcher_${userId}`);
+      }
+      if (role === "ADMIN" || role === "SUPER_ADMIN") {
+        client.join(`admin_${userId}`);
+      }
+      if (role === "DRIVER" || role === "HELPER") {
+        client.join(`driver_${userId}`);
+      }
+
+      // Auto-join organization room
+      if (organizationId) {
+        client.join(`organization_${organizationId}`);
+      }
     }
 
-    // Handle socket errors
     client.on("error", (err: Error) => {
       this.logger.error(`Socket error for ${client.id}: ${err.message}`);
       client.disconnect(true);
@@ -118,14 +132,12 @@ export class TrackingGateway
   async handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
 
-    // Clean up from userSockets
     for (const [userId, sockets] of this.userSockets.entries()) {
       if (sockets.delete(client.id) && sockets.size === 0) {
         this.userSockets.delete(userId);
       }
     }
 
-    // Clean up from activeDrivers
     for (const [driverId, socketId] of this.activeDrivers.entries()) {
       if (socketId === client.id) {
         this.activeDrivers.delete(driverId);
@@ -156,6 +168,87 @@ export class TrackingGateway
     this.server.to("dispatchers").emit(event, data);
   }
 
+  notifyAdmins(organizationId: string, event: string, data: any) {
+    this.server.to(`organization_${organizationId}`).emit(event, data);
+  }
+
+  notifyOrganization(organizationId: string, event: string, data: any) {
+    this.server.to(`organization_${organizationId}`).emit(event, data);
+  }
+
+  notifyDelivery(deliveryId: string, event: string, data: any) {
+    this.server.to(`delivery_${deliveryId}`).emit(event, data);
+  }
+
+  notifyLoadBatch(loadBatchId: string, event: string, data: any) {
+    this.server.to(`loadBatch_${loadBatchId}`).emit(event, data);
+  }
+
+  // ─── Delivery workflow events ───────────────────────────────────────────
+
+  emitDeliveryCreated(organizationId: string, delivery: any) {
+    this.notifyOrganization(organizationId, "delivery.created", delivery);
+  }
+
+  emitDeliveryAssigned(organizationId: string, delivery: any, driverUserId: string) {
+    this.notifyOrganization(organizationId, "delivery.assigned", delivery);
+    if (driverUserId) {
+      this.notifyUser(driverUserId, "delivery.assigned", delivery);
+    }
+  }
+
+  emitDriverAccepted(organizationId: string, delivery: any) {
+    this.notifyOrganization(organizationId, "driver.accepted", delivery);
+  }
+
+  emitDeliveryLoadingStarted(organizationId: string, delivery: any) {
+    this.notifyOrganization(organizationId, "delivery.loading_started", delivery);
+  }
+
+  emitDeliveryLoaded(organizationId: string, delivery: any) {
+    this.notifyOrganization(organizationId, "delivery.loaded", delivery);
+  }
+
+  emitDeliveryInTransit(organizationId: string, delivery: any) {
+    this.notifyOrganization(organizationId, "delivery.in_transit", delivery);
+  }
+
+  emitDeliveryArrived(organizationId: string, delivery: any) {
+    this.notifyOrganization(organizationId, "delivery.arrived", delivery);
+  }
+
+  emitDeliveryDelivered(organizationId: string, delivery: any) {
+    this.notifyOrganization(organizationId, "delivery.delivered", delivery);
+  }
+
+  emitDeliveryFailed(organizationId: string, delivery: any) {
+    this.notifyOrganization(organizationId, "delivery.failed", delivery);
+  }
+
+  emitFuelRequested(organizationId: string, request: any) {
+    this.notifyOrganization(organizationId, "fuel.requested", request);
+  }
+
+  emitFuelApproved(organizationId: string, request: any, driverUserId: string) {
+    this.notifyOrganization(organizationId, "fuel.approved", request);
+    if (driverUserId) {
+      this.notifyUser(driverUserId, "fuel.approved", request);
+    }
+  }
+
+  emitFuelRejected(organizationId: string, request: any, driverUserId: string) {
+    this.notifyOrganization(organizationId, "fuel.rejected", request);
+    if (driverUserId) {
+      this.notifyUser(driverUserId, "fuel.rejected", request);
+    }
+  }
+
+  emitNotificationCreated(userId: string, notification: any) {
+    this.notifyUser(userId, "notification.created", notification);
+  }
+
+  // ─── Socket message handlers ────────────────────────────────────────────
+
   @SubscribeMessage("updateLocation")
   async handleUpdateLocation(
     @MessageBody()
@@ -173,7 +266,6 @@ export class TrackingGateway
     const user = (client as any).data?.user;
     const organizationId = user?.organizationId;
 
-    // 1. Live status management
     const existingSocketId = this.activeDrivers.get(data.driverId);
 
     const dbUpdate =
@@ -193,7 +285,6 @@ export class TrackingGateway
       }
     }
 
-    // Batch DB write: fire but log errors, don't block the flow
     this.prisma.driver
       .update({
         where: { id: data.driverId },
@@ -203,17 +294,14 @@ export class TrackingGateway
         this.logger.error(`Failed to persist driver status: ${err.message}`),
       );
 
-    // 2. Offload to background queue for persistence and heavy processing
     await this.trackingQueue.add("process-location", {
       ...data,
       organizationId,
     });
 
-    // 3. Instant feedback to watchers
     this.server.to(`delivery_${data.deliveryId}`).emit("locationUpdated", data);
     this.server.to("dispatchers").emit("driverLocationUpdated", data);
 
-    // 4. Geofence checking (only if we have coordinates)
     if (data.lat && data.lng) {
       const alerts = await this.geoService.checkGeofenceAlert(
         data.driverId,
@@ -264,5 +352,35 @@ export class TrackingGateway
     sockets.add(client.id);
     this.userSockets.set(userId, sockets);
     return { event: "joined", data: { room: `user_${userId}` } };
+  }
+
+  @SubscribeMessage("joinOrganization")
+  handleJoinOrganization(
+    @MessageBody() organizationId: string,
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!organizationId) return;
+    client.join(`organization_${organizationId}`);
+    return { event: "joined", data: { room: `organization_${organizationId}` } };
+  }
+
+  @SubscribeMessage("joinLoadBatch")
+  handleJoinLoadBatch(
+    @MessageBody() loadBatchId: string,
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!loadBatchId) return;
+    client.join(`loadBatch_${loadBatchId}`);
+    return { event: "joined", data: { room: `loadBatch_${loadBatchId}` } };
+  }
+
+  @SubscribeMessage("joinDriver")
+  handleJoinDriver(
+    @MessageBody() userId: string,
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!userId) return;
+    client.join(`driver_${userId}`);
+    return { event: "joined", data: { room: `driver_${userId}` } };
   }
 }

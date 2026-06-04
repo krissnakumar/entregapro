@@ -16,9 +16,13 @@ export default function VehiclesScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const [search, setSearch] = useState('');
-  const { data: vehicles, isLoading } = useVehicles();
+  const { data: vehiclesRaw, isLoading } = useVehicles();
 
-  const filtered = (vehicles || []).filter((v: any) =>
+  const vehicles = Array.isArray(vehiclesRaw)
+    ? vehiclesRaw
+    : (vehiclesRaw as any)?.data || [];
+
+  const filtered = vehicles.filter((v: any) =>
     v.vehicleNumber?.toLowerCase().includes(search.toLowerCase()) ||
     v.type?.toLowerCase().includes(search.toLowerCase()),
   );

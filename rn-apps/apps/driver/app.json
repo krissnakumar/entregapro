@@ -24,8 +24,7 @@
       "versionCode": 1
     },
     "extra": {
-      "environment": "production",
-      "apiUrl": "https://entregapro-api.onrender.com"
+      "environment": "development"
     },
     "plugins": [
       "expo-location",

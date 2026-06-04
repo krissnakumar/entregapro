@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { connectSocket, onNotificationReceived, joinUserRoom } from './tracking';
+import { useEffect } from 'react';
+import { connectSocket, onNotificationReceived } from './tracking';
 import { useNotificationStore } from '../store/notificationStore';
 import { getAuthToken } from '../store/authStore';
 import { setupPushNotifications } from './pushNotifications';
@@ -11,12 +11,11 @@ import { setupPushNotifications } from './pushNotifications';
  */
 export function useRealtimeNotifications(userId?: string | null) {
   const addNotification = useNotificationStore((s) => s.addNotification);
-  const joinedRef = useRef(false);
 
   useEffect(() => {
     if (!userId) return;
 
-    // Connect socket and join user room
+    // Connect an authenticated socket; the backend auto-joins user rooms.
     connectSocket(undefined, getAuthToken());
 
     const unsub = onNotificationReceived((data) => {
@@ -29,11 +28,6 @@ export function useRealtimeNotifications(userId?: string | null) {
         createdAt: data.createdAt,
       });
     });
-
-    if (!joinedRef.current) {
-      joinUserRoom(userId);
-      joinedRef.current = true;
-    }
 
     // Set up push notifications
     setupPushNotifications();

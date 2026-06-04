@@ -9,10 +9,13 @@ let globalListeners = 0;
 
 export function useSocket() {
   const token = useAuthStore(s => s.token);
+  const user = useAuthStore(s => s.user);
   const listenersRef = useRef(0);
 
   const getSocket = useCallback(() => {
-    if (!globalSocket?.connected) {
+    if (!token) return null;
+
+    if (!globalSocket) {
       globalSocket = io(SOCKET_URL, {
         auth: { token },
         transports: ['websocket'],
@@ -20,25 +23,42 @@ export function useSocket() {
         reconnectionAttempts: Infinity,
         reconnectionDelay: 2000,
       });
+    } else {
+      globalSocket.auth = { token };
+      if (!globalSocket.connected) {
+        globalSocket.connect();
+      }
     }
+
     return globalSocket;
   }, [token]);
 
   useEffect(() => {
     if (!token) return;
     const socket = getSocket();
+    if (!socket) return;
     listenersRef.current = ++globalListeners;
 
-    socket.emit('joinDispatchers');
+    const joinRooms = () => {
+      // The gateway already auto-joins user/org rooms from JWT.
+      // Keep the shared dispatch room explicit for admin + dispatcher views.
+      if (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DISPATCHER') {
+        socket.emit('joinDispatchers');
+      }
+    };
+
+    joinRooms();
+    socket.on('connect', joinRooms);
 
     return () => {
+      socket.off('connect', joinRooms);
       listenersRef.current = --globalListeners;
       if (globalListeners <= 0 && globalSocket) {
         globalSocket.disconnect();
         globalSocket = null;
       }
     };
-  }, [token, getSocket]);
+  }, [token, getSocket, user]);
 
   return { socket: globalSocket, getSocket };
 }
@@ -59,4 +79,59 @@ export function useDriverLocations() {
   }, [socket, getSocket]);
 
   return locationsRef;
+}
+
+export function useDeliveryEvents(deliveryId: string) {
+  const { socket, getSocket } = useSocket();
+
+  useEffect(() => {
+    if (!deliveryId) return;
+    const s = socket || getSocket();
+    if (!s) return;
+
+    s.emit('joinDelivery', deliveryId);
+
+    return () => {
+      s.emit('leaveDelivery', deliveryId);
+    };
+  }, [deliveryId, socket, getSocket]);
+
+  return socket;
+}
+
+export function useLoadBatchEvents(loadBatchId: string) {
+  const { socket, getSocket } = useSocket();
+
+  useEffect(() => {
+    if (!loadBatchId) return;
+    const s = socket || getSocket();
+    if (!s) return;
+
+    s.emit('joinLoadBatch', loadBatchId);
+
+    return () => {
+      s.emit('leaveLoadBatch', loadBatchId);
+    };
+  }, [loadBatchId, socket, getSocket]);
+
+  return socket;
+}
+
+export function useRealtimeNotifications(onNotification?: (notification: any) => void) {
+  const { socket, getSocket } = useSocket();
+
+  useEffect(() => {
+    const s = socket || getSocket();
+    if (!s) return;
+
+    const handler = (notification: any) => {
+      onNotification?.(notification);
+    };
+
+    s.on('notification.created', handler);
+
+    return () => {
+      s.off('notification.created', handler);
+    };
+  }, [socket, getSocket, onNotification]);
 }

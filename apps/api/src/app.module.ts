@@ -42,6 +42,11 @@ import { ProofOfDeliveryModule } from "./proof-of-delivery/proof-of-delivery.mod
 import { WorkloadModule } from "./workload/workload.module";
 import { ClusteringModule } from "./clustering/clustering.module";
 import { AssignmentModule } from "./assignment/assignment.module";
+import { DeliveryTimelineModule } from "./delivery-timeline/delivery-timeline.module";
+import { LoadBatchModule } from "./load-batch/load-batch.module";
+import { FuelRequestModule } from "./fuel-requests/fuel-requests.module";
+import { RouteOptimizationModule } from "./route-optimization/route-optimization.module";
+import { ProductsModule } from "./products/products.module";
 
 @Module({
   imports: [
@@ -91,6 +96,11 @@ import { AssignmentModule } from "./assignment/assignment.module";
     WorkloadModule,
     ClusteringModule,
     AssignmentModule,
+    DeliveryTimelineModule,
+    LoadBatchModule,
+    FuelRequestModule,
+    RouteOptimizationModule,
+    ProductsModule,
   ],
   controllers: [AppController],
   providers: [

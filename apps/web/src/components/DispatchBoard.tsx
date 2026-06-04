@@ -12,6 +12,7 @@ import {
   DragStartEvent,
   DragOverEvent,
   DragEndEvent,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -35,23 +36,19 @@ interface DeliveryCardProps {
   driverId: string | null;
 }
 
-const SortableDeliveryCard = ({ delivery }: { delivery: DeliveryCardProps }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging
-  } = useSortable({ id: delivery.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-    zIndex: isDragging ? 100 : 1,
-  };
-
+const DeliveryCard = ({
+  delivery,
+  isDragging = false,
+  isOverlay = false,
+  dragHandlers = {},
+  style = {},
+}: {
+  delivery: DeliveryCardProps;
+  isDragging?: boolean;
+  isOverlay?: boolean;
+  dragHandlers?: any;
+  style?: React.CSSProperties;
+}) => {
   const handleTriggerSmartAssign = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
@@ -66,18 +63,19 @@ const SortableDeliveryCard = ({ delivery }: { delivery: DeliveryCardProps }) => 
 
   return (
     <div
-      ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...dragHandlers}
       className={cn(
-        "bg-white p-4 rounded-xl shadow-sm border mb-3 cursor-grab active:cursor-grabbing transition-all hover:border-primary group relative overflow-hidden",
-        isDragging && "shadow-2xl ring-2 ring-primary/20 border-primary",
+        "bg-white p-4 rounded-xl shadow-sm border mb-3 transition-all relative overflow-hidden select-none",
+        isOverlay 
+          ? "cursor-grabbing shadow-2xl ring-2 ring-indigo-600/30 border-indigo-600 scale-[1.02] rotate-1 z-50" 
+          : "cursor-grab active:cursor-grabbing hover:border-indigo-600/50",
+        isDragging && "opacity-25 border-dashed border-slate-200 bg-slate-50/50 shadow-none",
         isPending && "border-l-4 border-l-amber-500"
       )}
     >
       <div className="flex justify-between items-start mb-2">
-        <span className="text-[10px] font-black text-primary bg-primary/5 px-2 py-0.5 rounded-full uppercase tracking-widest border border-primary/10 font-mono">
+        <span className="text-[10px] font-black text-indigo-600 bg-indigo-600/5 px-2 py-0.5 rounded-full uppercase tracking-widest border border-indigo-600/10 font-mono">
           #{delivery.id.split('-')[0]}
         </span>
         <div className="flex items-center gap-1.5">
@@ -96,11 +94,9 @@ const SortableDeliveryCard = ({ delivery }: { delivery: DeliveryCardProps }) => 
       
       <h4 className="font-black text-xs text-slate-900 truncate tracking-tight">{delivery.customerName}</h4>
       <div className="flex items-center gap-1 mt-1 text-slate-500">
-        <MapPin size={10} className="text-primary/60 shrink-0" />
+        <MapPin size={10} className="text-indigo-600/60 shrink-0" />
         <p className="text-[10px] font-medium truncate">{delivery.customerAddress}</p>
       </div>
-      
-
 
       {isPending ? (
         <div className="mt-2.5">
@@ -116,7 +112,7 @@ const SortableDeliveryCard = ({ delivery }: { delivery: DeliveryCardProps }) => 
         <div className="flex items-center justify-between mt-2.5 pt-1 text-[9px] font-black uppercase tracking-widest text-slate-400">
           <span>{delivery.materialType}</span>
           <span className="text-slate-600 flex items-center gap-1">
-            <Truck size={10} className="text-primary" /> Active Route
+            <Truck size={10} className="text-indigo-600" /> Active Route
           </span>
         </div>
       )}
@@ -124,35 +120,67 @@ const SortableDeliveryCard = ({ delivery }: { delivery: DeliveryCardProps }) => 
   );
 };
 
-const Column = ({ id, title, deliveries, isUnassigned = false }: { id: string, title: string, deliveries: DeliveryCardProps[], isUnassigned?: boolean }) => {
+const SortableDeliveryCard = ({ delivery }: { delivery: DeliveryCardProps }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: delivery.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
   return (
-    <div className={cn(
-      "bg-white rounded-2xl p-4 flex flex-col h-full min-w-[300px] border border-slate-100 transition-colors",
-      isUnassigned ? "bg-white border-dashed border-slate-200" : "hover:border-primary/20"
-    )}>
+    <div ref={setNodeRef} style={style}>
+      <DeliveryCard 
+        delivery={delivery} 
+        isDragging={isDragging} 
+        dragHandlers={{ ...attributes, ...listeners }} 
+      />
+    </div>
+  );
+};
+
+const Column = ({ id, title, deliveries, isUnassigned = false }: { id: string, title: string, deliveries: DeliveryCardProps[], isUnassigned?: boolean }) => {
+  const { setNodeRef, isOver } = useDroppable({ id });
+
+  return (
+    <div 
+      ref={setNodeRef}
+      className={cn(
+        "bg-white rounded-2xl p-4 flex flex-col h-full min-w-[300px] border transition-all duration-200",
+        isUnassigned ? "border-dashed border-slate-200 bg-slate-50/20" : "border-slate-100",
+        isOver ? "border-indigo-600 bg-indigo-50/20 ring-4 ring-indigo-600/5 scale-[1.01]" : "hover:border-slate-200"
+      )}
+    >
       <div className="flex items-center justify-between mb-5 px-1">
         <div className="flex items-center gap-2">
           <div className={cn(
             "p-1.5 rounded-lg",
-            isUnassigned ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
+            isUnassigned ? "bg-muted text-muted-foreground" : "bg-indigo-600/10 text-indigo-600"
           )}>
             {isUnassigned ? <AlertCircle size={16} /> : <User size={16} />}
           </div>
-          <h3 className="font-bold text-sm tracking-tight">{title}</h3>
+          <h3 className="font-bold text-sm tracking-tight text-slate-800">{title}</h3>
         </div>
         <span className="bg-white text-slate-400 text-[10px] font-black px-2 py-0.5 rounded-full border shadow-sm">
           {deliveries.length}
         </span>
       </div>
       <SortableContext id={id} items={deliveries.map(d => d.id)} strategy={verticalListSortingStrategy}>
-        <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
+        <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 min-h-[180px] flex flex-col">
           {deliveries.map((delivery) => (
             <SortableDeliveryCard key={delivery.id} delivery={delivery} />
           ))}
           {deliveries.length === 0 && (
-            <div className="h-32 rounded-xl border-2 border-dashed border-slate-100 flex flex-col items-center justify-center text-slate-300">
-              <Package size={24} className="mb-2" />
-              <p className="text-[10px] font-bold uppercase tracking-widest">Drop here</p>
+            <div className="flex-1 min-h-[120px] rounded-xl border-2 border-dashed border-slate-100 flex flex-col items-center justify-center text-slate-300 bg-slate-50/50">
+              <Package size={24} className="mb-2 text-slate-300/80" />
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Drop here</p>
             </div>
           )}
         </div>
@@ -166,6 +194,8 @@ import MapView from './MapView';
 const DispatchBoard = () => {
   const queryClient = useQueryClient();
   const [boardView, setBoardView] = useState<'kanban' | 'map'>('kanban');
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [originalContainer, setOriginalContainer] = useState<string | null>(null);
   
   const { data: orders } = useQuery({
     queryKey: ['active-dispatch'],
@@ -215,7 +245,7 @@ const DispatchBoard = () => {
   }, [groupedItems]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -224,59 +254,113 @@ const DispatchBoard = () => {
     return Object.keys(currentItems).find((key) => currentItems[key].find((item: any) => item.id === id));
   };
 
+  const activeDelivery = useMemo(() => {
+    if (!activeId) return null;
+    for (const col of Object.keys(items)) {
+      const found = items[col].find(item => item.id === activeId);
+      if (found) return found;
+    }
+    return null;
+  }, [activeId, items]);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const activeIdStr = active.id as string;
+    setActiveId(activeIdStr);
+    const container = findContainer(activeIdStr, items);
+    setOriginalContainer(container || null);
+  };
+
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    const overId = over?.id;
+    if (!over) return;
+    
+    const activeIdStr = active.id as string;
+    const overIdStr = over.id as string;
 
-    if (!overId || active.id === overId) return;
+    if (activeIdStr === overIdStr) return;
 
-    setItems((prev) => {
-      const activeContainer = findContainer(active.id as string, prev);
-      const overContainer = overId in prev ? (overId as string) : findContainer(overId as string, prev);
+    const activeContainer = findContainer(activeIdStr, items);
+    const overContainer = overIdStr in items ? overIdStr : findContainer(overIdStr, items);
 
-      if (!activeContainer || !overContainer || activeContainer === overContainer) return prev;
+    if (!activeContainer || !overContainer) return;
 
-      const activeItems = prev[activeContainer];
-      const overItems = prev[overContainer];
-      const activeIndex = activeItems.findIndex((item) => item.id === active.id);
-      const overIndex = overItems.findIndex((item) => item.id === overId);
+    if (activeContainer !== overContainer) {
+      setItems((prev) => {
+        const activeItems = prev[activeContainer];
+        const overItems = prev[overContainer];
+        const activeIndex = activeItems.findIndex((item) => item.id === activeIdStr);
+        const overIndex = overItems.findIndex((item) => item.id === overIdStr);
 
-      let newIndex;
-      if (overId in prev) {
-        newIndex = overItems.length + 1;
-      } else {
-        const isBelowLastItem = over && overIndex === overItems.length - 1;
-        const modifier = isBelowLastItem ? 1 : 0;
-        newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length + 1;
-      }
+        let newIndex;
+        if (overIdStr in prev) {
+          newIndex = overItems.length;
+        } else {
+          const isBelowLastItem = overIndex === overItems.length - 1;
+          const modifier = isBelowLastItem ? 1 : 0;
+          newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length;
+        }
 
-      const movedItem = { ...prev[activeContainer][activeIndex], status: overContainer };
+        const movedItem = { ...prev[activeContainer][activeIndex], status: overContainer };
 
-      return {
-        ...prev,
-        [activeContainer]: [...prev[activeContainer].filter((item) => item.id !== active.id)],
-        [overContainer]: [
-          ...prev[overContainer].slice(0, newIndex),
-          movedItem,
-          ...prev[overContainer].slice(newIndex, prev[overContainer].length),
-        ],
-      };
-    });
+        return {
+          ...prev,
+          [activeContainer]: prev[activeContainer].filter((item) => item.id !== activeIdStr),
+          [overContainer]: [
+            ...prev[overContainer].slice(0, newIndex),
+            movedItem,
+            ...prev[overContainer].slice(newIndex),
+          ],
+        };
+      });
+    } else {
+      // Sorting in the same container
+      setItems((prev) => {
+        const activeItems = prev[activeContainer];
+        const activeIndex = activeItems.findIndex((item) => item.id === activeIdStr);
+        const overIndex = activeItems.findIndex((item) => item.id === overIdStr);
+
+        if (activeIndex === overIndex) return prev;
+
+        return {
+          ...prev,
+          [activeContainer]: arrayMove(activeItems, activeIndex, overIndex),
+        };
+      });
+    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over) return;
+    
+    setActiveId(null);
+    setOriginalContainer(null);
 
-    const activeContainer = findContainer(active.id as string, items);
+    if (!over) {
+      setItems(groupedItems);
+      return;
+    }
+
     const overContainer = over.id in items ? (over.id as string) : findContainer(over.id as string, items);
 
-    if (activeContainer && overContainer && activeContainer !== overContainer) {
-      updateStatusMutation.mutate({ 
-        deliveryId: active.id as string, 
-        status: overContainer as OrderStatus 
-      });
+    if (originalContainer && overContainer) {
+      if (originalContainer !== overContainer) {
+        updateStatusMutation.mutate({ 
+          deliveryId: active.id as string, 
+          status: overContainer as OrderStatus 
+        }, {
+          onError: () => {
+            setItems(groupedItems);
+          }
+        });
+      }
     }
+  };
+
+  const handleDragCancel = () => {
+    setActiveId(null);
+    setOriginalContainer(null);
+    setItems(groupedItems);
   };
 
   const columns = [
@@ -293,11 +377,11 @@ const DispatchBoard = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 space-y-4 md:space-y-0">
         <div className="flex items-center space-x-4">
           <div className="relative group">
-            <Search className="absolute left-3 top-2.5 text-muted-foreground group-focus-within:text-primary transition-colors" size={18} />
+            <Search className="absolute left-3 top-2.5 text-muted-foreground group-focus-within:text-indigo-600 transition-colors" size={18} />
             <input 
               type="text" 
               placeholder="Search by customer or address..." 
-              className="pl-10 pr-4 py-2 bg-white border border-slate-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none w-80 transition-all text-sm"
+              className="pl-10 pr-4 py-2 bg-white border border-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-600/20 outline-none w-80 transition-all text-sm"
             />
           </div>
           <div className="flex bg-white border shadow-sm rounded-xl p-1">
@@ -335,8 +419,10 @@ const DispatchBoard = () => {
             <DndContext
               sensors={sensors}
               collisionDetection={closestCorners}
+              onDragStart={handleDragStart}
               onDragOver={handleDragOver}
               onDragEnd={handleDragEnd}
+              onDragCancel={handleDragCancel}
             >
               {columns.map(col => (
                 <Column 
@@ -347,6 +433,11 @@ const DispatchBoard = () => {
                   isUnassigned={col.id === OrderStatus.PENDING}
                 />
               ))}
+              <DragOverlay adjustScale={false}>
+                {activeDelivery ? (
+                  <DeliveryCard delivery={activeDelivery} isOverlay />
+                ) : null}
+              </DragOverlay>
             </DndContext>
           </div>
         ) : (
@@ -360,3 +451,4 @@ const DispatchBoard = () => {
 };
 
 export default DispatchBoard;
+

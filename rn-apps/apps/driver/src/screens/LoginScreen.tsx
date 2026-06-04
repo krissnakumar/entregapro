@@ -32,11 +32,11 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const response = await api.post<{ access_token: string; user: any }>('/auth/login', {
+      const response = await api.post<{ access_token: string; refresh_token: string; user: any }>('/auth/login', {
         email: email.trim(),
         password,
       });
-      setAuth(response.user, response.access_token);
+      setAuth(response.user, response.access_token, response.refresh_token);
     } catch (error: any) {
       if (Platform.OS === 'web') {
         window.alert(error.message || 'Credenciais inválidas.');

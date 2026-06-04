@@ -19,7 +19,7 @@ export class NotificationsService {
     return this.prisma.notification.findMany({
       where: { userId, organizationId },
       orderBy: { createdAt: "desc" },
-      take: 20,
+      take: 50,
     });
   }
 
@@ -43,15 +43,24 @@ export class NotificationsService {
     title: string,
     message: string,
     organizationId: string,
+    type?: string,
+    payload?: any,
   ) {
     const notification = await this.prisma.notification.create({
-      data: { userId, title, message, organizationId },
+      data: {
+        userId,
+        title,
+        message,
+        organizationId,
+        type: type || null,
+        payload: payload || undefined,
+      },
     });
 
-    // Emit via Socket.IO for instant delivery to foreground clients
-    this.trackingGateway.notifyUser(userId, "newNotification", notification);
+    // Emit a single canonical real-time event for instant delivery.
+    this.trackingGateway.emitNotificationCreated(userId, notification);
 
-    // Enqueue push notification for background delivery
+    // Enqueue push notification
     await this.notificationsQueue.add("send-push", {
       userId,
       notificationId: notification.id,
@@ -77,7 +86,6 @@ export class NotificationsService {
       timestamp: new Date(),
     });
 
-    // Also log to DB for audit
     await this.prisma.whatsappMessage.create({
       data: {
         phone,
@@ -88,7 +96,7 @@ export class NotificationsService {
     });
   }
 
-  // --- CUSTOMER NOTIFICATIONS ---
+  // ─── CUSTOMER NOTIFICATIONS ─────────────────────────────────────────────
 
   async notifyCustomerDeliveryAssigned(
     phone: string,
@@ -122,7 +130,26 @@ export class NotificationsService {
     });
   }
 
-  // --- DISPATCHER ALERTS ---
+  async notifyCustomerNearby(
+    phone: string,
+    driverName: string,
+    etaMinutes: number,
+    trackingUrl: string,
+    organizationId: string,
+  ) {
+    await this.sendWhatsAppMessage(
+      phone,
+      "driver_nearby",
+      {
+        driverName,
+        etaMinutes,
+        trackingUrl,
+      },
+      organizationId,
+    );
+  }
+
+  // ─── DISPATCHER ALERTS ──────────────────────────────────────────────────
 
   async alertDispatcher(
     title: string,
@@ -144,9 +171,213 @@ export class NotificationsService {
         title,
         message,
         dispatcher.organizationId,
+        "DISPATCHER_ALERT",
       );
     }
   }
+
+  async alertAdmins(
+    title: string,
+    message: string,
+    organizationId?: string,
+  ) {
+    const where: any = { active_status: true };
+    if (organizationId) {
+      where.organizationId = organizationId;
+      where.role = { name: "ADMIN", organizationId };
+    } else {
+      where.role = { name: "ADMIN" };
+    }
+    const admins = await this.prisma.user.findMany({ where });
+
+    for (const admin of admins) {
+      await this.create(
+        admin.id,
+        title,
+        message,
+        admin.organizationId,
+        "ADMIN_ALERT",
+      );
+    }
+  }
+
+  async alertDispatchersAndAdmins(
+    title: string,
+    message: string,
+    organizationId?: string,
+  ) {
+    await this.alertDispatcher(title, message, organizationId);
+    await this.alertAdmins(title, message, organizationId);
+  }
+
+  // ─── DELIVERY WORKFLOW NOTIFICATIONS ────────────────────────────────────
+
+  async notifyNewDriverAssignment(
+    driverUserId: string,
+    deliveryNumber: string,
+    organizationId: string,
+  ) {
+    await this.create(
+      driverUserId,
+      "Nova Entrega",
+      `Você foi designado para a entrega #${deliveryNumber}.`,
+      organizationId,
+      "DELIVERY_ASSIGNED",
+    );
+  }
+
+  async notifyDriverAcceptedDelivery(
+    organizationId: string,
+    dispatcherId: string | null,
+    deliveryNumber: string,
+  ) {
+    if (dispatcherId) {
+      await this.create(
+        dispatcherId,
+        "Entrega Aceita",
+        `Motorista aceitou a entrega #${deliveryNumber}.`,
+        organizationId,
+        "DRIVER_ACCEPTED",
+      );
+    }
+  }
+
+  async notifyLoadingStarted(
+    organizationId: string,
+    dispatcherId: string | null,
+    deliveryNumber: string,
+  ) {
+    if (dispatcherId) {
+      await this.create(
+        dispatcherId,
+        "Carregamento Iniciado",
+        `Motorista iniciou carregamento da entrega #${deliveryNumber}.`,
+        organizationId,
+        "LOADING_STARTED",
+      );
+    }
+  }
+
+  async notifyLoaded(
+    organizationId: string,
+    dispatcherId: string | null,
+    deliveryNumber: string,
+  ) {
+    if (dispatcherId) {
+      await this.create(
+        dispatcherId,
+        "Carregamento Concluído",
+        `Entrega #${deliveryNumber} foi carregada.`,
+        organizationId,
+        "LOADED",
+      );
+    }
+    await this.alertAdmins(
+      "Carregamento Concluído",
+      `Entrega #${deliveryNumber} carregada.`,
+      organizationId,
+    );
+  }
+
+  async notifyInTransit(
+    organizationId: string,
+    dispatcherId: string | null,
+    deliveryNumber: string,
+  ) {
+    if (dispatcherId) {
+      await this.create(
+        dispatcherId,
+        "Em Trânsito",
+        `Entrega #${deliveryNumber} está a caminho.`,
+        organizationId,
+        "IN_TRANSIT",
+      );
+    }
+  }
+
+  async notifyDelivered(
+    organizationId: string,
+    dispatcherId: string | null,
+    deliveryNumber: string,
+  ) {
+    if (dispatcherId) {
+      await this.create(
+        dispatcherId,
+        "Entrega Concluída",
+        `Entrega #${deliveryNumber} foi entregue com sucesso!`,
+        organizationId,
+        "DELIVERED",
+      );
+    }
+    await this.alertAdmins(
+      "Entrega Concluída",
+      `Entrega #${deliveryNumber} entregue com sucesso!`,
+      organizationId,
+    );
+  }
+
+  async notifyFailed(
+    organizationId: string,
+    dispatcherId: string | null,
+    deliveryNumber: string,
+    reason: string,
+  ) {
+    if (dispatcherId) {
+      await this.create(
+        dispatcherId,
+        "Falha na Entrega",
+        `Entrega #${deliveryNumber} falhou: ${reason}.`,
+        organizationId,
+        "DELIVERY_FAILED",
+      );
+    }
+    await this.alertAdmins(
+      "Falha na Entrega",
+      `Entrega #${deliveryNumber} falhou: ${reason}.`,
+      organizationId,
+    );
+  }
+
+  // ─── FUEL NOTIFICATIONS ─────────────────────────────────────────────────
+
+  async notifyFuelRequestCreated(fuelLog: any) {
+    this.trackingGateway.notifyDispatchers("fuelRequestCreated", fuelLog);
+  }
+
+  async notifyFuelRequestUpdated(fuelLog: any) {
+    this.trackingGateway.notifyDispatchers("fuelRequestUpdated", fuelLog);
+    if (fuelLog.driver?.userId) {
+      this.trackingGateway.notifyUser(fuelLog.driver.userId, "fuelRequestUpdated", fuelLog);
+    }
+  }
+
+  // ─── EXCEL UPLOAD NOTIFICATIONS ─────────────────────────────────────────
+
+  async notifyExcelUploadSummary(
+    organizationId: string,
+    adminUserId: string,
+    summary: {
+      createdDeliveries: number;
+      skippedDuplicates: number;
+      failedRows: number;
+    },
+  ) {
+    await this.create(
+      adminUserId,
+      "Upload Excel Concluído",
+      `${summary.createdDeliveries} entrega(s) criada(s). ${summary.skippedDuplicates} duplicata(s). ${summary.failedRows} falha(s).`,
+      organizationId,
+      "EXCEL_UPLOAD",
+    );
+
+    await this.alertDispatchersAndAdmins(
+      "Novas Entregas via Excel",
+      `${summary.createdDeliveries} nova(s) entrega(s) criada(s) via upload Excel.`,
+      organizationId,
+    );
+  }
+
+  // ─── ALERTS ─────────────────────────────────────────────────────────────
 
   async alertRouteDeviation(driverName: string, deliveryNumber: string) {
     await this.alertDispatcher(
@@ -161,8 +392,6 @@ export class NotificationsService {
       `Driver ${driverName} has been stopped for over ${durationMinutes} minutes.`,
     );
   }
-
-  // --- ENHANCED NOTIFICATIONS ---
 
   async notifyCustomerUnavailable(
     deliveryNumber: string,
@@ -216,38 +445,6 @@ export class NotificationsService {
     );
   }
 
-  async notifyNewDriverAssignment(
-    driverUserId: string,
-    deliveryNumber: string,
-    organizationId: string,
-  ) {
-    await this.create(
-      driverUserId,
-      "Nova Entrega",
-      `Você foi designado para a entrega #${deliveryNumber}.`,
-      organizationId,
-    );
-  }
-
-  async notifyCustomerNearby(
-    phone: string,
-    driverName: string,
-    etaMinutes: number,
-    trackingUrl: string,
-    organizationId: string,
-  ) {
-    await this.sendWhatsAppMessage(
-      phone,
-      "driver_nearby",
-      {
-        driverName,
-        etaMinutes,
-        trackingUrl,
-      },
-      organizationId,
-    );
-  }
-
   async alertDelayedTrip(deliveryNumber: string, expectedTime: Date) {
     const delivery = await this.prisma.delivery.findFirst({
       where: { deliveryNumber },
@@ -266,6 +463,7 @@ export class NotificationsService {
         "Alerta de Atraso",
         `Sua entrega #${deliveryNumber} está atrasada. Chegada estimada era às ${expectedTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.`,
         delivery.organizationId,
+        "DELAY_ALERT",
       );
     }
   }

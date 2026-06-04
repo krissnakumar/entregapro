@@ -46,8 +46,10 @@ const storageAdapter = {
 interface AuthState {
   user: User | null;
   token: string | null;
+  refreshToken: string | null;
   tokenExpiresAt: number | null;
-  setAuth: (user: User, token: string, expiresInMs?: number) => void;
+  setAuth: (user: User, token: string, refreshToken: string, expiresInMs?: number) => void;
+  setTokens: (token: string, refreshToken: string, expiresInMs?: number) => void;
   logout: () => void;
   isAuthenticated: () => boolean;
   isTokenExpired: () => boolean;
@@ -59,25 +61,37 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       token: null,
+      refreshToken: null,
       tokenExpiresAt: null,
 
-      setAuth: (user: User, token: string, expiresInMs?: number) => {
+      setAuth: (user: User, token: string, refreshToken: string, expiresInMs?: number) => {
+        // Standard backend JWT lasts 15m; we can set it to that if expiresInMs is not provided
         const tokenExpiresAt = expiresInMs 
           ? Date.now() + expiresInMs 
-          : Date.now() + ENV.TOKEN_EXPIRY_MS;
+          : Date.now() + (15 * 60 * 1000); 
         
-        set({ user, token, tokenExpiresAt });
+        set({ user, token, refreshToken, tokenExpiresAt });
         logger.info('User authenticated', { userId: user.id, expiresAt: new Date(tokenExpiresAt).toISOString() });
       },
 
+      setTokens: (token: string, refreshToken: string, expiresInMs?: number) => {
+        const tokenExpiresAt = expiresInMs 
+          ? Date.now() + expiresInMs 
+          : Date.now() + (15 * 60 * 1000);
+        
+        set({ token, refreshToken, tokenExpiresAt });
+        logger.info('Tokens updated successfully');
+      },
+
       logout: () => {
-        set({ user: null, token: null, tokenExpiresAt: null });
+        set({ user: null, token: null, refreshToken: null, tokenExpiresAt: null });
         logger.info('User logged out');
       },
 
       isAuthenticated: () => {
         const state = get();
-        return !!state.token && !!state.user && !state.isTokenExpired();
+        // User is authenticated if we have a token and user (even if access token is expired but refresh token is available)
+        return (!!state.token || !!state.refreshToken) && !!state.user;
       },
 
       isTokenExpired: () => {
@@ -88,8 +102,9 @@ export const useAuthStore = create<AuthState>()(
 
       refreshIfNeeded: () => {
         const state = get();
-        if (state.isTokenExpired()) {
-          logger.warn('Token expired, logging out');
+        // Only force logout if the token is expired and we don't have a refresh token either
+        if (state.isTokenExpired() && !state.refreshToken) {
+          logger.warn('Token expired and no refresh token available, logging out');
           state.logout();
           return true; // Token was expired
         }
@@ -120,17 +135,6 @@ export const useAuthStore = create<AuthState>()(
 export function getAuthToken(): string | null {
   try {
     const state = useAuthStore.getState();
-    
-    if (!state.token) {
-      return null;
-    }
-
-    // Check if token is expired
-    if (state.isTokenExpired()) {
-      state.logout();
-      return null; // Return null instead of throwing
-    }
-
     return state.token;
   } catch (error) {
     // Silently fail during app initialization

@@ -11,6 +11,7 @@ import CustomersScreen from './src/screens/CustomersScreen';
 import DriversScreen from './src/screens/DriversScreen';
 import VehiclesScreen from './src/screens/VehiclesScreen';
 import DeliveriesScreen from './src/screens/DeliveriesScreen';
+import CreateDeliveryScreen from './src/screens/CreateDeliveryScreen';
 import InvoicesScreen from './src/screens/InvoicesScreen';
 import UsersManagementScreen from './src/screens/UsersManagementScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
@@ -39,6 +40,7 @@ function RootNavigator() {
           <Stack.Screen name="Drivers" component={DriversScreen} />
           <Stack.Screen name="Vehicles" component={VehiclesScreen} />
           <Stack.Screen name="Deliveries" component={DeliveriesScreen} />
+          <Stack.Screen name="CreateDelivery" component={CreateDeliveryScreen} />
           <Stack.Screen name="Invoices" component={InvoicesScreen} />
           <Stack.Screen name="UsersManagement" component={UsersManagementScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} />

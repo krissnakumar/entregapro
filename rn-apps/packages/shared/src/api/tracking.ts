@@ -20,9 +20,16 @@ export function getSocket(): Socket | null {
 }
 
 export function connectSocket(url?: string, token?: string | null): Socket {
-  if (socket?.connected) return socket;
-
   const t = token || getAuthToken();
+
+  if (socket) {
+    socket.auth = { token: t };
+    if (!socket.connected) {
+      socket.connect();
+    }
+    return socket;
+  }
+
   socket = io(url || getSocketUrl(), {
     auth: { token: t },
     transports: ['websocket'],
@@ -112,12 +119,6 @@ export function onGeofenceAlert(callback: (data: any) => void): () => void {
 
 export function onNotificationReceived(callback: (data: any) => void): () => void {
   if (!socket) return () => {};
-  socket.on('newNotification', callback);
-  return () => socket?.off('newNotification', callback);
-}
-
-export function joinUserRoom(userId: string): void {
-  if (socket?.connected) {
-    socket.emit('joinUser', userId);
-  }
+  socket.on('notification.created', callback);
+  return () => socket?.off('notification.created', callback);
 }

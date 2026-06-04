@@ -28,6 +28,33 @@ export class VehiclesService {
           activeStatus: true,
           maintenanceDue: true,
           createdAt: true,
+          driver: {
+            select: {
+              id: true,
+              licenseNumber: true,
+              phone: true,
+              availabilityStatus: true,
+              user: {
+                select: {
+                  name: true,
+                },
+              },
+              deliveries: {
+                where: {
+                  deliveryStatus: {
+                    in: [
+                      'ACCEPTED_BY_DRIVER',
+                      'LOADING_STARTED',
+                      'LOADED',
+                      'IN_TRANSIT',
+                      'ARRIVED'
+                    ]
+                  }
+                },
+                select: { id: true }
+              }
+            },
+          },
         },
       }),
       this.prisma.vehicle.count({ where }),

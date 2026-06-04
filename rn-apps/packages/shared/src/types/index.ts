@@ -137,15 +137,24 @@ export type Notification = {
 export type FuelLog = {
   id: string;
   vehicleId: string;
+  vehicle?: Vehicle;
   driverId?: string;
+  driver?: Driver;
   fillDate: string;
-  litersFilled: number;
-  costPerLiter: number;
-  totalCost: number;
+  createdAt?: string;
+  litersFilled?: number;
+  costPerLiter?: number;
+  totalCost?: number;
   odometer: number;
   stationName?: string;
+  receiptPhotoUrl?: string;
+  odometerPhotoUrl?: string;
   detectedAnomaly: boolean;
   anomalyReason?: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  jobNumber?: string;
+  approvedById?: string;
+  approvedBy?: User;
 };
 
 export type MaintenanceLog = {

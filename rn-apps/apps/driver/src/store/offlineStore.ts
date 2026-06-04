@@ -19,7 +19,7 @@ interface OfflineState {
   lastSyncTime: number | null;
   setCachedDeliveries: (deliveries: any[]) => void;
   updateLocalDeliveryStatus: (deliveryId: string, status: string) => void;
-  updateLocalDeliveryPOD: (deliveryId: string, signatureUrl: string, photoUrl: string) => void;
+  updateLocalDeliveryPOD: (deliveryId: string, signatureUrl: string | null, photoUrl: string) => void;
   enqueueMutation: (type: 'STATUS' | 'POD', deliveryId: string, payload: any) => void;
   setOfflineStatus: (isOffline: boolean) => void;
   syncQueue: () => Promise<void>;

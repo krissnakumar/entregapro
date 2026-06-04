@@ -40,10 +40,51 @@ enum SubscriptionStatus {
   PAST_DUE
 }
 
+enum DeliveryStatus {
+  CREATED
+  PENDING_DISPATCH
+  ASSIGNED
+  DRIVER_NOTIFIED
+  ACCEPTED_BY_DRIVER
+  LOADING_STARTED
+  LOADED
+  IN_TRANSIT
+  ARRIVED
+  DELIVERED
+  PARTIALLY_DELIVERED
+  FAILED
+  RETURNED
+  CANCELLED
+}
+
+enum LoadingStatus {
+  NOT_LOADED
+  LOADING
+  LOADED
+  LOAD_ISSUE
+}
+
+enum FuelRequestStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  PAID
+  CANCELLED
+}
+
+enum DeliveryEventType {
+  STATUS_CHANGE
+  LOADING
+  PROBLEM
+  NOTE
+  FUEL
+  POD
+}
+
 model Organization {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   name      String
-  slug      String   @unique
+  slug      String    @unique
   logoUrl   String?
   document  String?
   phone     String?
@@ -51,62 +92,67 @@ model Organization {
   address   String?
   city      String?
   state     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  users              User[]
-  roles              Role[]
-  customers          Customer[]
-  vehicles           Vehicle[]
-  drivers            Driver[]
-  orders             Order[]
-  deliveries         Delivery[]
-  notifications      Notification[]
-  zones              Zone[]
-  activityLogs       ActivityLog[]
-  auditLogEntries    AuditLogEntry[]
-  geofences          Geofence[]
-  locationPings      LocationPing[]
-  whatsappMessages   WhatsappMessage[]
-  invoices           Invoice[]
-  fuelLogs           FuelLog[]
-  maintenanceLogs    MaintenanceLog[]
-  loadingVerifications LoadingVerification[]
-  analyticsSnapshots AnalyticsSnapshot[]
-  systemSettings     SystemSetting[]
-  subscription       Subscription?
-  jobSites           JobSite[]
-  routes             Route[]
-  routeStops         RouteStop[]
-  driverShifts       DriverShift[]
-  driverPerformances DriverPerformance[]
-  customerDeliveryPreferences CustomerDeliveryPreference[]
-  deliveryExceptions DeliveryException[]
-  routeCosts         RouteCost[]
-  dispatchDecisions  DispatchDecision[]
-  assignmentRecommendations AssignmentRecommendation[]
-  vehicleCapacities  VehicleCapacity[]
-  deliveryTrackingTokens DeliveryTrackingToken[]
-  deliveryEvents      DeliveryEvent[]
-  deliveryVoiceNotes  DeliveryVoiceNote[]
-  deliveryInstructions DeliveryInstruction[]
+  users                         User[]
+  roles                         Role[]
+  customers                     Customer[]
+  vehicles                      Vehicle[]
+  drivers                       Driver[]
+  orders                        Order[]
+  deliveries                    Delivery[]
+  notifications                 Notification[]
+  zones                         Zone[]
+  activityLogs                  ActivityLog[]
+  auditLogEntries               AuditLogEntry[]
+  geofences                     Geofence[]
+  locationPings                 LocationPing[]
+  whatsappMessages              WhatsappMessage[]
+  invoices                      Invoice[]
+  fuelLogs                      FuelLog[]
+  maintenanceLogs               MaintenanceLog[]
+  loadingVerifications          LoadingVerification[]
+  analyticsSnapshots            AnalyticsSnapshot[]
+  systemSettings                SystemSetting[]
+  subscription                  Subscription?
+  jobSites                      JobSite[]
+  routes                        Route[]
+  routeStops                    RouteStop[]
+  driverShifts                  DriverShift[]
+  driverPerformances            DriverPerformance[]
+  customerDeliveryPreferences   CustomerDeliveryPreference[]
+  deliveryExceptions            DeliveryException[]
+  routeCosts                    RouteCost[]
+  dispatchDecisions             DispatchDecision[]
+  assignmentRecommendations     AssignmentRecommendation[]
+  vehicleCapacities             VehicleCapacity[]
+  deliveryTrackingTokens        DeliveryTrackingToken[]
+  deliveryEvents                DeliveryEvent[]
+  deliveryVoiceNotes            DeliveryVoiceNote[]
+  deliveryInstructions          DeliveryInstruction[]
   deliveryAvailabilityResponses DeliveryAvailabilityResponse[]
-  proofsOfDelivery    ProofOfDelivery[]
-  routeClusters       RouteCluster[]
-  driverWorkloadMetrics DriverWorkloadMetric[]
+  proofsOfDelivery              ProofOfDelivery[]
+  routeClusters                 RouteCluster[]
+  driverWorkloadMetrics         DriverWorkloadMetric[]
+  loadBatches                   LoadBatch[]
+  deliveryItems                 DeliveryItem[]
+  deliveryTimelines             DeliveryTimeline[]
+  fuelRequests                  FuelRequest[]
+  products                      Product[]
 }
 
 model User {
-  id             String              @id @default(uuid())
-  email          String              @unique
+  id             String    @id @default(uuid())
+  email          String    @unique
   name           String
   phone          String?
   avatarUrl      String?
   refreshToken   String?
-  updatedAt      DateTime            @updatedAt
-  active_status  Boolean             @default(true)
-  created_at     DateTime            @default(now())
+  updatedAt      DateTime  @updatedAt
+  active_status  Boolean   @default(true)
+  created_at     DateTime  @default(now())
   last_login     DateTime?
   password_hash  String
   role_id        String?
@@ -114,32 +160,37 @@ model User {
   deletedAt      DateTime?
   createdBy      String?
 
-  organization   Organization        @relation(fields: [organizationId], references: [id])
-  role           Role?               @relation(fields: [role_id], references: [id])
-  activityLogs   ActivityLog[]
-  dispatchedDeliveries Delivery[]    @relation("DispatcherDeliveries")
-  statusChanges  DeliveryStatusLog[] @relation("StatusChanges")
-  driverProfile  Driver?
-  notifications  Notification[]
-  dispatchedOrders Order[]           @relation("DispatcherOrders")
-  auditLogs      AuditLogEntry[]
-  loadingVerifications LoadingVerification[]
-  dispatchDecisions DispatchDecision[]
+  organization             Organization          @relation(fields: [organizationId], references: [id])
+  role                     Role?                 @relation(fields: [role_id], references: [id])
+  activityLogs             ActivityLog[]
+  dispatchedDeliveries     Delivery[]            @relation("DispatcherDeliveries")
+  statusChanges            DeliveryStatusLog[]   @relation("StatusChanges")
+  driverProfile            Driver?
+  notifications            Notification[]
+  dispatchedOrders         Order[]               @relation("DispatcherOrders")
+  auditLogs                AuditLogEntry[]
+  loadingVerifications     LoadingVerification[]
+  dispatchDecisions        DispatchDecision[]
+  approvedFuelLogs         FuelLog[]             @relation("FuelLogApprover")
+  createdDeliveriesByAdmin Delivery[]            @relation("DeliveryCreator")
+  approvedFuelRequests     FuelRequest[]         @relation("FuelRequestApprover")
+  dispatchedFuelRequests   FuelRequest[]         @relation("FuelRequestDispatcher")
+  loadBatches              LoadBatch[]           @relation("LoadBatchDispatcher")
 
   @@index([organizationId])
   @@index([email])
 }
 
 model Role {
-  id             String           @id @default(uuid())
+  id             String    @id @default(uuid())
   name           String
   description    String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   organizationId String
   deletedAt      DateTime?
 
-  organization Organization  @relation(fields: [organizationId], references: [id])
+  organization Organization     @relation(fields: [organizationId], references: [id])
   permissions  RolePermission[]
   users        User[]
 
@@ -165,7 +216,7 @@ model RolePermission {
 }
 
 model Customer {
-  id             String     @id @default(uuid())
+  id             String    @id @default(uuid())
   name           String
   email          String?
   phone          String
@@ -174,14 +225,14 @@ model Customer {
   latitude       Float
   longitude      Float
   notes          String?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   organizationId String
   deletedAt      DateTime?
   createdBy      String?
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  deliveries   Delivery[]
+  organization        Organization                 @relation(fields: [organizationId], references: [id])
+  deliveries          Delivery[]
   deliveryPreferences CustomerDeliveryPreference[]
 
   @@index([organizationId])
@@ -189,59 +240,63 @@ model Customer {
 }
 
 model Vehicle {
-  id             String     @id @default(uuid())
-  vehicleNumber  String     @unique
+  id             String    @id @default(uuid())
+  vehicleNumber  String    @unique
   type           String
   capacity       String
   fuelType       String
-  activeStatus   Boolean    @default(true)
+  activeStatus   Boolean   @default(true)
   maintenanceDue DateTime?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   organizationId String
   deletedAt      DateTime?
   createdBy      String?
 
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  deliveries     Delivery[]
-  driver         Driver?
-  fuelLogs       FuelLog[]
-  maintenanceLogs MaintenanceLog[]
-  routes         Route[]
+  organization      Organization      @relation(fields: [organizationId], references: [id])
+  deliveries        Delivery[]
+  driver            Driver?
+  fuelLogs          FuelLog[]
+  maintenanceLogs   MaintenanceLog[]
+  routes            Route[]
   vehicleCapacities VehicleCapacity[]
+  fuelRequests      FuelRequest[]
+  loadBatches       LoadBatch[]
 
   @@index([organizationId])
   @@index([vehicleNumber])
 }
 
 model Driver {
-  id                 String     @id @default(uuid())
-  userId             String     @unique
-  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  vehicleId          String?    @unique
-  vehicle            Vehicle?   @relation(fields: [vehicleId], references: [id])
-  licenseNumber      String     @unique
+  id                 String    @id @default(uuid())
+  userId             String    @unique
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicleId          String?   @unique
+  vehicle            Vehicle?  @relation(fields: [vehicleId], references: [id])
+  licenseNumber      String    @unique
   phone              String
   liveLatitude       Float?
   liveLongitude      Float?
-  availabilityStatus Boolean    @default(true)
-  isOnline           Boolean    @default(false)
+  availabilityStatus Boolean   @default(true)
+  isOnline           Boolean   @default(false)
   lastSeen           DateTime?
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
   organizationId     String
   deletedAt          DateTime?
   createdBy          String?
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  deliveries   Delivery[]   @relation("MainDriver")
-  helperFor    Delivery[]   @relation("HelperCrew")
-  fuelLogs     FuelLog[]
-  routes       Route[]
-  driverShifts DriverShift[]
+  organization      Organization           @relation(fields: [organizationId], references: [id])
+  deliveries        Delivery[]             @relation("MainDriver")
+  helperFor         Delivery[]             @relation("HelperCrew")
+  fuelLogs          FuelLog[]
+  routes            Route[]
+  driverShifts      DriverShift[]
   driverPerformance DriverPerformance?
-  voiceNotes   DeliveryVoiceNote[]
-  workloadMetrics DriverWorkloadMetric[]
+  voiceNotes        DeliveryVoiceNote[]
+  workloadMetrics   DriverWorkloadMetric[]
+  fuelRequests      FuelRequest[]
+  loadBatches       LoadBatch[]
 
   @@index([organizationId])
   @@index([availabilityStatus])
@@ -267,78 +322,91 @@ model Order {
 }
 
 model Delivery {
-  id                  String              @id @default(uuid())
-  deliveryNumber      String              @unique
-  orderId             String?
-  order               Order?              @relation(fields: [orderId], references: [id])
-  driverId            String?
-  driver              Driver?             @relation("MainDriver", fields: [driverId], references: [id])
-  vehicleId           String?
-  vehicle             Vehicle?            @relation(fields: [vehicleId], references: [id])
-  customerId          String
-  customer            Customer            @relation(fields: [customerId], references: [id])
-  dispatcherId        String?
-  dispatcher          User?               @relation("DispatcherDeliveries", fields: [dispatcherId], references: [id])
+  id               String   @id @default(uuid())
+  deliveryNumber   String   @unique
+  orderId          String?
+  order            Order?   @relation(fields: [orderId], references: [id])
+  driverId         String?
+  driver           Driver?  @relation("MainDriver", fields: [driverId], references: [id])
+  vehicleId        String?
+  vehicle          Vehicle? @relation(fields: [vehicleId], references: [id])
+  customerId       String
+  customer         Customer @relation(fields: [customerId], references: [id])
+  dispatcherId     String?
+  dispatcher       User?    @relation("DispatcherDeliveries", fields: [dispatcherId], references: [id])
+  createdByAdminId String?
+  createdByAdmin   User?    @relation("DeliveryCreator", fields: [createdByAdminId], references: [id])
 
-  materialType        String
-  quantity            String
-  deliveryAddress     String
-  latitude            Float
-  longitude           Float
-  scheduledTime       DateTime
-  startedAt           DateTime?
-  completedAt         DateTime?
-  status              OrderStatus         @default(PENDING)
+  materialType    String
+  quantity        String
+  deliveryAddress String
+  latitude        Float
+  longitude       Float
+  scheduledTime   DateTime
+  startedAt       DateTime?
+  completedAt     DateTime?
+  status          OrderStatus    @default(PENDING)
+  deliveryStatus  DeliveryStatus @default(CREATED)
+  loadingStatus   LoadingStatus  @default(NOT_LOADED)
 
-  eta_minutes         Int?
-  route_distance      Float?
-  loading_started_at  DateTime?
-  transit_started_at  DateTime?
+  eta_minutes        Int?
+  route_distance     Float?
+  loading_started_at DateTime?
+  deliveryStartedAt  DateTime?
+  deliveredAt        DateTime?
+  failedAt           DateTime?
+  failureReason      String?
+  transit_started_at DateTime?
 
-  proof_image_url     String?
-  signature_url       String?
-  pod_latitude        Float?
-  pod_longitude       Float?
-  pod_timestamp       DateTime?
+  proof_image_url String?
+  signature_url   String?
+  pod_latitude    Float?
+  pod_longitude   Float?
+  pod_timestamp   DateTime?
 
-  helpers             Driver[]            @relation("HelperCrew")
-  statusLogs          DeliveryStatusLog[]
-  tracking            DeliveryTracking[]
-  invoices            Invoice[]
-  loadingVerification LoadingVerification?
-  jobSiteId           String?
-  jobSite             JobSite?            @relation(fields: [jobSiteId], references: [id])
-  trackingTokens      DeliveryTrackingToken[]
-  events              DeliveryEvent[]
-  voiceNotes          DeliveryVoiceNote[]
-  instructions        DeliveryInstruction[]
+  helpers               Driver[]                       @relation("HelperCrew")
+  statusLogs            DeliveryStatusLog[]
+  tracking              DeliveryTracking[]
+  invoices              Invoice[]
+  loadingVerification   LoadingVerification?
+  jobSiteId             String?
+  jobSite               JobSite?                       @relation(fields: [jobSiteId], references: [id])
+  trackingTokens        DeliveryTrackingToken[]
+  events                DeliveryEvent[]
+  voiceNotes            DeliveryVoiceNote[]
+  instructions          DeliveryInstruction[]
   availabilityResponses DeliveryAvailabilityResponse[]
-  proofOfDelivery     ProofOfDelivery?
+  proofOfDelivery       ProofOfDelivery?
+  deliveryItems         DeliveryItem[]
+  loadBatchDeliveries   LoadBatchDelivery[]
+  timeline              DeliveryTimeline[]
 
-  total_km            Float?
+  total_km                       Float?
   estimated_driving_time_minutes Int?
-  toll_cost           Float?
-  traffic_delay_minutes Int?
-  expected_fuel_liters Float?
-  expected_fuel_cost  Float?
-  driver_cost         Float?
-  assistant_cost      Float?
-  maintenance_cost    Float?
-  estimated_profit    Float?
-  delivery_margin_percentage Float?
+  toll_cost                      Float?
+  traffic_delay_minutes          Int?
+  expected_fuel_liters           Float?
+  expected_fuel_cost             Float?
+  driver_cost                    Float?
+  assistant_cost                 Float?
+  maintenance_cost               Float?
+  estimated_profit               Float?
+  delivery_margin_percentage     Float?
 
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-  organizationId      String
-  deletedAt           DateTime?
-  createdBy           String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  organizationId String
+  deletedAt      DateTime?
+  createdBy      String?
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId])
   @@index([status])
+  @@index([deliveryStatus])
   @@index([driverId])
   @@index([organizationId, status])
+  @@index([organizationId, deliveryStatus])
   @@index([organizationId, scheduledTime])
 }
 
@@ -377,6 +445,9 @@ model Notification {
   title          String
   message        String
   isRead         Boolean  @default(false)
+  type           String?
+  recipientRole  String?
+  payload        Json?
   createdAt      DateTime @default(now())
   organizationId String
 
@@ -385,17 +456,18 @@ model Notification {
 
   @@index([organizationId])
   @@index([userId, isRead])
+  @@index([userId, type])
 }
 
 model Zone {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   name           String
   description    String?
-  color          String   @default("#3b82f6")
+  color          String    @default("#3b82f6")
   polygon        Json
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   organizationId String
   deletedAt      DateTime?
 
@@ -444,7 +516,7 @@ model AuditLogEntry {
 }
 
 model JobSite {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   name           String
   description    String?
   address        String?
@@ -452,29 +524,29 @@ model JobSite {
   contactPhone   String?
   latitude       Float
   longitude      Float
-  polygon        Json?            @default("null")
-  radius         Float?           @default(50)
-  color          String           @default("#8B5CF6")
-  status         String           @default("ACTIVE")
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  polygon        Json?     @default("null")
+  radius         Float?    @default(50)
+  color          String    @default("#8B5CF6")
+  status         String    @default("ACTIVE")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   organizationId String
   deletedAt      DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id])
-  deliveries    Delivery[]
+  deliveries   Delivery[]
 
   @@index([organizationId])
 }
 
 model Geofence {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   name           String
   description    String?
   polygon        Json
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   organizationId String
   deletedAt      DateTime?
 
@@ -517,47 +589,47 @@ model WhatsappMessage {
 }
 
 model Plan {
-  id              String   @id @default(uuid())
-  name            String   @unique
-  slug            String   @unique
-  description     String?
-  monthlyPrice    Float
-  trialDays       Int      @default(7)
-  maxDrivers      Int
-  maxDispatchers  Int
+  id                    String   @id @default(uuid())
+  name                  String   @unique
+  slug                  String   @unique
+  description           String?
+  monthlyPrice          Float
+  trialDays             Int      @default(7)
+  maxDrivers            Int
+  maxDispatchers        Int
   maxDeliveriesPerMonth Int
-  maxVehicles     Int?
-  maxCustomers    Int?
-  hasRouteOptimization Boolean @default(false)
-  hasLiveTracking Boolean  @default(true)
-  hasWhatsApp     Boolean  @default(false)
-  hasCustomerPortal Boolean @default(false)
-  hasAnalytics    Boolean  @default(true)
-  hasConstructionModule Boolean @default(false)
-  isPopular       Boolean  @default(false)
-  sortOrder       Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  maxVehicles           Int?
+  maxCustomers          Int?
+  hasRouteOptimization  Boolean  @default(false)
+  hasLiveTracking       Boolean  @default(true)
+  hasWhatsApp           Boolean  @default(false)
+  hasCustomerPortal     Boolean  @default(false)
+  hasAnalytics          Boolean  @default(true)
+  hasConstructionModule Boolean  @default(false)
+  isPopular             Boolean  @default(false)
+  sortOrder             Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   subscriptions Subscription[]
 }
 
 model Subscription {
-  id              String             @id @default(uuid())
-  organizationId  String             @unique
-  planId          String
-  status          SubscriptionStatus @default(TRIAL)
-  trialEndsAt     DateTime?
-  currentPeriodStart DateTime        @default(now())
+  id                 String             @id @default(uuid())
+  organizationId     String             @unique
+  planId             String
+  status             SubscriptionStatus @default(TRIAL)
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime           @default(now())
   currentPeriodEnd   DateTime?
-  cancelledAt     DateTime?
-  gracePeriodEndsAt DateTime?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  cancelledAt        DateTime?
+  gracePeriodEndsAt  DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  plan         Plan         @relation(fields: [planId], references: [id])
-  billingEvents BillingEvent[]
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  plan           Plan            @relation(fields: [planId], references: [id])
+  billingEvents  BillingEvent[]
   usageTrackings UsageTracking[]
 }
 
@@ -591,65 +663,65 @@ model BillingEvent {
 }
 
 model Invoice {
-  id              String         @id @default(uuid())
-  invoiceNumber   String?
-  vendorName      String?
-  issueDate       DateTime?
-  dueDate         DateTime?
-  totalAmount     Float?
-  currency        String         @default("BRL")
-  status          InvoiceStatus  @default(PENDING)
-  fileUrl         String
-  fileType        String
-  extractedText   String?        @db.Text
+  id            String        @id @default(uuid())
+  invoiceNumber String?
+  vendorName    String?
+  issueDate     DateTime?
+  dueDate       DateTime?
+  totalAmount   Float?
+  currency      String        @default("BRL")
+  status        InvoiceStatus @default(PENDING)
+  fileUrl       String
+  fileType      String
+  extractedText String?       @db.Text
 
   // NF-e specific fields
-  accessKey            String?   @unique
-  nfeNumber            String?
-  series               Int?
-  cfop                 String?
-  naturezaOperacao     String?
-  icms                 Float?
-  ipi                  Float?
-  pis                  Float?
-  cofins               Float?
-  iss                  Float?
-  totalTaxes           Float?
-  xmlContent           String?   @db.Text
-  xmlUrl               String?
-  danfeUrl             String?
+  accessKey             String?   @unique
+  nfeNumber             String?
+  series                Int?
+  cfop                  String?
+  naturezaOperacao      String?
+  icms                  Float?
+  ipi                   Float?
+  pis                   Float?
+  cofins                Float?
+  iss                   Float?
+  totalTaxes            Float?
+  xmlContent            String?   @db.Text
+  xmlUrl                String?
+  danfeUrl              String?
   authorizationProtocol String?
-  authorizationDate    DateTime?
+  authorizationDate     DateTime?
   cancellationProtocol  String?
-  cancellationDate     DateTime?
-  nfeStatus            String?   @default("PENDING")
+  cancellationDate      DateTime?
+  nfeStatus             String?   @default("PENDING")
 
   // Delivery logistics fields
-  weight              Float?
-  volume              Float?
-  itemCount           Int?
-  fragile             Boolean   @default(false)
-  priority            Int       @default(0)
-  deliveryDeadline    DateTime?
+  weight                     Float?
+  volume                     Float?
+  itemCount                  Int?
+  fragile                    Boolean   @default(false)
+  priority                   Int       @default(0)
+  deliveryDeadline           DateTime?
   customerRequestedStartTime DateTime?
   customerRequestedEndTime   DateTime?
-  unloadRequired      Boolean   @default(false)
-  helperRequired      Boolean   @default(false)
-  deliveryNotes       String?
-  addressLat          Float?
-  addressLng          Float?
-  zoneId              String?
+  unloadRequired             Boolean   @default(false)
+  helperRequired             Boolean   @default(false)
+  deliveryNotes              String?
+  addressLat                 Float?
+  addressLng                 Float?
+  zoneId                     String?
 
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  organizationId  String
-  deletedAt       DateTime?
-  createdBy       String?
-  items           InvoiceItem[]
-  deliveryId      String?
-  delivery        Delivery?      @relation(fields: [deliveryId], references: [id])
-  routeStops      RouteStop[]
-  exceptions      DeliveryException[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  organizationId    String
+  deletedAt         DateTime?
+  createdBy         String?
+  items             InvoiceItem[]
+  deliveryId        String?
+  delivery          Delivery?           @relation(fields: [deliveryId], references: [id])
+  routeStops        RouteStop[]
+  exceptions        DeliveryException[]
   dispatchDecisions DispatchDecision[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
@@ -663,7 +735,7 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id          String   @id @default(uuid())
+  id          String @id @default(uuid())
   invoiceId   String
   description String
   quantity    Float?
@@ -671,19 +743,19 @@ model InvoiceItem {
   totalPrice  Float?
 
   // NF-e item fields
-  ncm          String?
-  cst          String?
-  cfop         String?
-  icmsAliquota Float?
-  icmsValor    Float?
-  ipiAliquota  Float?
-  ipiValor     Float?
-  pisAliquota  Float?
-  pisValor     Float?
+  ncm            String?
+  cst            String?
+  cfop           String?
+  icmsAliquota   Float?
+  icmsValor      Float?
+  ipiAliquota    Float?
+  ipiValor       Float?
+  pisAliquota    Float?
+  pisValor       Float?
   cofinsAliquota Float?
   cofinsValor    Float?
 
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId])
 }
@@ -691,30 +763,30 @@ model InvoiceItem {
 // ─── Dispatch & Route Optimization Models ─────────────────────────────────
 
 model Route {
-  id             String   @id @default(uuid())
-  name           String?
-  status         String   @default("SUGGESTED")
-  driverId       String?
-  driver         Driver?  @relation(fields: [driverId], references: [id])
-  vehicleId      String?
-  vehicle        Vehicle? @relation(fields: [vehicleId], references: [id])
-  totalDistance  Float?
-  totalDuration  Int?
-  totalCost      Float?
-  totalWeight    Float?
-  totalVolume    Float?
-  stopCount      Int?
+  id                  String    @id @default(uuid())
+  name                String?
+  status              String    @default("SUGGESTED")
+  driverId            String?
+  driver              Driver?   @relation(fields: [driverId], references: [id])
+  vehicleId           String?
+  vehicle             Vehicle?  @relation(fields: [vehicleId], references: [id])
+  totalDistance       Float?
+  totalDuration       Int?
+  totalCost           Float?
+  totalWeight         Float?
+  totalVolume         Float?
+  stopCount           Int?
   capacityUtilization Float?
-  riskScore      Float?
-  optimizedAt    DateTime?
-  startedAt      DateTime?
-  completedAt    DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  organizationId String
-  deletedAt      DateTime?
+  riskScore           Float?
+  optimizedAt         DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  organizationId      String
+  deletedAt           DateTime?
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization               @relation(fields: [organizationId], references: [id])
   stops        RouteStop[]
   assignments  AssignmentRecommendation[]
   routeCosts   RouteCost[]
@@ -726,22 +798,22 @@ model Route {
 }
 
 model RouteStop {
-  id             String   @id @default(uuid())
-  routeId        String
-  route          Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  invoiceId      String
-  invoice        Invoice  @relation(fields: [invoiceId], references: [id])
-  stopSequence   Int
+  id                 String    @id @default(uuid())
+  routeId            String
+  route              Route     @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  invoiceId          String
+  invoice            Invoice   @relation(fields: [invoiceId], references: [id])
+  stopSequence       Int
   estimatedArrival   DateTime?
   estimatedDeparture DateTime?
-  actualArrival     DateTime?
-  actualDeparture   DateTime?
-  status         String   @default("PENDING")
-  notes          String?
-  createdAt      DateTime @default(now())
-  organizationId String
+  actualArrival      DateTime?
+  actualDeparture    DateTime?
+  status             String    @default("PENDING")
+  notes              String?
+  createdAt          DateTime  @default(now())
+  organizationId     String
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization        @relation(fields: [organizationId], references: [id])
   voiceNotes   DeliveryVoiceNote[]
 
   @@index([routeId])
@@ -789,23 +861,23 @@ model DriverPerformance {
 }
 
 model CustomerDeliveryPreference {
-  id               String   @id @default(uuid())
-  customerId       String
-  customer         Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(uuid())
+  customerId         String
+  customer           Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   preferredTimeStart String?
   preferredTimeEnd   String?
-  avoidLunch       Boolean  @default(false)
-  callBeforeDelivery Boolean @default(false)
-  needsHelper      Boolean  @default(false)
-  needsUnloading   Boolean  @default(false)
-  accessRestriction String?
-  buildingRules    String?
-  gateInstruction  String?
-  contactPreference String?
-  notes            String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  organizationId   String
+  avoidLunch         Boolean  @default(false)
+  callBeforeDelivery Boolean  @default(false)
+  needsHelper        Boolean  @default(false)
+  needsUnloading     Boolean  @default(false)
+  accessRestriction  String?
+  buildingRules      String?
+  gateInstruction    String?
+  contactPreference  String?
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  organizationId     String
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -814,16 +886,16 @@ model CustomerDeliveryPreference {
 }
 
 model DeliveryException {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   invoiceId      String
-  invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice        Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   type           String
   reason         String?
   description    String?
   resolvedAt     DateTime?
   resolvedBy     String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   organizationId String
 
   organization Organization @relation(fields: [organizationId], references: [id])
@@ -834,16 +906,16 @@ model DeliveryException {
 }
 
 model RouteCost {
-  id             String   @id @default(uuid())
-  routeId        String
-  route          Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  fuelCost       Float?
-  tollCost       Float?
-  driverCost     Float?
+  id              String   @id @default(uuid())
+  routeId         String
+  route           Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  fuelCost        Float?
+  tollCost        Float?
+  driverCost      Float?
   maintenanceCost Float?
-  totalCost      Float?
-  estimatedAt    DateTime @default(now())
-  organizationId String
+  totalCost       Float?
+  estimatedAt     DateTime @default(now())
+  organizationId  String
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -872,24 +944,24 @@ model DispatchDecision {
 }
 
 model AssignmentRecommendation {
-  id              String  @id @default(uuid())
-  routeId         String
-  route           Route   @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  rank            Int
-  driverId        String
-  vehicleId       String
-  totalDistance   Float?
-  totalDuration   Int?
-  totalCost       Float?
+  id                  String    @id @default(uuid())
+  routeId             String
+  route               Route     @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  rank                Int
+  driverId            String
+  vehicleId           String
+  totalDistance       Float?
+  totalDuration       Int?
+  totalCost           Float?
   capacityUtilization Float?
-  riskScore       Float?
-  score           Float?
-  reason          String?
-  warnings        Json?
-  acceptedAt      DateTime?
-  rejectedAt      DateTime?
-  createdAt       DateTime @default(now())
-  organizationId  String
+  riskScore           Float?
+  score               Float?
+  reason              String?
+  warnings            Json?
+  acceptedAt          DateTime?
+  rejectedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  organizationId      String
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -899,21 +971,21 @@ model AssignmentRecommendation {
 }
 
 model VehicleCapacity {
-  id             String   @id @default(uuid())
-  vehicleId      String
-  vehicle        Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  maxWeight      Float?
-  maxVolume      Float?
-  maxItems       Int?
-  maxStops       Int?
-  operatingCostPerKm Float?
-  allowedZones   Json?
-  roadRestriction String?
+  id                  String    @id @default(uuid())
+  vehicleId           String
+  vehicle             Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  maxWeight           Float?
+  maxVolume           Float?
+  maxItems            Int?
+  maxStops            Int?
+  operatingCostPerKm  Float?
+  allowedZones        Json?
+  roadRestriction     String?
   insuranceValidUntil DateTime?
   documentValidUntil  DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  organizationId String
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  organizationId      String
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -922,24 +994,28 @@ model VehicleCapacity {
 }
 
 model FuelLog {
-  id              String    @id @default(uuid())
-  vehicleId       String
-  vehicle         Vehicle   @relation(fields: [vehicleId], references: [id])
-  driverId        String?
-  driver          Driver?   @relation(fields: [driverId], references: [id])
-  fillDate        DateTime  @default(now())
-  litersFilled    Float
-  costPerLiter    Float
-  totalCost       Float
-  odometer        Float
-  stationName     String?
-  receiptPhotoUrl String?
+  id               String   @id @default(uuid())
+  vehicleId        String
+  vehicle          Vehicle  @relation(fields: [vehicleId], references: [id])
+  driverId         String?
+  driver           Driver?  @relation(fields: [driverId], references: [id])
+  fillDate         DateTime @default(now())
+  litersFilled     Float?
+  costPerLiter     Float?
+  totalCost        Float?
+  odometer         Float
+  stationName      String?
+  receiptPhotoUrl  String?
   odometerPhotoUrl String?
-  detectedAnomaly Boolean   @default(false)
-  anomalyReason   String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  organizationId  String
+  detectedAnomaly  Boolean  @default(false)
+  anomalyReason    String?
+  status           String   @default("PENDING")
+  jobNumber        String?
+  approvedById     String?
+  approvedBy       User?    @relation("FuelLogApprover", fields: [approvedById], references: [id])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  organizationId   String
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -971,27 +1047,27 @@ model MaintenanceLog {
 }
 
 model LoadingVerification {
-  id                        String    @id @default(uuid())
-  deliveryId                String    @unique
-  delivery                  Delivery  @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
-  verifiedByUserId          String
-  verifiedByUser            User      @relation(fields: [verifiedByUserId], references: [id])
-  materialCount             Int
-  invoiceMapped             Boolean   @default(true)
-  packageQuantity            Int
-  truckCapacityOk           Boolean   @default(true)
+  id               String   @id @default(uuid())
+  deliveryId       String   @unique
+  delivery         Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  verifiedByUserId String
+  verifiedByUser   User     @relation(fields: [verifiedByUserId], references: [id])
+  materialCount    Int
+  invoiceMapped    Boolean  @default(true)
+  packageQuantity  Int
+  truckCapacityOk  Boolean  @default(true)
 
-  emptyTruckPhotoUrl        String?
-  materialsLoadedPhotoUrl   String?
-  sealedCargoPhotoUrl       String?
+  emptyTruckPhotoUrl          String?
+  materialsLoadedPhotoUrl     String?
+  sealedCargoPhotoUrl         String?
   invoiceVerificationPhotoUrl String?
 
-  status                    String    @default("VERIFIED")
-  sealedAt                  DateTime?
-  driverAcknowledged        Boolean   @default(false)
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
-  organizationId            String
+  status             String    @default("VERIFIED")
+  sealedAt           DateTime?
+  driverAcknowledged Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  organizationId     String
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -999,20 +1075,20 @@ model LoadingVerification {
 }
 
 model AnalyticsSnapshot {
-  id                    String   @id @default(uuid())
-  timestamp             DateTime @default(now())
-  totalDeliveriesToday  Int
-  trucksOnRoute         Int
-  delayedDeliveries     Int
-  activeDrivers         Int
-  loadingInProgress     Int
-  revenueToday          Float
-  fuelCostToday         Float
+  id                     String   @id @default(uuid())
+  timestamp              DateTime @default(now())
+  totalDeliveriesToday   Int
+  trucksOnRoute          Int
+  delayedDeliveries      Int
+  activeDrivers          Int
+  loadingInProgress      Int
+  revenueToday           Float
+  fuelCostToday          Float
   maintenanceAlertsCount Int
-  completedDeliveries   Int
-  failedDeliveries      Int
-  deliverySuccessRate   Float
-  organizationId        String
+  completedDeliveries    Int
+  failedDeliveries       Int
+  deliverySuccessRate    Float
+  organizationId         String
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -1035,13 +1111,13 @@ model SystemSetting {
 // ─── Customer Tracking & Proof of Delivery ──────────────────────────────
 
 model DeliveryTrackingToken {
-  id           String   @id @default(uuid())
-  token        String   @unique
-  deliveryId   String
-  delivery     Delivery @relation(fields: [deliveryId], references: [id])
-  expiresAt    DateTime?
-  createdAt    DateTime @default(now())
-  lastAccessed DateTime?
+  id             String    @id @default(uuid())
+  token          String    @unique
+  deliveryId     String
+  delivery       Delivery  @relation(fields: [deliveryId], references: [id])
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  lastAccessed   DateTime?
   organizationId String
 
   organization Organization @relation(fields: [organizationId], references: [id])
@@ -1073,19 +1149,19 @@ model DeliveryEvent {
 }
 
 model DeliveryVoiceNote {
-  id             String   @id @default(uuid())
+  id             String     @id @default(uuid())
   deliveryId     String
-  delivery       Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  delivery       Delivery   @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
   driverId       String
-  driver         Driver   @relation(fields: [driverId], references: [id])
+  driver         Driver     @relation(fields: [driverId], references: [id])
   routeId        String?
-  route          Route?   @relation(fields: [routeId], references: [id])
+  route          Route?     @relation(fields: [routeId], references: [id])
   stopId         String?
   stop           RouteStop? @relation(fields: [stopId], references: [id])
   audioUrl       String
   durationSec    Int?
-  mimeType       String   @default("audio/m4a")
-  createdAt      DateTime @default(now())
+  mimeType       String     @default("audio/m4a")
+  createdAt      DateTime   @default(now())
   organizationId String
 
   organization Organization @relation(fields: [organizationId], references: [id])
@@ -1096,20 +1172,20 @@ model DeliveryVoiceNote {
 }
 
 model DeliveryInstruction {
-  id               String   @id @default(uuid())
-  deliveryId       String
-  delivery         Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
-  gateCode         String?
-  buildingAccess   String?
-  apartmentNumber  String?
-  contactPerson    String?
-  loadingNotes     String?
+  id                String   @id @default(uuid())
+  deliveryId        String
+  delivery          Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  gateCode          String?
+  buildingAccess    String?
+  apartmentNumber   String?
+  contactPerson     String?
+  loadingNotes      String?
   preferredEntrance String?
-  notes            String?
-  source           String   @default("customer")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  organizationId   String
+  notes             String?
+  source            String   @default("customer")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  organizationId    String
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -1157,23 +1233,23 @@ model ProofOfDelivery {
 }
 
 model DriverWorkloadMetric {
-  id               String   @id @default(uuid())
-  driverId         String
-  driver           Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  date             DateTime
-  totalDeliveries  Int      @default(0)
-  completedDeliveries Int  @default(0)
-  totalWeight      Float    @default(0)
-  totalVolume      Float    @default(0)
-  totalDistanceKm  Float    @default(0)
-  totalDurationMin Int      @default(0)
-  currentLoad      Int      @default(0)
-  estimatedEndTime DateTime?
-  workloadScore    Float    @default(0)
-  warnings         Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  organizationId   String
+  id                  String    @id @default(uuid())
+  driverId            String
+  driver              Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  date                DateTime
+  totalDeliveries     Int       @default(0)
+  completedDeliveries Int       @default(0)
+  totalWeight         Float     @default(0)
+  totalVolume         Float     @default(0)
+  totalDistanceKm     Float     @default(0)
+  totalDurationMin    Int       @default(0)
+  currentLoad         Int       @default(0)
+  estimatedEndTime    DateTime?
+  workloadScore       Float     @default(0)
+  warnings            Json?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  organizationId      String
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -1184,28 +1260,187 @@ model DriverWorkloadMetric {
 }
 
 model RouteCluster {
-  id             String   @id @default(uuid())
-  name           String?
-  organizationId String
-  invoiceIds     Json
-  totalWeight    Float?
-  totalVolume    Float?
-  deliveryCount  Int?
-  avgLatitude    Float?
-  avgLongitude   Float?
-  zone           String?
-  neighborhood   String?
-  citySector     String?
-  priority       Int      @default(0)
+  id                String   @id @default(uuid())
+  name              String?
+  organizationId    String
+  invoiceIds        Json
+  totalWeight       Float?
+  totalVolume       Float?
+  deliveryCount     Int?
+  avgLatitude       Float?
+  avgLongitude      Float?
+  zone              String?
+  neighborhood      String?
+  citySector        String?
+  priority          Int      @default(0)
   suggestedDriverId String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId])
   @@index([zone])
   @@index([neighborhood])
+}
+
+// ─── Delivery Workflow Models ──────────────────────────────────────────────
+
+model DeliveryItem {
+  id          String   @id @default(uuid())
+  deliveryId  String
+  delivery    Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  productName String
+  quantity    Float?
+  weight      Float?
+  volume      Float?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([deliveryId])
+  @@index([organizationId])
+}
+
+model LoadBatch {
+  id                       String         @id @default(uuid())
+  batchCode                String         @unique
+  organizationId           String
+  driverId                 String?
+  driver                   Driver?        @relation(fields: [driverId], references: [id])
+  vehicleId                String?
+  vehicle                  Vehicle?       @relation(fields: [vehicleId], references: [id])
+  dispatcherId             String?
+  dispatcher               User?          @relation("LoadBatchDispatcher", fields: [dispatcherId], references: [id])
+  status                   DeliveryStatus @default(CREATED)
+  totalWeight              Float?
+  totalVolume              Float?
+  totalDeliveries          Int            @default(0)
+  routeDistanceKm          Float?
+  estimatedDurationMinutes Int?
+  approvedAt               DateTime?
+  startedAt                DateTime?
+  completedAt              DateTime?
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+  deletedAt                DateTime?
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  deliveries   LoadBatchDelivery[]
+  fuelRequests FuelRequest[]
+
+  @@index([organizationId])
+  @@index([driverId])
+  @@index([status])
+  @@index([organizationId, status])
+}
+
+model LoadBatchDelivery {
+  id          String    @id @default(uuid())
+  loadBatchId String
+  loadBatch   LoadBatch @relation(fields: [loadBatchId], references: [id], onDelete: Cascade)
+  deliveryId  String
+  delivery    Delivery  @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  stopOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@unique([loadBatchId, deliveryId])
+  @@index([loadBatchId])
+  @@index([deliveryId])
+}
+
+model DeliveryTimeline {
+  id           String            @id @default(uuid())
+  deliveryId   String
+  delivery     Delivery          @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  actorId      String?
+  actorRole    String?
+  eventType    DeliveryEventType @default(STATUS_CHANGE)
+  oldStatus    String?
+  newStatus    String?
+  note         String?
+  latitude     Float?
+  longitude    Float?
+  photoUrl     String?
+  signatureUrl String?
+  metadata     Json?
+  createdAt    DateTime          @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([deliveryId, createdAt])
+  @@index([organizationId])
+  @@index([eventType])
+}
+
+model FuelRequest {
+  id                     String            @id @default(uuid())
+  organizationId         String
+  driverId               String
+  driver                 Driver            @relation(fields: [driverId], references: [id])
+  dispatcherId           String?
+  dispatcher             User?             @relation("FuelRequestDispatcher", fields: [dispatcherId], references: [id])
+  vehicleId              String
+  vehicle                Vehicle           @relation(fields: [vehicleId], references: [id])
+  loadBatchId            String?
+  loadBatch              LoadBatch?        @relation(fields: [loadBatchId], references: [id])
+  amountRequested        Float?
+  fuelLiters             Float?
+  fuelStation            String?
+  reason                 String?
+  status                 FuelRequestStatus @default(REQUESTED)
+  approvedByDispatcherId String?
+  approvedBy             User?             @relation("FuelRequestApprover", fields: [approvedByDispatcherId], references: [id])
+  approvedAt             DateTime?
+  rejectedReason         String?
+  receiptPhotoUrl        String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([driverId])
+  @@index([status])
+  @@index([organizationId, status])
+}
+
+model Product {
+  id               String   @id @default(uuid())
+  name             String
+  sku              String?
+  category         String
+  subcategory      String?
+  unit             String   @default("un")
+  weightPerUnit    Float?
+  volumePerUnit    Float?
+  unitPrice        Float?
+  brand            String?
+  supplier         String?
+  description      String?
+  certification    String?  // INMETRO, ABNT, etc.
+  qualityGrade     String?  // A, B, C, etc.
+  minStorageTemp   Float?
+  maxStorageTemp   Float?
+  shelfLifeDays    Int?
+  isFragile        Boolean  @default(false)
+  requiresSpecialHandling Boolean @default(false)
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  organizationId   String
+  deletedAt        DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([category])
+  @@index([sku])
+  @@unique([name, organizationId])
 }
 
 model spatial_ref_sys {

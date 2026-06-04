@@ -52,4 +52,131 @@ export class AnalyticsService {
       deliveries: p._count.deliveries,
     }));
   }
+
+  async getDashboardKPIs(organizationId: string) {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // 1. totalDeliveriesToday
+    const totalDeliveriesToday = await this.prisma.delivery.count({
+      where: {
+        organizationId,
+        scheduledTime: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+    });
+
+    // 2. trucksOnRoute
+    const trucksOnRoute = await this.prisma.delivery.count({
+      where: {
+        organizationId,
+        status: "IN_TRANSIT",
+      },
+    });
+
+    // 3. delayedDeliveries
+    const delayedDeliveries = await this.prisma.delivery.count({
+      where: {
+        organizationId,
+        scheduledTime: {
+          lt: new Date(),
+        },
+        status: {
+          notIn: ["DELIVERED", "CANCELLED", "FAILED"],
+        },
+      },
+    });
+
+    // 4. activeDrivers
+    const activeDrivers = await this.prisma.driver.count({
+      where: {
+        organizationId,
+        isOnline: true,
+      },
+    });
+
+    // 5. completedDeliveries
+    const completedDeliveries = await this.prisma.delivery.count({
+      where: {
+        organizationId,
+        status: "DELIVERED",
+        OR: [
+          {
+            completedAt: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
+          },
+          {
+            completedAt: null,
+            scheduledTime: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
+          },
+        ],
+      },
+    });
+
+    // 6. revenueToday
+    const invoicesToday = await this.prisma.invoice.aggregate({
+      where: {
+        organizationId,
+        createdAt: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+      _sum: {
+        totalAmount: true,
+      },
+    });
+    const revenueToday = invoicesToday._sum.totalAmount || 0;
+
+    // 7. fuelCostToday
+    const fuelToday = await this.prisma.fuelLog.aggregate({
+      where: {
+        organizationId,
+        status: "APPROVED",
+        fillDate: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+      _sum: {
+        totalCost: true,
+      },
+    });
+    const fuelCostToday = fuelToday._sum.totalCost || 0;
+
+    // 8. deliverySuccessRate
+    const totalDeliveries = await this.prisma.delivery.count({
+      where: { organizationId },
+    });
+    const successfulDeliveries = await this.prisma.delivery.count({
+      where: {
+        organizationId,
+        status: "DELIVERED",
+      },
+    });
+    const deliverySuccessRate =
+      totalDeliveries > 0
+        ? Math.round((successfulDeliveries / totalDeliveries) * 100)
+        : 100;
+
+    return {
+      totalDeliveriesToday,
+      trucksOnRoute,
+      delayedDeliveries,
+      activeDrivers,
+      completedDeliveries,
+      revenueToday,
+      fuelCostToday,
+      deliverySuccessRate,
+    };
+  }
 }

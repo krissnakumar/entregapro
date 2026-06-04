@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Alert } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as FileSystem from 'expo-file-system';
 
 interface CaptureResult {
   uri: string;
@@ -41,19 +40,15 @@ export function useCameraCapture() {
     try {
       const photo = await cameraRef.current.takePictureAsync({
         base64: true,
-        quality: 0.7,
+        quality: 0.35,
       });
 
-      if (!photo?.uri) {
+      if (!photo?.uri || !photo.base64) {
         throw new Error('Falha ao capturar foto');
       }
 
-      const base64 = await FileSystem.readAsStringAsync(photo.uri, {
-        encoding: 'base64',
-      });
-
       setCapturedUri(photo.uri);
-      return { uri: photo.uri, base64 };
+      return { uri: photo.uri, base64: photo.base64 };
     } catch (err: any) {
       Alert.alert('Erro', err.message || 'Falha ao capturar imagem');
       return null;
