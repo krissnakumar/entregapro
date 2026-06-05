@@ -22,6 +22,7 @@
       },
       "permissions": ["POST_NOTIFICATIONS"],
       "package": "com.entregapro.driver",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 2
     },
     "extra": {

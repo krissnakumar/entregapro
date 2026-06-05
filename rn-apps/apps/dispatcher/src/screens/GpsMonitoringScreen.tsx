@@ -45,16 +45,20 @@ export default function GpsMonitoringScreen() {
 
     const unsubscribe = onDriverLocationUpdated((data) => {
       console.log('[DispatcherMap] Live location update:', data);
-      if (data.driverId && data.lat && data.lng) {
-        setLiveLocations((prev) => ({
-          ...prev,
-          [data.driverId]: {
-            lat: data.lat,
-            lng: data.lng,
-            speed: data.speed,
-            timestamp: new Date().toISOString(),
-          },
-        }));
+      if (data && data.driverId) {
+        const latVal = Number(data.lat);
+        const lngVal = Number(data.lng);
+        if (!Number.isNaN(latVal) && !Number.isNaN(lngVal) && latVal !== 0 && lngVal !== 0) {
+          setLiveLocations((prev) => ({
+            ...prev,
+            [data.driverId]: {
+              lat: latVal,
+              lng: lngVal,
+              speed: data.speed !== undefined ? Number(data.speed) : undefined,
+              timestamp: new Date().toISOString(),
+            },
+          }));
+        }
       }
     });
 
@@ -65,30 +69,35 @@ export default function GpsMonitoringScreen() {
   }, [user?.id]);
 
   // 2. Format vehicles list with live tracking data
-  const fleet = (orders || []).map((order: any) => {
-    const delivery = order.deliveries?.[0];
-    const driverId = delivery?.driver?.id || '';
-    const liveLoc = liveLocations[driverId];
+  const fleet = (orders || [])
+    .map((order: any) => {
+      const delivery = order.deliveries?.[0];
+      const driverId = delivery?.driver?.id || '';
+      const liveLoc = liveLocations[driverId];
 
-    return {
-      id: order.id,
-      driverId,
-      driverName: delivery?.driver?.user?.name || delivery?.driver?.name || order.assignedDriver || 'N/D',
-      truckPlate: delivery?.vehicle?.vehicleNumber || order.assignedTruck || 'N/D',
-      destination: delivery?.deliveryAddress || order.destination || order.primaryDestination || 'N/D',
-      latitude: liveLoc ? liveLoc.lat : -23.5505,
-      longitude: liveLoc ? liveLoc.lng : -46.6333,
-      speed: liveLoc?.speed || 0,
-      eta: order.eta || order.estimatedArrival || 'N/D',
-      routeProgress: order.routeProgress || 0,
-      delayed: order.delayed || false,
-      invoiceCount: (delivery?.invoices || order.invoices || order.items || []).length,
-    };
-  }).filter((v: any) => v.driverId !== ''); // Only show vehicles with drivers
+      const latVal = liveLoc && typeof liveLoc.lat === 'number' && !Number.isNaN(liveLoc.lat) ? liveLoc.lat : -23.5505;
+      const lngVal = liveLoc && typeof liveLoc.lng === 'number' && !Number.isNaN(liveLoc.lng) ? liveLoc.lng : -46.6333;
+
+      return {
+        id: order.id,
+        driverId,
+        driverName: delivery?.driver?.user?.name || delivery?.driver?.name || order.assignedDriver || 'N/D',
+        truckPlate: delivery?.vehicle?.vehicleNumber || order.assignedTruck || 'N/D',
+        destination: delivery?.deliveryAddress || order.destination || order.primaryDestination || 'N/D',
+        latitude: latVal,
+        longitude: lngVal,
+        speed: liveLoc?.speed !== undefined ? Number(liveLoc.speed) : 0,
+        eta: order.eta || order.estimatedArrival || 'N/D',
+        routeProgress: order.routeProgress || 0,
+        delayed: order.delayed || false,
+        invoiceCount: (delivery?.invoices || order.invoices || order.items || []).length,
+      };
+    })
+    .filter((v: any) => v.driverId !== ''); // Only show vehicles with drivers
 
   const centralRegion = {
-    latitude: fleet.length > 0 ? fleet[0].latitude : -23.5505,
-    longitude: fleet.length > 0 ? fleet[0].longitude : -46.6333,
+    latitude: fleet.length > 0 && typeof fleet[0].latitude === 'number' && !Number.isNaN(fleet[0].latitude) ? fleet[0].latitude : -23.5505,
+    longitude: fleet.length > 0 && typeof fleet[0].longitude === 'number' && !Number.isNaN(fleet[0].longitude) ? fleet[0].longitude : -46.6333,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   };
@@ -111,31 +120,51 @@ export default function GpsMonitoringScreen() {
 
       {/* Map View */}
       <View style={styles.mapContainer}>
-        <MapView
-          style={styles.map}
-          initialRegion={centralRegion}
-          showsUserLocation={false}
-          showsMyLocationButton={false}
-        >
-          {fleet.map((vehicle: any) => (
-            <Marker
-              key={vehicle.id}
-              coordinate={{ latitude: vehicle.latitude, longitude: vehicle.longitude }}
-            >
-              <View style={styles.truckMarker}>
-                <Text style={styles.truckMarkerText}>🚛</Text>
-              </View>
-              <Callout>
-                <View style={styles.calloutContainer}>
-                  <Text style={styles.calloutTitle}>{vehicle.driverName}</Text>
-                  <Text style={styles.calloutText}>Placa: {vehicle.truckPlate}</Text>
-                  <Text style={styles.calloutText}>Velocidade: {vehicle.speed} km/h</Text>
-                  <Text style={styles.calloutText}>Destino: {vehicle.destination}</Text>
-                </View>
-              </Callout>
-            </Marker>
-          ))}
-        </MapView>
+        {Platform.OS === 'web' ? (
+          <View style={[styles.map, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#E2E8F0', padding: 20 }]}>
+            <Text style={{ fontSize: 24, marginBottom: 8 }}>🗺️</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary }}>
+              Visualização de Mapa Interativo
+            </Text>
+            <Text style={{ fontSize: 10, color: colors.textTertiary, marginTop: 4, textAlign: 'center' }}>
+              Rastreamento em tempo real disponível no aplicativo móvel.
+            </Text>
+          </View>
+        ) : (
+          <MapView
+            style={styles.map}
+            initialRegion={centralRegion}
+            showsUserLocation={false}
+            showsMyLocationButton={false}
+          >
+            {fleet
+              .filter(
+                (v: any) =>
+                  typeof v.latitude === 'number' &&
+                  !Number.isNaN(v.latitude) &&
+                  typeof v.longitude === 'number' &&
+                  !Number.isNaN(v.longitude)
+              )
+              .map((vehicle: any) => (
+                <Marker
+                  key={vehicle.id}
+                  coordinate={{ latitude: vehicle.latitude, longitude: vehicle.longitude }}
+                >
+                  <View style={styles.truckMarker}>
+                    <Text style={styles.truckMarkerText}>🚛</Text>
+                  </View>
+                  <Callout>
+                    <View style={styles.calloutContainer}>
+                      <Text style={styles.calloutTitle}>{vehicle.driverName}</Text>
+                      <Text style={styles.calloutText}>Placa: {vehicle.truckPlate}</Text>
+                      <Text style={styles.calloutText}>Velocidade: {vehicle.speed} km/h</Text>
+                      <Text style={styles.calloutText}>Destino: {String(vehicle.destination || '')}</Text>
+                    </View>
+                  </Callout>
+                </Marker>
+              ))}
+          </MapView>
+        )}
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -180,7 +209,9 @@ export default function GpsMonitoringScreen() {
                 <View style={styles.progressLabels}>
                   <Text style={styles.progressLabel}>Base</Text>
                   <Text style={styles.progressLabel}>{vehicle.routeProgress}%</Text>
-                  <Text style={styles.progressLabel} numberOfLines={1}>{vehicle.destination.split(',')[0]}</Text>
+                  <Text style={styles.progressLabel} numberOfLines={1}>
+                    {String(vehicle.destination || '').split(',')[0]}
+                  </Text>
                 </View>
                 <View style={styles.progressBar}>
                   <View
