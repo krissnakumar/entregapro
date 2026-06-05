@@ -25,6 +25,9 @@
     },
     "production": {
       "node": "22.13.0",
+      "env": {
+        "EXPO_PUBLIC_ENVIRONMENT": "production"
+      },
       "android": {
         "buildType": "app-bundle"
       }
