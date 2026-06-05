@@ -23,6 +23,16 @@
         "simulator": true
       }
     },
+    "preview": {
+      "node": "22.13.0",
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_ENVIRONMENT": "production"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
     "production": {
       "node": "22.13.0",
       "env": {
