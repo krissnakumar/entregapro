@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "c06a2df1-d0b3-4977-9570-1bef11abad01"
+      }
+    },
+    "android": {
+      "package": "com.randomthoughts.entregapromonorepo"
+    }
+  }
+}
