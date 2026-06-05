@@ -53,6 +53,33 @@ npm run build:android
 npm run build:ios
 ```
 
+### Build Locally With EAS
+
+```bash
+# From rn-apps/
+npm run build:android:admin
+npm run build:android:dispatcher
+npm run build:android:driver
+```
+
+```bash
+# iOS simulator builds
+npm run build:ios:admin
+npm run build:ios:dispatcher
+npm run build:ios:driver
+```
+
+Local EAS profiles now use:
+- Android debug builds via `:app:assembleDebug`
+- iOS simulator builds so Apple signing is not required
+- Local app versioning through each app's `eas.json`
+
+Optional EAS metadata:
+- `EXPO_OWNER=randomthoughts`
+- `EXPO_PUBLIC_ADMIN_EAS_PROJECT_ID=...`
+- `EXPO_PUBLIC_DISPATCHER_EAS_PROJECT_ID=...`
+- `EXPO_PUBLIC_DRIVER_EAS_PROJECT_ID=...`
+
 ### View Logs
 
 ```typescript

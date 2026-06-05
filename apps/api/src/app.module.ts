@@ -50,7 +50,7 @@ import { ProductsModule } from "./products/products.module";
 
 @Module({
   imports: [
-    QueuesModule,
+    QueuesModule.register(),
     PodModule,
     CacheModule.register({
       isGlobal: true,

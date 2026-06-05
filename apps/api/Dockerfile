@@ -32,4 +32,4 @@ COPY --from=build /app/apps/api/prisma ./apps/api/prisma
 
 EXPOSE 3000
 
-CMD ["node", "apps/api/dist/main"]
+CMD ["node", "apps/api/dist/src/main"]

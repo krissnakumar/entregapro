@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   OnModuleInit,
+  Optional,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { InjectQueue } from "@nestjs/bullmq";
@@ -10,6 +11,7 @@ import { Queue } from "bullmq";
 import { InvoiceStatus } from "@prisma/client";
 import * as fs from "fs";
 import * as path from "path";
+import { InvoiceProcessingService } from "./invoice-processing.service";
 
 @Injectable()
 export class InvoicesService implements OnModuleInit {
@@ -19,7 +21,8 @@ export class InvoicesService implements OnModuleInit {
 
   constructor(
     private prisma: PrismaService,
-    @InjectQueue("invoice-processing") private invoiceQueue: Queue,
+    private invoiceProcessingService: InvoiceProcessingService,
+    @Optional() @InjectQueue("invoice-processing") private invoiceQueue?: Queue,
   ) {}
 
   onModuleInit() {
@@ -68,25 +71,33 @@ export class InvoicesService implements OnModuleInit {
       },
     });
 
-    // 3. Add to background queue for OCR extraction with dedup ID
-    await this.invoiceQueue.add(
-      "process-extraction",
-      {
-        invoiceId: invoice.id,
+    if (this.invoiceQueue) {
+      await this.invoiceQueue.add(
+        "process-extraction",
+        {
+          invoiceId: invoice.id,
+          filePath,
+          fileType,
+          fileName,
+        },
+        {
+          deduplication: { id: invoice.id },
+          removeOnComplete: { age: 3600 * 24 },
+          removeOnFail: { age: 3600 * 24 },
+        },
+      );
+    } else {
+      this.logger.warn(
+        "Invoice queue is disabled. Processing invoice synchronously.",
+      );
+      await this.invoiceProcessingService.processInvoiceFile(
+        invoice.id,
         filePath,
         fileType,
-        fileName,
-      },
-      {
-        // Prevent duplicate jobs for the same invoice from being enqueued
-        deduplication: { id: invoice.id },
-        // Keep completed/failed jobs briefly so dedup works across worker restarts
-        removeOnComplete: { age: 3600 * 24 }, // 24 hours
-        removeOnFail: { age: 3600 * 24 }, // 24 hours
-      },
-    );
+      );
+    }
 
-    return invoice;
+    return this.findOne(invoice.id, organizationId);
   }
 
   private extractDetails(text: string) {

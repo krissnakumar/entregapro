@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { InjectQueue } from "@nestjs/bullmq";
 import { Queue } from "bullmq";
@@ -11,8 +11,8 @@ export class NotificationsService {
   constructor(
     private prisma: PrismaService,
     private trackingGateway: TrackingGateway,
-    @InjectQueue("whatsapp-events") private whatsappQueue: Queue,
-    @InjectQueue("notifications") private notificationsQueue: Queue,
+    @Optional() @InjectQueue("whatsapp-events") private whatsappQueue?: Queue,
+    @Optional() @InjectQueue("notifications") private notificationsQueue?: Queue,
   ) {}
 
   async findAll(userId: string, organizationId: string) {
@@ -61,12 +61,18 @@ export class NotificationsService {
     this.trackingGateway.emitNotificationCreated(userId, notification);
 
     // Enqueue push notification
-    await this.notificationsQueue.add("send-push", {
-      userId,
-      notificationId: notification.id,
-      title,
-      message,
-    });
+    if (this.notificationsQueue) {
+      await this.notificationsQueue.add("send-push", {
+        userId,
+        notificationId: notification.id,
+        title,
+        message,
+      });
+    } else {
+      this.logger.warn(
+        `Notifications queue is disabled. Skipping push enqueue for user ${userId}.`,
+      );
+    }
 
     return notification;
   }
@@ -79,12 +85,18 @@ export class NotificationsService {
   ) {
     this.logger.log(`Queueing WhatsApp (${templateName}) for ${phone}`);
 
-    await this.whatsappQueue.add("send-message", {
-      phone,
-      templateName,
-      templateData,
-      timestamp: new Date(),
-    });
+    if (this.whatsappQueue) {
+      await this.whatsappQueue.add("send-message", {
+        phone,
+        templateName,
+        templateData,
+        timestamp: new Date(),
+      });
+    } else {
+      this.logger.warn(
+        `WhatsApp queue is disabled. Skipping message enqueue for ${phone}.`,
+      );
+    }
 
     await this.prisma.whatsappMessage.create({
       data: {

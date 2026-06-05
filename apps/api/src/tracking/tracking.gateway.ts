@@ -9,7 +9,7 @@ import {
   OnGatewayInit,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
-import { Logger, UseGuards, OnModuleDestroy } from "@nestjs/common";
+import { Logger, UseGuards, OnModuleDestroy, Optional } from "@nestjs/common";
 import { WsJwtGuard } from "../auth/guards/ws-jwt.guard";
 import { PrismaService } from "../prisma/prisma.service";
 import { GeoService } from "../prisma/geo.service";
@@ -52,7 +52,7 @@ export class TrackingGateway
   constructor(
     private prisma: PrismaService,
     private geoService: GeoService,
-    @InjectQueue("location-tracking") private trackingQueue: Queue,
+    @Optional() @InjectQueue("location-tracking") private trackingQueue?: Queue,
   ) {}
 
   private lastGhostCleanup = 0;
@@ -294,10 +294,28 @@ export class TrackingGateway
         this.logger.error(`Failed to persist driver status: ${err.message}`),
       );
 
-    await this.trackingQueue.add("process-location", {
-      ...data,
-      organizationId,
-    });
+    if (this.trackingQueue) {
+      await this.trackingQueue.add("process-location", {
+        ...data,
+        organizationId,
+      });
+    } else {
+      this.logger.warn(
+        `Tracking queue is disabled. Persisting location inline for driver ${data.driverId}.`,
+      );
+      await this.prisma.locationPing.create({
+        data: {
+          driverId: data.driverId,
+          lat: data.lat,
+          lng: data.lng,
+          speed: data.speed ?? null,
+          heading: data.heading ?? null,
+          batteryLevel: data.batteryLevel ?? null,
+          timestamp: new Date(),
+          organizationId: organizationId || "unknown",
+        },
+      });
+    }
 
     this.server.to(`delivery_${data.deliveryId}`).emit("locationUpdated", data);
     this.server.to("dispatchers").emit("driverLocationUpdated", data);

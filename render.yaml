@@ -9,12 +9,16 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 24.15.0
-      - key: PORT
-        value: 3001
       - key: DATABASE_URL
         sync: false # Set this in Render Dashboard to your Supabase pooling URL
       - key: DIRECT_URL
         sync: false # Set this in Render Dashboard to your Supabase direct connection URL for Prisma migrations
+      - key: REDIS_URL
+        sync: false # Preferred Redis connection string for BullMQ on Render
+      - key: REDIS_HOST
+        sync: false # Set this to your Redis host; the API otherwise falls back to localhost and background queues will fail
+      - key: REDIS_PORT
+        sync: false # Set this to your Redis port, for example 6379
       - key: JWT_SECRET
         value: "super-secret-key-for-production"
       - key: JWT_REFRESH_SECRET
