@@ -24,9 +24,14 @@
       "versionCode": 1
     },
     "extra": {
-      "environment": "development"
+      "environment": "development",
+      "eas": {
+        "projectId": "d3f8b9fc-5582-4ba1-91ea-e18d00df7cac"
+      }
     },
-    "plugins": ["expo-secure-store"],
+    "plugins": [
+      "expo-secure-store"
+    ],
     "runtimeVersion": {
       "policy": "appVersion"
     }

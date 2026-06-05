@@ -24,7 +24,10 @@
       "versionCode": 1
     },
     "extra": {
-      "environment": "development"
+      "environment": "development",
+      "eas": {
+        "projectId": "263e7d1d-6ff3-4591-b5e3-9da2cbd23efc"
+      }
     },
     "plugins": [
       "expo-secure-store"

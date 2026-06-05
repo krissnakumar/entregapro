@@ -24,7 +24,10 @@
       "versionCode": 1
     },
     "extra": {
-      "environment": "development"
+      "environment": "development",
+      "eas": {
+        "projectId": "9e44ed3a-5b3e-4763-b4ef-81d8a210669a"
+      }
     },
     "plugins": [
       "expo-location",

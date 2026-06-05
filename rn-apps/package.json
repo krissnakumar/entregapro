@@ -2,11 +2,20 @@
   "name": "rn-apps",
   "private": true,
   "scripts": {
-    "driver": "cd apps/driver && npx expo start",
-    "dispatcher": "cd apps/dispatcher && npx expo start",
     "admin": "cd apps/admin && npx expo start",
-    "build:driver": "cd apps/driver && npx expo build",
-    "build:dispatcher": "cd apps/dispatcher && npx expo build",
-    "build:admin": "cd apps/admin && npx expo build"
+    "dispatcher": "cd apps/dispatcher && npx expo start",
+    "driver": "cd apps/driver && npx expo start",
+    "android:admin": "cd apps/admin && npx expo run:android",
+    "android:dispatcher": "cd apps/dispatcher && npx expo run:android",
+    "android:driver": "cd apps/driver && npx expo run:android",
+    "ios:admin": "cd apps/admin && npx expo run:ios",
+    "ios:dispatcher": "cd apps/dispatcher && npx expo run:ios",
+    "ios:driver": "cd apps/driver && npx expo run:ios",
+    "build:android:admin": "cd apps/admin && npx eas build --platform android --profile local --local",
+    "build:android:dispatcher": "cd apps/dispatcher && npx eas build --platform android --profile local --local",
+    "build:android:driver": "cd apps/driver && npx eas build --platform android --profile local --local",
+    "build:ios:admin": "cd apps/admin && npx eas build --platform ios --profile local --local",
+    "build:ios:dispatcher": "cd apps/dispatcher && npx eas build --platform ios --profile local --local",
+    "build:ios:driver": "cd apps/driver && npx eas build --platform ios --profile local --local"
   }
 }
