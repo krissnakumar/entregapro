@@ -14,7 +14,21 @@ export const notificationService = {
     return api.patch<void>('/notifications/read-all', {});
   },
 
-  async sendTestPush(): Promise<{ success: boolean; notificationId: string }> {
-    return api.post<{ success: boolean; notificationId: string }>('/notifications/test-push', {});
+  async sendTestPush(): Promise<{
+    success: boolean;
+    notificationId: string;
+    pushDelivery?: {
+      mode: 'queue' | 'direct';
+      tokenCount: number;
+      tickets: Array<{
+        status?: 'ok' | 'error';
+        id?: string;
+        message?: string;
+        details?: { error?: string };
+      }>;
+      errors: string[];
+    };
+  }> {
+    return api.post('/notifications/test-push', {});
   },
 };

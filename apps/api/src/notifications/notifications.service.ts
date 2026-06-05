@@ -8,12 +8,20 @@ import { PushTokensService } from "./push-tokens.service";
 const EXPO_PUSH_API = "https://exp.host/--/api/v2/push/send";
 const PUSH_QUEUE_TIMEOUT_MS = 2000;
 
-interface ExpoPushTicket {
+export interface ExpoPushTicket {
   status?: "ok" | "error";
+  id?: string;
   message?: string;
   details?: {
     error?: string;
   };
+}
+
+export interface PushDeliveryResult {
+  mode: "queue" | "direct";
+  tokenCount: number;
+  tickets: ExpoPushTicket[];
+  errors: string[];
 }
 
 @Injectable()
@@ -66,6 +74,16 @@ export class NotificationsService {
     );
   }
 
+  async getPushDiagnostics(userId: string) {
+    const tokens = await this.pushTokensService.getTokens(userId);
+
+    return {
+      tokenCount: tokens.length,
+      maskedTokens: tokens.map((token) => `${token.slice(0, 18)}...`),
+      queueConfigured: Boolean(this.notificationsQueue),
+    };
+  }
+
   async create(
     userId: string,
     title: string,
@@ -88,14 +106,14 @@ export class NotificationsService {
     // Emit a single canonical real-time event for instant delivery.
     this.trackingGateway.emitNotificationCreated(userId, notification);
 
-    await this.deliverPushNotification({
+    const pushDelivery = await this.deliverPushNotification({
       userId,
       notificationId: notification.id,
       title,
       message,
     });
 
-    return notification;
+    return { notification, pushDelivery };
   }
 
   private isPermanentTokenError(ticket: ExpoPushTicket) {
@@ -113,13 +131,12 @@ export class NotificationsService {
     notificationId: string;
     title: string;
     message: string;
-  }) {
+  }): Promise<PushDeliveryResult> {
     if (!this.notificationsQueue) {
       this.logger.warn(
         `Notifications queue is disabled. Sending push directly for user ${data.userId}.`,
       );
-      await this.sendPushDirectly(data);
-      return;
+      return this.sendPushDirectly(data);
     }
 
     try {
@@ -132,11 +149,14 @@ export class NotificationsService {
           ),
         ),
       ]);
+      const tokenCount = (await this.pushTokensService.getTokens(data.userId))
+        .length;
+      return { mode: "queue", tokenCount, tickets: [], errors: [] };
     } catch (err: any) {
       this.logger.warn(
         `Push queue unavailable for user ${data.userId}. Falling back to direct Expo push: ${err.message}`,
       );
-      await this.sendPushDirectly(data);
+      return this.sendPushDirectly(data);
     }
   }
 
@@ -145,11 +165,19 @@ export class NotificationsService {
     notificationId: string;
     title: string;
     message: string;
-  }) {
+  }): Promise<PushDeliveryResult> {
     const tokens = await this.pushTokensService.getTokens(data.userId);
+    const result: PushDeliveryResult = {
+      mode: "direct",
+      tokenCount: tokens.length,
+      tickets: [],
+      errors: [],
+    };
+
     if (tokens.length === 0) {
       this.logger.warn(`No push tokens for user ${data.userId}`);
-      return;
+      result.errors.push("No Expo push tokens are registered for this user.");
+      return result;
     }
 
     for (const token of tokens) {
@@ -177,6 +205,7 @@ export class NotificationsService {
           this.logger.warn(
             `Direct Expo push failed for token ${token.slice(0, 10)}...: ${response.status}`,
           );
+          result.errors.push(`Expo HTTP ${response.status}`);
           continue;
         }
 
@@ -185,6 +214,7 @@ export class NotificationsService {
           : responseBody?.data
             ? [responseBody.data]
             : [];
+        result.tickets.push(...tickets);
 
         for (const ticket of tickets) {
           if (ticket.status !== "error") {
@@ -198,11 +228,15 @@ export class NotificationsService {
           if (this.isPermanentTokenError(ticket)) {
             await this.pushTokensService.removeToken(token);
           }
+          result.errors.push(ticket.details?.error ?? ticket.message ?? "Expo ticket error");
         }
       } catch (err: any) {
         this.logger.error(`Direct Expo push error: ${err.message}`);
+        result.errors.push(err.message);
       }
     }
+
+    return result;
   }
 
   async sendWhatsAppMessage(

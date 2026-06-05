@@ -384,7 +384,21 @@ export function useMarkAllNotificationsRead() {
 export function useSendTestPush() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<{ success: boolean; notificationId: string }>(
+    mutationFn: () => api.post<{
+      success: boolean;
+      notificationId: string;
+      pushDelivery?: {
+        mode: 'queue' | 'direct';
+        tokenCount: number;
+        tickets: Array<{
+          status?: 'ok' | 'error';
+          id?: string;
+          message?: string;
+          details?: { error?: string };
+        }>;
+        errors: string[];
+      };
+    }>(
       '/notifications/test-push',
       {},
     ),

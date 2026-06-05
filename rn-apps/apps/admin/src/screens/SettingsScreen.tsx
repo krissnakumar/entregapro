@@ -61,10 +61,25 @@ export default function SettingsScreen() {
 
   const handleSendTestPush = async () => {
     try {
-      await sendTestPushMutation.mutateAsync();
+      const result = await sendTestPushMutation.mutateAsync();
+      const delivery = result.pushDelivery;
+      const ticketSummary = delivery?.tickets
+        ?.map((ticket) => ticket.details?.error || ticket.message || ticket.status || 'sem status')
+        .join(', ');
+      const diagnostics = delivery
+        ? [
+            `Tokens: ${delivery.tokenCount}`,
+            `Modo: ${delivery.mode}`,
+            delivery.errors.length > 0 ? `Erros: ${delivery.errors.join(', ')}` : null,
+            ticketSummary ? `Expo: ${ticketSummary}` : null,
+          ]
+            .filter(Boolean)
+            .join('\n')
+        : 'Sem diagnostico de entrega.';
+
       Alert.alert(
         'Push enviado',
-        'O teste foi disparado para sua conta. Se o app estiver em segundo plano ou fechado, a notificação deve chegar no aparelho.',
+        `O teste foi disparado para sua conta.\n\n${diagnostics}`,
       );
     } catch (error: any) {
       Alert.alert(

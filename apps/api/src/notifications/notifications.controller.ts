@@ -74,11 +74,20 @@ export class NotificationsController {
 
   @Post("test-push")
   async sendTestPush(@Req() req: any) {
-    const notification = await this.notificationsService.sendTestPush(
+    const result = await this.notificationsService.sendTestPush(
       req.user.userId,
       req.user.organizationId,
       req.user.name,
     );
-    return { success: true, notificationId: notification.id };
+    return {
+      success: true,
+      notificationId: result.notification.id,
+      pushDelivery: result.pushDelivery,
+    };
+  }
+
+  @Get("push-diagnostics")
+  async getPushDiagnostics(@Req() req: any) {
+    return this.notificationsService.getPushDiagnostics(req.user.userId);
   }
 }
