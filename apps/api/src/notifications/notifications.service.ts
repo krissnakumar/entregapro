@@ -3,6 +3,18 @@ import { PrismaService } from "../prisma/prisma.service";
 import { InjectQueue } from "@nestjs/bullmq";
 import { Queue } from "bullmq";
 import { TrackingGateway } from "../tracking/tracking.gateway";
+import { PushTokensService } from "./push-tokens.service";
+
+const EXPO_PUSH_API = "https://exp.host/--/api/v2/push/send";
+const PUSH_QUEUE_TIMEOUT_MS = 2000;
+
+interface ExpoPushTicket {
+  status?: "ok" | "error";
+  message?: string;
+  details?: {
+    error?: string;
+  };
+}
 
 @Injectable()
 export class NotificationsService {
@@ -11,6 +23,7 @@ export class NotificationsService {
   constructor(
     private prisma: PrismaService,
     private trackingGateway: TrackingGateway,
+    private pushTokensService: PushTokensService,
     @Optional() @InjectQueue("whatsapp-events") private whatsappQueue?: Queue,
     @Optional() @InjectQueue("notifications") private notificationsQueue?: Queue,
   ) {}
@@ -75,21 +88,121 @@ export class NotificationsService {
     // Emit a single canonical real-time event for instant delivery.
     this.trackingGateway.emitNotificationCreated(userId, notification);
 
-    // Enqueue push notification
-    if (this.notificationsQueue) {
-      await this.notificationsQueue.add("send-push", {
-        userId,
-        notificationId: notification.id,
-        title,
-        message,
-      });
-    } else {
-      this.logger.warn(
-        `Notifications queue is disabled. Skipping push enqueue for user ${userId}.`,
-      );
-    }
+    await this.deliverPushNotification({
+      userId,
+      notificationId: notification.id,
+      title,
+      message,
+    });
 
     return notification;
+  }
+
+  private isPermanentTokenError(ticket: ExpoPushTicket) {
+    const detail = ticket.details?.error;
+    const message = ticket.message?.toLowerCase() ?? "";
+
+    return (
+      detail === "DeviceNotRegistered" ||
+      message.includes("not a valid expo push token")
+    );
+  }
+
+  private async deliverPushNotification(data: {
+    userId: string;
+    notificationId: string;
+    title: string;
+    message: string;
+  }) {
+    if (!this.notificationsQueue) {
+      this.logger.warn(
+        `Notifications queue is disabled. Sending push directly for user ${data.userId}.`,
+      );
+      await this.sendPushDirectly(data);
+      return;
+    }
+
+    try {
+      await Promise.race([
+        this.notificationsQueue.add("send-push", data),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Notifications queue timed out")),
+            PUSH_QUEUE_TIMEOUT_MS,
+          ),
+        ),
+      ]);
+    } catch (err: any) {
+      this.logger.warn(
+        `Push queue unavailable for user ${data.userId}. Falling back to direct Expo push: ${err.message}`,
+      );
+      await this.sendPushDirectly(data);
+    }
+  }
+
+  private async sendPushDirectly(data: {
+    userId: string;
+    notificationId: string;
+    title: string;
+    message: string;
+  }) {
+    const tokens = await this.pushTokensService.getTokens(data.userId);
+    if (tokens.length === 0) {
+      this.logger.warn(`No push tokens for user ${data.userId}`);
+      return;
+    }
+
+    for (const token of tokens) {
+      try {
+        const response = await fetch(EXPO_PUSH_API, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            to: token,
+            title: data.title,
+            body: data.message,
+            data: { notificationId: data.notificationId },
+            sound: "default",
+            priority: "high",
+          }),
+        });
+        const responseBody = await response
+          .json()
+          .catch(() => null as { data?: ExpoPushTicket[] | ExpoPushTicket } | null);
+
+        if (!response.ok) {
+          this.logger.warn(
+            `Direct Expo push failed for token ${token.slice(0, 10)}...: ${response.status}`,
+          );
+          continue;
+        }
+
+        const tickets = Array.isArray(responseBody?.data)
+          ? responseBody.data
+          : responseBody?.data
+            ? [responseBody.data]
+            : [];
+
+        for (const ticket of tickets) {
+          if (ticket.status !== "error") {
+            continue;
+          }
+
+          this.logger.warn(
+            `Direct Expo push ticket error for token ${token.slice(0, 10)}...: ${ticket.details?.error ?? ticket.message ?? "unknown error"}`,
+          );
+
+          if (this.isPermanentTokenError(ticket)) {
+            await this.pushTokensService.removeToken(token);
+          }
+        }
+      } catch (err: any) {
+        this.logger.error(`Direct Expo push error: ${err.message}`);
+      }
+    }
   }
 
   async sendWhatsAppMessage(
