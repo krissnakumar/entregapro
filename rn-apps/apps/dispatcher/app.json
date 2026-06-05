@@ -2,7 +2,7 @@
   "expo": {
     "name": "EntregaPRO - Despachante",
     "slug": "entregapro-dispatcher",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -14,14 +14,14 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.entregapro.dispatcher",
-      "buildNumber": "1"
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#2563EB"
       },
       "package": "com.entregapro.dispatcher",
-      "versionCode": 1
+      "versionCode": 2
     },
     "extra": {
       "environment": "development",
