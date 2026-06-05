@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "990280179623",
+    "project_id": "gen-lang-client-0478528851",
+    "storage_bucket": "gen-lang-client-0478528851.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:990280179623:android:61885ebc4856157e1b6082",
+        "android_client_info": {
+          "package_name": "com.entregapro.dispatcher"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "990280179623-1aeqs5bddho9ge1j9kia98cdq7843tof.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCWZmgreDJth-rUJ6mvaZ6u-3OMU2XCkbg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "990280179623-1aeqs5bddho9ge1j9kia98cdq7843tof.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:990280179623:android:4fd7e2ae7c6ff6b61b6082",
+        "android_client_info": {
+          "package_name": "com.entregapro.driver"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "990280179623-1aeqs5bddho9ge1j9kia98cdq7843tof.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCWZmgreDJth-rUJ6mvaZ6u-3OMU2XCkbg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "990280179623-1aeqs5bddho9ge1j9kia98cdq7843tof.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

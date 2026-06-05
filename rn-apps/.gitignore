@@ -18,6 +18,7 @@ build/
 
 # Native development
 android/.gradle
+android/.kotlin/
 android/build
 android/local.properties
 android/.idea
