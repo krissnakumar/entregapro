@@ -1,8 +1,10 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class PushTokensService {
+  private readonly logger = new Logger(PushTokensService.name);
+
   constructor(private prisma: PrismaService) {}
 
   private isExpoPushToken(token: string) {
@@ -11,6 +13,9 @@ export class PushTokensService {
 
   async register(userId: string, token: string) {
     if (!this.isExpoPushToken(token)) {
+      this.logger.warn(
+        `Rejected invalid Expo push token for user ${userId}: ${token?.slice(0, 24) ?? "missing"}`,
+      );
       return false;
     }
 
@@ -20,9 +25,14 @@ export class PushTokensService {
         update: { userId },
         create: { userId, token },
       });
+      this.logger.log(
+        `Registered Expo push token ${token.slice(0, 18)}... for user ${userId}`,
+      );
       return true;
-    } catch (err) {
-      // Silently ignore or log if there is a constraint/race condition
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to register Expo push token for user ${userId}: ${err.message}`,
+      );
       return false;
     }
   }
