@@ -556,7 +556,7 @@ export class DeliveriesService {
         );
         break;
 
-      case DeliveryStatus.IN_TRANSIT:
+      case DeliveryStatus.IN_TRANSIT: {
         if (delivery.dispatcherId) {
           await this.notificationsService.create(
             delivery.dispatcherId,
@@ -576,8 +576,9 @@ export class DeliveriesService {
           );
         }
         break;
+      }
 
-      case DeliveryStatus.DELIVERED:
+      case DeliveryStatus.DELIVERED: {
         if (delivery.dispatcherId) {
           await this.notificationsService.create(
             delivery.dispatcherId,
@@ -597,6 +598,7 @@ export class DeliveriesService {
           await this.notificationsService.notifyCustomerDelivered(customerPhone, deliveryNum);
         }
         break;
+      }
 
       case DeliveryStatus.FAILED:
         if (delivery.dispatcherId) {
