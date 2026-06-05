@@ -30,7 +30,7 @@ export function useRealtimeNotifications(userId?: string | null) {
     });
 
     // Set up push notifications
-    setupPushNotifications();
+    void setupPushNotifications(userId);
 
     return () => {
       unsub();

@@ -20,6 +20,7 @@
       "adaptiveIcon": {
         "backgroundColor": "#4F46E5"
       },
+      "permissions": ["POST_NOTIFICATIONS"],
       "package": "com.entregapro.admin",
       "versionCode": 2
     },
@@ -30,7 +31,13 @@
       }
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default"
+        }
+      ]
     ],
     "runtimeVersion": {
       "policy": "appVersion"

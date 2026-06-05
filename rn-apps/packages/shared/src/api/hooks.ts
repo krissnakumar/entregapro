@@ -381,6 +381,19 @@ export function useMarkAllNotificationsRead() {
   });
 }
 
+export function useSendTestPush() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<{ success: boolean; notificationId: string }>(
+      '/notifications/test-push',
+      {},
+    ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
 // ─── Users (Admin only) ────────────────────────────────────────────────────
 
 export function useUsers() {

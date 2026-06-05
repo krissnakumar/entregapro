@@ -13,6 +13,15 @@ interface PushJob {
   message: string;
 }
 
+interface ExpoPushTicket {
+  status?: "ok" | "error";
+  id?: string;
+  message?: string;
+  details?: {
+    error?: string;
+  };
+}
+
 @Processor("notifications")
 export class NotificationProcessor extends WorkerHost {
   private readonly logger = new Logger(NotificationProcessor.name);
@@ -30,8 +39,18 @@ export class NotificationProcessor extends WorkerHost {
     }
   }
 
+  private isPermanentTokenError(ticket: ExpoPushTicket) {
+    const detail = ticket.details?.error;
+    const message = ticket.message?.toLowerCase() ?? "";
+
+    return (
+      detail === "DeviceNotRegistered" ||
+      message.includes("not a valid expo push token")
+    );
+  }
+
   private async sendPushNotification(data: PushJob) {
-    const tokens = this.pushTokensService.getTokens(data.userId);
+    const tokens = await this.pushTokensService.getTokens(data.userId);
     if (tokens.length === 0) {
       this.logger.debug(
         `No push tokens for user ${data.userId}, skipping push`,
@@ -56,11 +75,45 @@ export class NotificationProcessor extends WorkerHost {
             priority: "high",
           }),
         });
+        const responseBody = await response
+          .json()
+          .catch(() => null as { data?: ExpoPushTicket[] | ExpoPushTicket } | null);
 
         if (!response.ok) {
           this.logger.warn(
             `Expo push failed for token ${token.slice(0, 10)}...: ${response.status}`,
           );
+          continue;
+        }
+
+        const tickets = Array.isArray(responseBody?.data)
+          ? responseBody.data
+          : responseBody?.data
+            ? [responseBody.data]
+            : [];
+
+        if (tickets.length === 0) {
+          this.logger.warn(
+            `Expo push returned no ticket for token ${token.slice(0, 10)}...`,
+          );
+          continue;
+        }
+
+        for (const ticket of tickets) {
+          if (ticket.status !== "error") {
+            continue;
+          }
+
+          this.logger.warn(
+            `Expo push ticket error for token ${token.slice(0, 10)}...: ${ticket.details?.error ?? ticket.message ?? "unknown error"}`,
+          );
+
+          if (this.isPermanentTokenError(ticket)) {
+            await this.pushTokensService.removeToken(token);
+            this.logger.warn(
+              `Removed invalid Expo push token ${token.slice(0, 10)}...`,
+            );
+          }
         }
       } catch (err: any) {
         this.logger.error(`Expo push error: ${err.message}`);

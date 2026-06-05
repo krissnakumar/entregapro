@@ -64,8 +64,21 @@ export class NotificationsController {
   }
 
   @Post("push-token")
-  registerPushToken(@Req() req: any, @Body() body: { token: string }) {
-    this.pushTokensService.register(req.user.userId, body.token);
-    return { success: true };
+  async registerPushToken(@Req() req: any, @Body() body: { token: string }) {
+    const success = await this.pushTokensService.register(
+      req.user.userId,
+      body.token,
+    );
+    return { success };
+  }
+
+  @Post("test-push")
+  async sendTestPush(@Req() req: any) {
+    const notification = await this.notificationsService.sendTestPush(
+      req.user.userId,
+      req.user.organizationId,
+      req.user.name,
+    );
+    return { success: true, notificationId: notification.id };
   }
 }

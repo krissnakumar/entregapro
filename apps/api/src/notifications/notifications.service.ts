@@ -38,6 +38,21 @@ export class NotificationsService {
     });
   }
 
+  async sendTestPush(userId: string, organizationId: string, userName?: string) {
+    const timestamp = new Date().toLocaleString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+    });
+
+    return this.create(
+      userId,
+      "Teste de Push",
+      `Push enviado com sucesso para ${userName || "sua conta"} em ${timestamp}.`,
+      organizationId,
+      "PUSH_TEST",
+      { source: "manual_test", sentAt: new Date().toISOString() },
+    );
+  }
+
   async create(
     userId: string,
     title: string,

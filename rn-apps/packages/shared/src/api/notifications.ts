@@ -13,4 +13,8 @@ export const notificationService = {
   async markAllAsRead(): Promise<void> {
     return api.patch<void>('/notifications/read-all', {});
   },
+
+  async sendTestPush(): Promise<{ success: boolean; notificationId: string }> {
+    return api.post<{ success: boolean; notificationId: string }>('/notifications/test-push', {});
+  },
 };

@@ -20,6 +20,7 @@
       "adaptiveIcon": {
         "backgroundColor": "#4F46E5"
       },
+      "permissions": ["POST_NOTIFICATIONS"],
       "package": "com.entregapro.driver",
       "versionCode": 2
     },
@@ -32,7 +33,13 @@
     "plugins": [
       "expo-location",
       "expo-camera",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default"
+        }
+      ]
     ],
     "runtimeVersion": {
       "policy": "appVersion"

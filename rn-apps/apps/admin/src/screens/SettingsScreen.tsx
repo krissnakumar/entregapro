@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { useAuthStore, colors, borderRadius, shadows } from '@rn-apps/shared';
+import { useAuthStore, useSendTestPush, colors, borderRadius, shadows } from '@rn-apps/shared';
 
 const SETTINGS_GROUPS = [
   {
@@ -43,6 +43,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { logout } = useAuthStore();
+  const sendTestPushMutation = useSendTestPush();
 
   const handleLogout = () => {
     if (Platform.OS === 'web') {
@@ -55,6 +56,21 @@ export default function SettingsScreen() {
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Sair', style: 'destructive', onPress: () => logout() },
       ]);
+    }
+  };
+
+  const handleSendTestPush = async () => {
+    try {
+      await sendTestPushMutation.mutateAsync();
+      Alert.alert(
+        'Push enviado',
+        'O teste foi disparado para sua conta. Se o app estiver em segundo plano ou fechado, a notificação deve chegar no aparelho.',
+      );
+    } catch (error: any) {
+      Alert.alert(
+        'Falha no push',
+        error?.message || 'Nao foi possivel enviar o teste de notificacao.',
+      );
     }
   };
 
@@ -87,6 +103,30 @@ export default function SettingsScreen() {
             </View>
           </View>
         ))}
+
+        <View style={styles.group}>
+          <Text style={styles.groupTitle}>Diagnostico</Text>
+          <View style={styles.groupCard}>
+            <View style={styles.debugBlock}>
+              <Text style={styles.debugTitle}>Teste de Push</Text>
+              <Text style={styles.debugText}>
+                Envia uma notificacao push para a sua propria conta para validar registro do token, fila e entrega.
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.testPushBtn,
+                  sendTestPushMutation.isPending && styles.testPushBtnDisabled,
+                ]}
+                onPress={handleSendTestPush}
+                disabled={sendTestPushMutation.isPending}
+              >
+                <Text style={styles.testPushBtnText}>
+                  {sendTestPushMutation.isPending ? 'Enviando...' : 'Enviar teste de push'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
 
         <TouchableOpacity
           style={styles.logoutBtn}
@@ -127,6 +167,17 @@ const styles = StyleSheet.create({
   settingLabel: { fontSize: 13, fontWeight: '600', color: colors.text },
   settingValue: { fontSize: 12, fontWeight: '700', color: colors.textTertiary },
   divider: { height: 1, backgroundColor: colors.borderLight, marginHorizontal: 20 },
+  debugBlock: { padding: 20 },
+  debugTitle: { fontSize: 14, fontWeight: '800', color: colors.text, marginBottom: 8 },
+  debugText: { fontSize: 12, lineHeight: 18, color: colors.textSecondary, marginBottom: 16 },
+  testPushBtn: {
+    backgroundColor: '#2563EB',
+    borderRadius: borderRadius.lg,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  testPushBtnDisabled: { opacity: 0.6 },
+  testPushBtnText: { fontSize: 13, fontWeight: '800', color: colors.white },
   logoutBtn: {
     backgroundColor: colors.white, borderRadius: borderRadius.xl,
     paddingVertical: 16, alignItems: 'center', marginTop: 8,
